@@ -61,14 +61,13 @@ class XpCog(commands.Cog):
         name="historico-xp", description="Histórico auditável de XP de um membro (Conselheiro+)."
     )
     @app_commands.describe(membro="Membro a auditar.", limite="Quantidade de registros (1 a 25).")
-    @requer(Acao.VER_HISTORICO_XP)
+    @requer(Acao.VER_HISTORICO_XP, efemero=True)
     async def historico_xp(
         self,
         interaction: discord.Interaction,
         membro: discord.Member,
         limite: app_commands.Range[int, 1, 25] = 10,
     ) -> None:
-        await interaction.response.defer(ephemeral=True)
         async with sessao() as session:
             autor = await repo_membros.obter_ou_criar_por_discord(
                 session,
@@ -101,7 +100,6 @@ class XpCog(commands.Cog):
         *,
         conceder: bool,
     ) -> None:
-        await interaction.response.defer()
         container = self.bot.container
 
         async with sessao() as session:

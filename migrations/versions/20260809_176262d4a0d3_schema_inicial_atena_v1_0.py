@@ -1,8 +1,8 @@
 """schema inicial Atena v1.0
 
-Revision ID: 426e3f3a8c1e
+Revision ID: 176262d4a0d3
 Revises: 
-Create Date: 2026-08-09 18:50:44.756678
+Create Date: 2026-08-09 19:44:07.937907
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = '426e3f3a8c1e'
+revision: str = '176262d4a0d3'
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -24,6 +24,8 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('discord_id', sa.BigInteger(), nullable=True),
     sa.Column('whatsapp_e164', sa.String(length=20), nullable=True),
+    sa.Column('id_externo', sa.String(length=64), nullable=True),
+    sa.Column('sincronizado_em', sa.DateTime(timezone=True), nullable=True),
     sa.Column('nome_exibicao', sa.String(length=120), nullable=False),
     sa.Column('email', sa.String(length=254), nullable=True),
     sa.Column('cargo_slug', sa.String(length=32), nullable=False),
@@ -34,13 +36,14 @@ def upgrade() -> None:
     sa.Column('carteira_atualizada_em', sa.DateTime(timezone=True), nullable=True),
     sa.Column('criado_em', sa.DateTime(timezone=True), nullable=False),
     sa.Column('atualizado_em', sa.DateTime(timezone=True), nullable=False),
-    sa.CheckConstraint('discord_id IS NOT NULL OR whatsapp_e164 IS NOT NULL', name=op.f('ck_membros_ao_menos_um_canal')),
+    sa.CheckConstraint('discord_id IS NOT NULL OR whatsapp_e164 IS NOT NULL OR id_externo IS NOT NULL', name=op.f('ck_membros_ao_menos_um_canal')),
     sa.CheckConstraint('xp >= 0', name=op.f('ck_membros_xp_nao_negativo')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_membros'))
     )
     with op.batch_alter_table('membros', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_membros_cargo_slug'), ['cargo_slug'], unique=False)
         batch_op.create_index(batch_op.f('ix_membros_discord_id'), ['discord_id'], unique=True)
+        batch_op.create_index(batch_op.f('ix_membros_id_externo'), ['id_externo'], unique=True)
         batch_op.create_index('ix_membros_ranking', ['ativo', 'xp'], unique=False)
         batch_op.create_index(batch_op.f('ix_membros_whatsapp_e164'), ['whatsapp_e164'], unique=True)
 
@@ -226,6 +229,7 @@ def downgrade() -> None:
     with op.batch_alter_table('membros', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_membros_whatsapp_e164'))
         batch_op.drop_index('ix_membros_ranking')
+        batch_op.drop_index(batch_op.f('ix_membros_id_externo'))
         batch_op.drop_index(batch_op.f('ix_membros_discord_id'))
         batch_op.drop_index(batch_op.f('ix_membros_cargo_slug'))
 

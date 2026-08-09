@@ -26,7 +26,6 @@ class PerfilCog(commands.Cog):
         self, interaction: discord.Interaction, membro: discord.Member | None = None
     ) -> None:
         alvo = membro or interaction.user
-        await interaction.response.defer()
 
         async with sessao() as session:
             registro = await repo_membros.obter_ou_criar_por_discord(

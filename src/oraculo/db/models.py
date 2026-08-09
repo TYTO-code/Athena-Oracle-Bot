@@ -110,7 +110,8 @@ class Membro(TimestampMixin, Base):
     __table_args__ = (
         CheckConstraint("xp >= 0", name="xp_nao_negativo"),
         CheckConstraint(
-            "discord_id IS NOT NULL OR whatsapp_e164 IS NOT NULL",
+            "discord_id IS NOT NULL OR whatsapp_e164 IS NOT NULL "
+            "OR id_externo IS NOT NULL",
             name="ao_menos_um_canal",
         ),
         Index("ix_membros_ranking", "ativo", "xp"),
@@ -120,6 +121,11 @@ class Membro(TimestampMixin, Base):
 
     discord_id: Mapped[int | None] = mapped_column(BigInteger, unique=True, index=True)
     whatsapp_e164: Mapped[str | None] = mapped_column(String(20), unique=True, index=True)
+
+    #: Identidade na plataforma externa; chave estável da importação, pois um
+    #: membro pode existir lá antes de aparecer no Discord.
+    id_externo: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    sincronizado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     nome_exibicao: Mapped[str] = mapped_column(String(120), nullable=False)
     email: Mapped[str | None] = mapped_column(String(254))

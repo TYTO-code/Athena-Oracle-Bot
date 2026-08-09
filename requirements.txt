@@ -1,0 +1,46 @@
+# Bot Oráculo — dependências de execução (Atena v1.0).
+#
+# O `pyproject.toml` continua sendo a fonte de verdade das dependências; este
+# arquivo fixa as versões exatas com que a suíte de 94 testes passa, para builds
+# reproduzíveis e para plataformas que detectam `requirements.txt`
+# automaticamente (Render / Railway).
+#
+#   pip install -r requirements.txt
+#
+# Para desenvolver (lint, testes, tipos), use `requirements-dev.txt`.
+# Ao subir uma versão, atualize também o `pyproject.toml` e rode `make check`.
+
+# --- Bot Discord (ADR-001) ---------------------------------------------------
+discord.py==2.7.1
+
+# --- Persistência (TD-002) ---------------------------------------------------
+SQLAlchemy[asyncio]==2.0.51
+alembic==1.19.1
+asyncpg==0.31.0          # driver PostgreSQL (produção)
+aiosqlite==0.22.1        # driver SQLite (desenvolvimento e testes)
+
+# --- API / webhooks (TD-003) -------------------------------------------------
+fastapi==0.141.1
+uvicorn[standard]==0.52.1
+
+# --- Configuração e segredos (TD-001 / RNF-003) ------------------------------
+pydantic==2.13.4
+pydantic-settings==2.15.0
+python-dotenv==1.2.2
+
+# --- Cache de rankings (US-404 / RNF-001) ------------------------------------
+redis==8.1.0
+
+# --- Google Agenda (RN-009 / RF-011) -----------------------------------------
+google-api-python-client==2.198.0
+google-auth==2.56.3
+google-auth-oauthlib==1.4.0
+
+# --- Plataforma de membros no Firebase (RF-001) ------------------------------
+google-cloud-firestore==2.28.1
+
+# --- Notificações por e-mail (RF-010) ----------------------------------------
+aiosmtplib==5.1.2
+
+# --- Logging estruturado -----------------------------------------------------
+structlog==26.1.0

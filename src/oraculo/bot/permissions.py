@@ -50,8 +50,24 @@ async def cargo_do_autor(interaction: discord.Interaction) -> Cargo:
     return cargo_por_slug(membro.cargo_slug)
 
 
-def requer(acao: Acao) -> Callable[[T], T]:
+ATRIBUTO_ACAO = "__oraculo_acao__"
+
+
+def requer(acao: Acao, *, efemero: bool = False) -> Callable[[T], T]:
     """Aplica a política central de permissões ao comando decorado.
+
+    **Confirma a interação antes de consultar o banco.** O Discord derruba a
+    interação com "O aplicativo não respondeu" se nada for confirmado em 3
+    segundos, e esta checagem faz I/O (inclusive o `INSERT` de auto-registro no
+    primeiro contato de um usuário). Como o `defer` acontece aqui, os comandos
+    decorados **não** devem chamar `interaction.response.defer()` de novo —
+    respondem sempre com `interaction.followup.send(...)`.
+
+    `efemero` define a visibilidade da resposta do comando inteiro, porque é no
+    `defer` que ela é decidida.
+
+    Além de validar, registra a ação exigida no próprio comando: é assim que
+    `/ajuda` descobre o cargo mínimo sem manter uma segunda lista.
 
     Uso::
 
@@ -61,9 +77,21 @@ def requer(acao: Acao) -> Callable[[T], T]:
     """
 
     async def predicado(interaction: discord.Interaction) -> bool:
+        if not interaction.response.is_done():
+            await interaction.response.defer(ephemeral=efemero)
         cargo = await cargo_do_autor(interaction)
         if not pode_executar(cargo, acao):
             raise PermissaoInsuficiente(acao, cargo)
         return True
 
-    return app_commands.check(predicado)
+    def decorador(alvo: T) -> T:
+        # Funciona com o decorator acima ou abaixo de `@app_commands.command`.
+        setattr(getattr(alvo, "callback", alvo), ATRIBUTO_ACAO, acao)
+        return app_commands.check(predicado)(alvo)
+
+    return decorador
+
+
+def acao_requerida(comando: app_commands.Command) -> Acao | None:
+    """Ação exigida por um comando, ou `None` se ele não declarou nenhuma."""
+    return getattr(comando.callback, ATRIBUTO_ACAO, None)

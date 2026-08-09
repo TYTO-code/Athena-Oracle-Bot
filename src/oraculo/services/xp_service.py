@@ -25,6 +25,7 @@ from oraculo.domain.errors import (
     MotivoObrigatorioError,
     QuantidadeInvalidaError,
     SaldoInalteradoError,
+    XpSomenteLeituraError,
 )
 from oraculo.domain.hierarchy import Cargo, cargo_por_slug
 from oraculo.domain.permissions import Acao, exigir
@@ -54,10 +55,18 @@ class ResultadoXp:
 
 
 class XpService:
-    """Casos de uso de concessão, remoção e consulta de XP."""
+    """Casos de uso de concessão, remoção e consulta de XP.
 
-    def __init__(self, promocoes: PromocaoService | None = None) -> None:
+    Com `somente_leitura=True` (modo espelho da plataforma) as escritas são
+    recusadas: quem manda no XP é a origem externa, e aceitar a operação aqui
+    só criaria um saldo que desapareceria na sincronização seguinte.
+    """
+
+    def __init__(
+        self, promocoes: PromocaoService | None = None, *, somente_leitura: bool = False
+    ) -> None:
         self._promocoes = promocoes or PromocaoService()
+        self._somente_leitura = somente_leitura
 
     # -- Comandos ----------------------------------------------------------
 
@@ -157,6 +166,9 @@ class XpService:
         origem: OrigemAcao,
         guild_id: int | None,
     ) -> ResultadoXp:
+        if self._somente_leitura:
+            raise XpSomenteLeituraError()
+
         motivo_limpo = self._validar_motivo(motivo)
 
         # RN-004 / RN-008 — permissão antes de qualquer escrita.

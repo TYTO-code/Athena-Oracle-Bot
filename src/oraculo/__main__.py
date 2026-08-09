@@ -12,6 +12,7 @@ Uso::
     python -m oraculo api          # apenas a API
     python -m oraculo db-init      # cria o schema (dev)
     python -m oraculo backup       # executa um backup imediato
+    python -m oraculo importar     # importa os membros da plataforma (Firebase)
     python -m oraculo verificar    # valida a configuração (RNF-003)
 """
 
@@ -63,6 +64,7 @@ async def rodar_api(cfg: Settings) -> None:
 
 async def rodar_tudo(cfg: Settings) -> None:
     from oraculo.tasks.backup import loop_backup
+    from oraculo.tasks.sincronizacao import loop_sincronizacao
 
     tarefas: list[asyncio.Task] = []
     if cfg.run_bot:
@@ -71,6 +73,8 @@ async def rodar_tudo(cfg: Settings) -> None:
         tarefas.append(asyncio.create_task(rodar_api(cfg), name="api"))
     if cfg.backup_enabled:
         tarefas.append(asyncio.create_task(loop_backup(cfg), name="backup"))
+    if cfg.plataforma_habilitada and cfg.importacao_ao_iniciar or cfg.sincronizacao_periodica:
+        tarefas.append(asyncio.create_task(loop_sincronizacao(cfg), name="sincronizacao"))
 
     if not tarefas:
         log.error("Nada para executar: habilite ORACULO_RUN_BOT e/ou ORACULO_RUN_API.")
@@ -116,6 +120,34 @@ async def comando_db_init(cfg: Settings) -> None:
     print("Schema criado/atualizado.")
 
 
+async def comando_importar(cfg: Settings, *, dry_run: bool, desativar_ausentes: bool) -> None:
+    """Importa (ou ensaia a importação d)os membros da plataforma."""
+    from oraculo.db.base import criar_schema, encerrar_engine, sessao
+    from oraculo.tasks.sincronizacao import criar_servico_importacao
+
+    servico = criar_servico_importacao(cfg)
+    if servico is None:
+        raise RuntimeError(
+            "Plataforma não configurada: defina ORACULO_FIREBASE_PROJECT_ID "
+            "(e as credenciais) no `.env`."
+        )
+
+    if not cfg.is_production:
+        await criar_schema(cfg)
+
+    async with sessao(cfg) as session:
+        relatorio = await servico.importar(
+            session, dry_run=dry_run, desativar_ausentes=desativar_ausentes
+        )
+    await encerrar_engine()
+
+    print(relatorio.resumo())
+    for erro in relatorio.erros[:20]:
+        print(f"  erro: {erro}")
+    if dry_run:
+        print("\nNada foi gravado (ensaio). Rode sem --ensaio para aplicar.")
+
+
 async def comando_backup(cfg: Settings) -> None:
     from oraculo.db.base import encerrar_engine
     from oraculo.tasks.backup import executar_backup
@@ -148,8 +180,18 @@ def main(argv: list[str] | None = None) -> int:
         "comando",
         nargs="?",
         default="tudo",
-        choices=["tudo", "bot", "api", "db-init", "backup", "verificar"],
+        choices=["tudo", "bot", "api", "db-init", "backup", "importar", "verificar"],
         help="O que executar (padrão: tudo, conforme as flags do .env).",
+    )
+    parser.add_argument(
+        "--ensaio",
+        action="store_true",
+        help="Só para `importar`: percorre tudo e relata sem gravar nada.",
+    )
+    parser.add_argument(
+        "--desativar-ausentes",
+        action="store_true",
+        help="Só para `importar`: desativa (sem apagar) quem sumiu da plataforma.",
     )
     args = parser.parse_args(argv)
 
@@ -158,6 +200,18 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.comando == "verificar":
         return comando_verificar(cfg)
+
+    if args.comando == "importar":
+        try:
+            asyncio.run(
+                comando_importar(
+                    cfg, dry_run=args.ensaio, desativar_ausentes=args.desativar_ausentes
+                )
+            )
+        except RuntimeError as exc:
+            log.error("%s", exc)
+            return 1
+        return 0
 
     rotinas = {
         "tudo": rodar_tudo,

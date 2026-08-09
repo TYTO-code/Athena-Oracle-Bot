@@ -21,6 +21,7 @@ from oraculo.logging_config import get_logger
 log = get_logger(__name__)
 
 COGS = (
+    "oraculo.bot.cogs.ajuda",
     "oraculo.bot.cogs.perfil",
     "oraculo.bot.cogs.ranking",
     "oraculo.bot.cogs.xp",
@@ -112,13 +113,22 @@ class OraculoBot(commands.Bot):
 
     @staticmethod
     async def _responder(interaction: discord.Interaction, embed: discord.Embed) -> None:
+        """Responde ao erro respeitando o estado da interação.
+
+        Como `requer` confirma a interação antes de checar permissão, o caminho
+        normal aqui é **editar** a resposta adiada — se apenas enviássemos um
+        followup, o "pensando..." ficaria pendurado no chat.
+        """
         try:
             if interaction.response.is_done():
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.edit_original_response(embed=embed)
             else:
                 await interaction.response.send_message(embed=embed, ephemeral=True)
-        except discord.HTTPException:  # pragma: no cover - interação expirada
-            log.warning("Não foi possível responder à interação %s", interaction.id)
+        except discord.HTTPException:
+            try:
+                await interaction.followup.send(embed=embed, ephemeral=True)
+            except discord.HTTPException:  # pragma: no cover - interação expirada
+                log.warning("Não foi possível responder à interação %s", interaction.id)
 
 
 def criar_bot(settings: Settings | None = None) -> OraculoBot:

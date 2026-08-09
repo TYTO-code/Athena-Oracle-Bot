@@ -20,11 +20,13 @@ make run                   # sobe bot + API
 Sem `make`:
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
+python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && .venv/bin/pip install -e .
 cp .env.example .env
 .venv/bin/alembic upgrade head
 .venv/bin/python -m oraculo
 ```
+
+Em produção (ou onde a plataforma detecta `requirements.txt` sozinha, como Render e Railway), basta `pip install -r requirements.txt`. O [pyproject.toml](pyproject.toml) segue como fonte de verdade das dependências; os `requirements*.txt` fixam as versões exatas com que a suíte passa — ao mudar uma, atualize os dois e rode `make check`.
 
 Ambiente completo com PostgreSQL e Redis:
 
@@ -67,6 +69,7 @@ Todos os segredos vêm de variáveis de ambiente com o prefixo `ORACULO_` — **
 
 | Comando | Função | Cargo mínimo |
 |---------|--------|--------------|
+| `/ajuda` | Lista os comandos e o que seu cargo libera | Membro |
 | `/perfil` | Cargo, XP, próximo cargo e posição (RF-002) | Membro |
 | `/ranking` | Ranking geral ou por período (RF-004) | Membro |
 | `/agenda` | Próximas reuniões e eventos | Membro |
@@ -92,6 +95,43 @@ RSVP (UC-006) é feito pelos botões do anúncio — eles continuam funcionando 
 
 A API **não** expõe operações de domínio: XP, cargos e agenda passam pelo bot, onde a identidade do autor é conhecida e a política de permissões (RN-008) é aplicada.
 
+## Plataforma de membros (Firebase)
+
+Os membros do clube vivem no **Cloud Firestore**; o bot lê essa coleção e mantém
+o cadastro local sincronizado.
+
+```bash
+python -m oraculo importar --ensaio   # percorre tudo e relata sem gravar nada
+python -m oraculo importar            # aplica
+```
+
+Com `ORACULO_FIREBASE_PROJECT_ID` configurado, a sincronização também roda
+sozinha dentro do processo do bot: uma vez no start e a cada
+`ORACULO_IMPORTACAO_INTERVALO_HORAS`.
+
+| Variável | Para quê |
+|----------|----------|
+| `ORACULO_FIREBASE_PROJECT_ID` | Projeto do Firebase; vazio desliga a integração |
+| `ORACULO_FIREBASE_CREDENTIALS_FILE` | JSON da service account (nunca versionar) |
+| `ORACULO_FIREBASE_COLECAO` | Coleção com os membros (padrão: `membros`) |
+| `ORACULO_FIREBASE_CAMPOS` | Mapa campo interno → campo do documento, em JSON |
+| `ORACULO_IMPORTACAO_POLITICA` | `cadastro`, `carga_inicial` ou `espelho` |
+
+Se os campos do Firestore tiverem outros nomes, ajuste o mapa em vez de mexer no
+código — ele aceita caminho aninhado:
+
+```bash
+ORACULO_FIREBASE_CAMPOS={"nome":"displayName","discord_id":"discord.id","xp":"pontos"}
+```
+
+**Modo `espelho`** (XP vem da plataforma): o bot passa a apenas exibir o XP.
+`/conceder-xp` e `/remover-xp` são recusados com mensagem explicativa, porque a
+próxima sincronização sobrescreveria o saldo. O cargo é derivado do XP pelas
+regras da hierarquia (RN-002) — um campo `cargo` ausente nunca rebaixa ninguém.
+
+Quem sai da plataforma **não** é desativado por padrão; use
+`--desativar-ausentes` (soft-delete, RN-010) se quiser esse comportamento.
+
 ## Estrutura
 
 ```
@@ -102,10 +142,10 @@ src/oraculo/
 ├── db/                Modelos e sessão SQLAlchemy async (TD-002)
 ├── repositories/      Acesso a dados
 ├── services/          Casos de uso (XP, promoção, ranking, agenda, notificações)
-├── integrations/      Cache, Google Agenda, e-mail
+├── integrations/      Cache, Google Agenda, e-mail, Firestore
 ├── bot/               Cliente Discord, cogs, sincronização de cargos (TD-005)
 ├── api/               FastAPI: health e webhooks (TD-003)
-└── tasks/             Backup diário (RNF-005)
+└── tasks/             Backup diário (RNF-005) e sincronização com a plataforma
 ```
 
 O domínio não conhece Discord nem HTTP: as regras valem igualmente para comandos, webhooks e rotinas.
@@ -113,7 +153,7 @@ O domínio não conhece Discord nem HTTP: as regras valem igualmente para comand
 ## Testes
 
 ```bash
-make test        # 93 testes
+make test        # 146 testes
 make check       # lint + testes
 ```
 
