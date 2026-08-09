@@ -201,7 +201,6 @@ class AgendaCog(commands.Cog):
         interaction: discord.Interaction,
         tipo: app_commands.Choice[str] | None = None,
     ) -> None:
-        await interaction.response.defer()
         filtro = TipoAgendamento(tipo.value) if tipo else None
 
         async with sessao() as session:
@@ -234,7 +233,6 @@ class AgendaCog(commands.Cog):
         identificador: int,
         motivo: app_commands.Range[str, 3, 500],
     ) -> None:
-        await interaction.response.defer()
         async with sessao() as session:
             agendamento = await repo_agenda.obter(session, identificador)
             solicitante = await repo_membros.obter_ou_criar_por_discord(
@@ -267,7 +265,6 @@ class AgendaCog(commands.Cog):
         local: str | None,
         descricao: str | None,
     ) -> None:
-        await interaction.response.defer()
         inicio_em = interpretar_data(inicio)
         fim_em = inicio_em + timedelta(minutes=duracao_minutos)
         container = self.bot.container

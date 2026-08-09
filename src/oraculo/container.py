@@ -59,7 +59,7 @@ class Container:
             agenda_externa=agenda_externa,
             notificacoes=notificacoes,
             promocoes=promocoes,
-            xp=XpService(promocoes=promocoes),
+            xp=XpService(promocoes=promocoes, somente_leitura=cfg.xp_somente_leitura),
             ranking=RankingService(cache=cache, settings=cfg),
             agenda=AgendaService(agenda_externa=agenda_externa),
         )

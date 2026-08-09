@@ -70,6 +70,19 @@ class AutorNaoIdentificadoError(BusinessRuleError):
         )
 
 
+class XpSomenteLeituraError(BusinessRuleError):
+    """O XP é espelhado de uma origem externa e não pode ser alterado aqui."""
+
+    regra = "RF-003"
+
+    def __init__(self) -> None:
+        super().__init__(
+            "O XP é sincronizado a partir da plataforma do clube e não pode ser "
+            "alterado pelo bot. Ajuste o valor na plataforma — a mudança aparece "
+            "aqui na próxima sincronização."
+        )
+
+
 class RecursoNaoEncontradoError(OraculoError):
     """Entidade referenciada (membro, reunião, evento) não existe."""
 

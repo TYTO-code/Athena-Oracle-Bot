@@ -46,7 +46,6 @@ class RankingCog(commands.Cog):
         somente_este_servidor: bool = False,
     ) -> None:
         escolha = periodo.value if periodo else "geral"
-        await interaction.response.defer()
 
         guild_id = interaction.guild_id if somente_este_servidor else None
         async with sessao() as session:

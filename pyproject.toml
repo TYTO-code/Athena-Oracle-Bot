@@ -21,6 +21,7 @@ dependencies = [
     "google-api-python-client>=2.130",
     "google-auth>=2.29",
     "google-auth-oauthlib>=1.2",
+    "google-cloud-firestore>=2.16",
     "aiosmtplib>=3.0",
     "structlog>=24.1",
 ]

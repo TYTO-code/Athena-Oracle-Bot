@@ -29,13 +29,13 @@ class AdminCog(commands.Cog):
     @app_commands.command(
         name="hierarquia", description="Mostra a hierarquia TYTO e os limiares de XP."
     )
-    @requer(Acao.VER_PERFIL)
+    @requer(Acao.VER_PERFIL, efemero=True)
     async def hierarquia(self, interaction: discord.Interaction) -> None:
         linhas = []
         for cargo in HIERARQUIA:
             limiar = f"{cargo.xp_minimo} XP" if cargo.automatico else "atribuição manual"
             linhas.append(f"**{cargo.nome}** — {limiar}\n> {cargo.descricao}")
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=discord.Embed(
                 title="🏛️ Hierarquia do Clube TYTO",
                 description="\n\n".join(linhas),
@@ -53,7 +53,7 @@ class AdminCog(commands.Cog):
     @app_commands.choices(
         cargo=[app_commands.Choice(name=c.nome, value=c.slug) for c in HIERARQUIA]
     )
-    @requer(Acao.DEFINIR_CARGO_MANUAL)
+    @requer(Acao.DEFINIR_CARGO_MANUAL, efemero=True)
     async def definir_cargo(
         self,
         interaction: discord.Interaction,
@@ -61,7 +61,6 @@ class AdminCog(commands.Cog):
         cargo: app_commands.Choice[str],
         motivo: app_commands.Range[str, 3, 500],
     ) -> None:
-        await interaction.response.defer(ephemeral=True)
         destino = cargo_por_slug(cargo.value)
         container = self.bot.container
 
@@ -103,10 +102,10 @@ class AdminCog(commands.Cog):
     @app_commands.command(
         name="verificar-cargos", description="Verifica se os cargos TYTO existem no servidor."
     )
-    @requer(Acao.ADMINISTRAR_SISTEMA)
+    @requer(Acao.ADMINISTRAR_SISTEMA, efemero=True)
     async def verificar_cargos(self, interaction: discord.Interaction) -> None:
         if interaction.guild is None:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=embeds.erro("Use este comando dentro de um servidor."), ephemeral=True
             )
             return
@@ -122,7 +121,7 @@ class AdminCog(commands.Cog):
             texto = "Todos os cargos da hierarquia TYTO existem neste servidor. ✅"
             cor = discord.Color.green()
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=discord.Embed(title="Diagnóstico de cargos", description=texto, color=cor),
             ephemeral=True,
         )
@@ -131,11 +130,10 @@ class AdminCog(commands.Cog):
         name="auditoria", description="Últimos registros do log de auditoria (Conselheiro+)."
     )
     @app_commands.describe(limite="Quantidade de registros (1 a 20).")
-    @requer(Acao.VER_AUDITORIA)
+    @requer(Acao.VER_AUDITORIA, efemero=True)
     async def auditoria(
         self, interaction: discord.Interaction, limite: app_commands.Range[int, 1, 20] = 10
     ) -> None:
-        await interaction.response.defer(ephemeral=True)
         async with sessao() as session:
             registros = await repo_auditoria.listar(session, limite=limite)
             linhas = [
