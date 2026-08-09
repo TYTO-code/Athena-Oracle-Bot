@@ -1,0 +1,73 @@
+# Rastreabilidade — requisito → código
+
+Fecha a cadeia `Visão → RN/RF/RNF → Casos de Uso → Dívida Técnica → ADR → Backlog` com a camada de implementação (Atena v1.0).
+
+## Regras de negócio
+
+| RN | Onde é aplicada | Teste |
+|----|-----------------|-------|
+| RN-001 Cargo único | Coluna única `Membro.cargo_slug` ([models.py](../../src/oraculo/db/models.py)); remoção de todos os cargos TYTO em [role_sync.py](../../src/oraculo/bot/role_sync.py) | `test_role_sync.py`, `test_promocao.py` |
+| RN-002 Progressão por XP | `cargo_para_xp` ([hierarchy.py](../../src/oraculo/domain/hierarchy.py)) | `test_hierarquia.py` |
+| RN-003 Promoção automática | `PromocaoService.aplicar` ([promocao_service.py](../../src/oraculo/services/promocao_service.py)) | `test_promocao.py` |
+| RN-004 Controle de XP | `exigir(cargo, Acao.CONCEDER_XP)` em [xp_service.py](../../src/oraculo/services/xp_service.py) | `test_xp_service.py` |
+| RN-005 Auditoria de XP | Tabela `xp_audit` + validação de motivo em `XpService._movimentar` | `test_xp_service.py` |
+| RN-006 Criação de reuniões | `_POLITICA[Acao.CRIAR_REUNIAO] = CAVALARIA` ([permissions.py](../../src/oraculo/domain/permissions.py)) | `test_permissoes.py`, `test_agenda.py` |
+| RN-007 Eventos oficiais | `_POLITICA[Acao.CRIAR_EVENTO] = LORDE` | `test_permissoes.py`, `test_agenda.py` |
+| RN-008 Controle de permissões | Política central + decorator `requer` ([bot/permissions.py](../../src/oraculo/bot/permissions.py)) | `test_permissoes.py` |
+| RN-009 Google Agenda | [google_calendar.py](../../src/oraculo/integrations/google_calendar.py) + `AgendaService` | `test_agenda.py` |
+| RN-010 Histórico imutável | Tabelas append-only; soft-delete de membro e agendamento | `test_agenda.py`, `test_xp_service.py` |
+
+## Requisitos funcionais
+
+| RF | Implementação |
+|----|---------------|
+| RF-001 Autenticação | `obter_ou_criar_por_discord` ([repositories/membros.py](../../src/oraculo/repositories/membros.py)) |
+| RF-002 Perfil | `/perfil` ([cogs/perfil.py](../../src/oraculo/bot/cogs/perfil.py)) + `RankingService.perfil` |
+| RF-003 Gestão de XP | `/conceder-xp`, `/remover-xp`, `/historico-xp` ([cogs/xp.py](../../src/oraculo/bot/cogs/xp.py)) |
+| RF-004 Ranking | `/ranking` ([cogs/ranking.py](../../src/oraculo/bot/cogs/ranking.py)) + cache |
+| RF-005 / RF-006 Promoções e cargos | `PromocaoService` + `SincronizadorDiscord` |
+| RF-007 / RF-008 Reuniões e eventos | `/criar-reuniao`, `/criar-evento`, `/cancelar-agendamento` ([cogs/agenda.py](../../src/oraculo/bot/cogs/agenda.py)) |
+| RF-009 RSVP | `BotaoRsvp` / `PainelRsvp` + `AgendaService.responder_rsvp` |
+| RF-010 Notificações | [notificacao_service.py](../../src/oraculo/services/notificacao_service.py), canais Discord e e-mail |
+| RF-011 Google Agenda | `GoogleAgenda.criar/atualizar/cancelar` |
+| RF-012 Logs | Tabela `audit_log` ([repositories/auditoria.py](../../src/oraculo/repositories/auditoria.py)) + `/auditoria` |
+
+## Requisitos não funcionais
+
+| RNF | Implementação |
+|-----|---------------|
+| RNF-001 / RNF-002 Escala e pico | Pool de conexões, cache Redis, `/health/ready` |
+| RNF-003 Segurança | [config.py](../../src/oraculo/config.py) (segredos por ambiente), [api/security.py](../../src/oraculo/api/security.py) (HMAC), `validate_for_production`, container sem root |
+| RNF-004 Auditoria administrativa | `audit_log` com ator, alvo, origem e dados |
+| RNF-005 Backup | [tasks/backup.py](../../src/oraculo/tasks/backup.py) (`pg_dump` / `VACUUM INTO`) |
+
+## Dívida técnica do legado
+
+| TD | Situação | Onde |
+|----|----------|------|
+| TD-001 Credenciais hardcoded | **Fechada** | `Settings` + `.env.example` + `.gitignore` + verificação no CI |
+| TD-002 Armazenamento em JSON | **Fechada** | SQLAlchemy async + Alembic + `SELECT ... FOR UPDATE` |
+| TD-003 Webhook sem HMAC | **Fechada** | `validar_assinatura` (falha fechado, tolerância de replay) |
+| TD-004 Hierarquia incorreta | **Fechada** | `hierarchy.py` com Membro → Administrador |
+| TD-005 Acúmulo de cargos | **Fechada** | `SincronizadorDiscord` remove antes de atribuir |
+| TD-006 Auditoria incompleta | **Fechada** | `xp_audit` com autor, motivo, saldos e origem |
+
+## Backlog
+
+| Sprint | Itens cobertos pela base | Pendente |
+|--------|--------------------------|----------|
+| 1 | US-101 a US-105 | — |
+| 2 | US-201 a US-205 | — |
+| 3 | US-301 a US-304; US-305 no sentido bot → Google | Sincronização **bidirecional** (Google → bot) |
+| 4 | US-401 a US-405 | Painel de métricas; retenção de backup fora do disco local |
+
+## Decisões tomadas na implementação
+
+| Tema | Decisão | Motivo |
+|------|---------|--------|
+| Limiares de XP | 500 / 1.500 / 3.500 para Cavalaria / Lorde / Conselheiro | Não constam do Documento Único; valores iniciais isolados em `hierarchy.py` para ajuste pelo clube |
+| RN-006 | Reunião liberada a partir de **Cavalaria** | RF-007, UC-004 e glossário dizem "Cavalaria+"; RN-006 diz "superiores à Cavalaria" — divergência sinalizada no código |
+| Rebaixamento | Remover XP **não** rebaixa (`REBAIXAMENTO_AUTOMATICO = False`) | RN-002/RN-003 descrevem apenas promoção; evita perder cargo por estorno |
+| Reuniões e eventos | Uma tabela `agendamentos` com `tipo` | Mesmo ciclo de vida, RSVP e sync; muda apenas a permissão de criação |
+| Administrador | Fora da progressão automática | Cargo de governança, atribuído por `/definir-cargo` |
+| WhatsApp | Schema e origem de ação já preveem o canal; adaptador não implementado | Fora da Sprint 1–4; exige ADR próprio (follow-up do ADR-001) |

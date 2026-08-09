@@ -1,0 +1,55 @@
+# Ambiente local completo: bot + API, PostgreSQL e Redis (ADR-001).
+# Uso: cp .env.example .env && docker compose up --build
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: oraculo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-oraculo}
+      POSTGRES_DB: oraculo
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oraculo -d oraculo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  cache:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "no"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  oraculo:
+    build: .
+    env_file: .env
+    environment:
+      # Sobrescreve o `.env` com os endereços internos do compose.
+      ORACULO_DATABASE_URL: postgresql+asyncpg://oraculo:${POSTGRES_PASSWORD:-oraculo}@db:5432/oraculo
+      ORACULO_REDIS_URL: redis://cache:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    ports:
+      - "${ORACULO_API_PORT:-8000}:8000"
+    volumes:
+      - backups:/app/backups
+    # Migrações antes de subir a aplicação (TD-002 / RN-010).
+    command: ["sh", "-c", "alembic upgrade head && python -m oraculo"]
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  backups:

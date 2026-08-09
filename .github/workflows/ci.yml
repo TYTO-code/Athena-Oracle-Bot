@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  qualidade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check src tests
+
+      - name: Testes
+        run: pytest -q
+
+      - name: Migrações aplicam do zero
+        env:
+          ORACULO_DATABASE_URL: sqlite+aiosqlite:///./ci.sqlite3
+        run: alembic upgrade head
+
+      - name: Nenhum segredo versionado (TD-001 / RNF-003)
+        run: |
+          if git ls-files | grep -E '^\.env$|credentials\.json|token\.json'; then
+            echo "Arquivo de segredo versionado detectado."
+            exit 1
+          fi
