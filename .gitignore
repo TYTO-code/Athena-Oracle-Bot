@@ -1,0 +1,33 @@
+# Segredos — TD-001 / RNF-003: nenhuma credencial versionada
+.env
+.env.*
+!.env.example
+*.pem
+credentials.json
+token.json
+google-credentials.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Dados locais
+*.sqlite3
+*.db
+data/
+backups/
+
+# Editores / SO
+.vscode/
+.idea/
+.DS_Store
