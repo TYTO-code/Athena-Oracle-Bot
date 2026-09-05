@@ -21,7 +21,10 @@ O sistema centraliza a gestão operacional do Clube TYTO, automatizando processo
 
 **Inclui:** autenticação multi-canal, perfil/XP/ranking, promoções e cargos, reuniões/eventos, RSVP, notificações, Google Agenda, logs e auditoria.
 
-**Exclui (Fase 2):** loja de Dracmas, missões, conquistas, painel web, torneios.
+**Exclui (Fase 2):** loja de Dracmas, missões, conquistas, painel web, torneios, ledger de Dracmas,
+camadas de Comunidade/Clube, Crédito de Mérito, integração com o Mercador (ver
+[fase-2.md](../05-roadmap/fase-2.md) — os quatro últimos já são regra institucional vigente em
+`Institucional/`, não features especulativas).
 
 ### 1.3 Definições
 
@@ -35,6 +38,9 @@ Ver [glossario.md](../glossario.md).
 - Casos de uso: [../02-casos-de-uso/casos-de-uso.md](../02-casos-de-uso/casos-de-uso.md)
 - Dívida técnica (legado Bot-XP-Discord): [../03-analise/divida-tecnica.md](../03-analise/divida-tecnica.md)
 - ADR de stack: [../04-arquitetura/adr-001-stack-tecnica.md](../04-arquitetura/adr-001-stack-tecnica.md)
+- Regulamento normativo do bot Atena: `Institucional/SERVIDOR_DISCORD.md` (identidade, canais,
+  ferramentas) e `Institucional/COMUNIDADE_E_CLUBE.md` (camadas de acesso) — externos a este
+  repositório, mas vinculantes; ver a nota em [visao-produto.md](../00-visao/visao-produto.md)
 
 ### 1.5 Visão geral do documento
 

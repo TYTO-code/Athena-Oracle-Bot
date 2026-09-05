@@ -4,6 +4,12 @@ Sistema de gestão operacional do **Clube TYTO** (produto **Atena v1.0**): hiera
 
 Este repositório contém **a documentação de engenharia** e **a implementação** da baseline definida no [ADR-001](docs/04-arquitetura/adr-001-stack-tecnica.md).
 
+Este é o bot **Atena** regido normativamente por `Institucional/SERVIDOR_DISCORD.md` (fora deste
+repositório, no vault do Clube). Onde a documentação daqui divergir daquele Regulamento, ele vence —
+ver a nota em [docs/00-visao/visao-produto.md](docs/00-visao/visao-produto.md#relação-com-institucionalservidor_discordmd).
+Dracmas, camadas de Comunidade/Clube, Crédito de Mérito e a integração com o Mercador já são regra
+vigente lá, mesmo fora do escopo de código desta v1.0 — ver [docs/05-roadmap/fase-2.md](docs/05-roadmap/fase-2.md).
+
 ## Stack
 
 `discord.py` (cogs) · `FastAPI` · `SQLAlchemy 2 async` + `Alembic` · PostgreSQL (SQLite em dev) · Redis (opcional) · Google Calendar API · Docker
