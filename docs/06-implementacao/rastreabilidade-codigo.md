@@ -51,6 +51,7 @@ Fecha a cadeia `Visão → RN/RF/RNF → Casos de Uso → Dívida Técnica → A
 | TD-004 Hierarquia incorreta | **Fechada** | `hierarchy.py` com Membro → Administrador |
 | TD-005 Acúmulo de cargos | **Fechada** | `SincronizadorDiscord` remove antes de atribuir |
 | TD-006 Auditoria incompleta | **Fechada** | `xp_audit` com autor, motivo, saldos e origem |
+| TD-007 Hierarquia não reflete `Institucional/XP.md` | **Aberta** — pós-baseline, não é do legado; ver [divida-tecnica.md](../03-analise/divida-tecnica.md#dívida-técnica-pós-baseline-não-é-do-legado-bot-xp-discord) | `hierarchy.py` mantém `Membro→Administrador`, sem os 17 patamares nem os cargos institucionais da Carta — decisão de reconciliação pendente do Clube TYTO |
 
 ## Backlog
 
@@ -65,7 +66,7 @@ Fecha a cadeia `Visão → RN/RF/RNF → Casos de Uso → Dívida Técnica → A
 
 | Tema | Decisão | Motivo |
 |------|---------|--------|
-| Limiares de XP | 500 / 1.500 / 3.500 para Cavalaria / Lorde / Conselheiro | Não constam do Documento Único; valores iniciais isolados em `hierarchy.py` para ajuste pelo clube |
+| Limiares de XP | 500 / 1.500 / 3.500 para Cavalaria / Lorde / Conselheiro | Não constam do Documento Único; valores iniciais isolados em `hierarchy.py` para ajuste pelo clube. A própria hierarquia (5 cargos) também não reflete a escala de patente de `Institucional/XP.md` — ver TD-007 |
 | RN-006 | Reunião liberada a partir de **Cavalaria** | RF-007, UC-004 e glossário dizem "Cavalaria+"; RN-006 diz "superiores à Cavalaria" — divergência sinalizada no código |
 | Rebaixamento | Remover XP **não** rebaixa (`REBAIXAMENTO_AUTOMATICO = False`) | RN-002/RN-003 descrevem apenas promoção; evita perder cargo por estorno |
 | Reuniões e eventos | Uma tabela `agendamentos` com `tipo` | Mesmo ciclo de vida, RSVP e sync; muda apenas a permissão de criação |

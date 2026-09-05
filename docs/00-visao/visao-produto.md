@@ -26,7 +26,19 @@ Centralizar a gestão operacional do Clube TYTO em um bot multi-canal que automa
 
 ## Fora de escopo (Atena v1.0)
 
-Itens da Fase 2: loja de Dracmas, missões, conquistas, painel web administrativo, torneios e gestão de times. Ver [fase-2.md](../05-roadmap/fase-2.md).
+Itens da Fase 2: loja de Dracmas, missões, conquistas, painel web administrativo, torneios e gestão
+de times, ledger de Dracmas, camadas de Comunidade/Clube, Crédito de Mérito e integração com o
+Mercador. Ver [fase-2.md](../05-roadmap/fase-2.md) — os quatro últimos já são regra institucional
+vigente (`Institucional/DRACMAS.md`, `COMUNIDADE_E_CLUBE.md`, `CREDITO_DE_MERITO.md`,
+`MERCADOR.md`), só a implementação é que fica para depois.
+
+## Relação com `Institucional/SERVIDOR_DISCORD.md`
+
+Este produto **é** o bot Atena regido por `Institucional/SERVIDOR_DISCORD.md` — identidade única
+por pessoa (Art. 1º), canais por função (Art. 3º) e as ferramentas de consulta de saldo/extrato/
+ranking (Art. 4º) descritas ali valem para este sistema. Onde este pacote de requisitos e aquele
+Regulamento divergirem, o Regulamento vence (`Institucional/` é a lei institucional vigente,
+independente do estado da implementação).
 
 ## Stakeholders
 
