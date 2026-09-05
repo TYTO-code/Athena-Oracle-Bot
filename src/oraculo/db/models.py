@@ -80,6 +80,25 @@ class TipoMovimentacaoXp(StrEnum):
     REMOCAO = "remocao"
 
 
+class TipoMovimentacaoDracmas(StrEnum):
+    """Origens oficiais de movimentação de Dracmas — `Institucional/DRACMAS.md` §2.
+
+    Nem todo valor listado aqui tem um caminho de código que o produz ainda —
+    a tabela completa existe para que um novo fluxo (missão, taxa de admissão,
+    investimento de Pote Régio...) só precise de uma linha nova aqui e no
+    serviço correspondente, nunca de uma migração de schema.
+    """
+
+    DOACAO = "doacao"  # DRACMAS.md §2 "Doação livre entre membros"
+    PAGAMENTO_MARKETPLACE = "pagamento_marketplace"  # §2 "Pagamento de pedido/oferta"
+    TAXA_MENSAL = "taxa_mensal"  # §2 "Taxa mensal de manutenção" — só Clube (COMUNIDADE_E_CLUBE.md Art. 4º §4º)
+    INGRESSO_COMUNIDADE = "ingresso_comunidade"  # COMUNIDADE_E_CLUBE.md Art. 3º §1º — 30.000
+    INGRESSO_CLUBE = "ingresso_clube"  # COMUNIDADE_E_CLUBE.md Art. 4º §1º — 70.000
+    PREMIO_TORNEIO = "premio_torneio"  # DRACMAS.md §2 "Prêmio de torneio (pódio)"
+    BONUS_VENDA_MERCADOR = "bonus_venda_mercador"  # MERCADOR.md Art. 4º §13º–§14º
+    OUTRA = "outra"  # fallback para movimentações ainda sem tipo próprio catalogado
+
+
 class OrigemAcao(StrEnum):
     """De onde partiu a ação — parte da trilha de auditoria (RNF-004)."""
 
@@ -232,6 +251,116 @@ class Promocao(Base):
     )
 
     membro: Mapped[Membro] = relationship(back_populates="promocoes", lazy="raise")
+
+
+# ---------------------------------------------------------------------------
+# Comunidade e Dracmas — RN-011 a RN-015, RF-013/RF-014
+#
+# Implementa `Institucional/COMUNIDADE_E_CLUBE.md` e `Institucional/DRACMAS.md` — eixo
+# inteiramente separado da hierarquia de cargos (Art. VIII da Carta trata os dois como eixos
+# independentes; a divergência entre esta hierarquia e a patente institucional já está
+# registrada como TD-007). `Aldeao` é a camada Comunidade (registro só pelo Atena, sem conta na
+# plataforma — COMUNIDADE_E_CLUBE.md Art. 1º §2º); `Membro` acima já é a camada Clube.
+# ---------------------------------------------------------------------------
+
+
+class Aldeao(TimestampMixin, Base):
+    """Titular da camada Comunidade — `COMUNIDADE_E_CLUBE.md` Art. 2º.
+
+    Criado automaticamente no primeiro crédito de Dracmas recebido por um `discord_id` sem
+    registro (Art. 3º §3º: "não há Dracmas sem conta que os receba") — nunca por um comando de
+    "cadastro" isolado, porque não existe Dracmas para um Visitante guardar antes desse momento
+    (Art. 1º §1º). Ver `services/dracmas_service.py` para a decisão de implementação sobre como
+    isso se concilia com o custo de ingresso do Art. 3º §1º.
+    """
+
+    __tablename__ = "aldeoes"
+    __table_args__ = (Index("ix_aldeoes_suspenso", "suspenso"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    discord_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True, nullable=False)
+
+    saldo_dracmas: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    #: DRACMAS.md §4 — suspensão automática por saldo negativo; reversão é sempre manual, nunca
+    #: um novo crédito reativa a conta sozinho.
+    suspenso: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    suspenso_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reativado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    #: COMUNIDADE_E_CLUBE.md Art. 4º §1º-A — ao migrar pro Clube, o saldo inteiro é transferido
+    #: pra conta de `Membro`; esta linha permanece (nunca é apagada) só como referência histórica
+    #: do que já foi Aldeão, com o saldo zerado no momento da migração.
+    migrado_para_membro_id: Mapped[int | None] = mapped_column(ForeignKey("membros.id"))
+    migrado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    movimentacoes: Mapped[list[MovimentacaoDracmas]] = relationship(
+        back_populates="aldeao", foreign_keys="MovimentacaoDracmas.aldeao_id", lazy="raise"
+    )
+
+    @property
+    def migrado(self) -> bool:
+        return self.migrado_para_membro_id is not None
+
+    def __repr__(self) -> str:  # pragma: no cover - depuração
+        return f"<Aldeao id={self.id} discord_id={self.discord_id} saldo={self.saldo_dracmas}>"
+
+
+class MovimentacaoDracmas(Base):
+    """Ledger append-only de Dracmas — `DRACMAS.md` §3 (registro obrigatório de toda movimentação).
+
+    Titular é sempre exatamente um `Aldeao` OU um `Membro`, nunca os dois nem nenhum — daí o
+    `CheckConstraint` abaixo. Diferente de `RegistroAuditoria` (que usa `alvo_tipo`/`alvo_id` como
+    texto livre), aqui a referência é uma FK de verdade em cada coluna: é dinheiro (ainda que
+    virtual), então integridade referencial pesa mais que a economia de uma tabela polimórfica
+    genérica.
+    """
+
+    __tablename__ = "dracmas_ledger"
+    __table_args__ = (
+        CheckConstraint(
+            "(aldeao_id IS NOT NULL AND membro_id IS NULL) "
+            "OR (aldeao_id IS NULL AND membro_id IS NOT NULL)",
+            name="titular_unico",
+        ),
+        CheckConstraint("valor <> 0", name="valor_nao_nulo"),
+        CheckConstraint("length(trim(motivo)) > 0", name="motivo_obrigatorio"),
+        Index("ix_dracmas_ledger_aldeao_data", "aldeao_id", "criado_em"),
+        Index("ix_dracmas_ledger_membro_data", "membro_id", "criado_em"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    aldeao_id: Mapped[int | None] = mapped_column(
+        ForeignKey("aldeoes.id", ondelete="RESTRICT"), index=True
+    )
+    membro_id: Mapped[int | None] = mapped_column(
+        ForeignKey("membros.id", ondelete="RESTRICT"), index=True
+    )
+
+    tipo: Mapped[TipoMovimentacaoDracmas] = mapped_column(
+        enum_col(TipoMovimentacaoDracmas, tamanho=24), nullable=False
+    )
+    #: Positivo em crédito, negativo em débito — soma = saldo atual (mesmo princípio de `xp_audit`).
+    valor: Mapped[int] = mapped_column(Integer, nullable=False)
+    saldo_anterior: Mapped[int] = mapped_column(Integer, nullable=False)
+    saldo_posterior: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    #: Referência externa opcional — ex.: "torneio:123", "mercador:contrato:456" — para rastrear
+    #: até o evento de origem em outro serviço/agente sem acoplar uma FK a um sistema externo.
+    origem_referencia: Mapped[str | None] = mapped_column(String(120), index=True)
+
+    motivo: Mapped[str] = mapped_column(String(500), nullable=False)
+    autor_descricao: Mapped[str] = mapped_column(String(120), default="sistema", nullable=False)
+
+    criado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=agora, nullable=False, index=True
+    )
+
+    aldeao: Mapped[Aldeao | None] = relationship(
+        back_populates="movimentacoes", foreign_keys=[aldeao_id], lazy="raise"
+    )
+    membro: Mapped[Membro | None] = relationship(foreign_keys=[membro_id], lazy="raise")
 
 
 # ---------------------------------------------------------------------------

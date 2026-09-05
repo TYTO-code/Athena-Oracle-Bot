@@ -6,7 +6,7 @@ from datetime import datetime
 
 import discord
 
-from oraculo.db.models import MovimentacaoXp
+from oraculo.db.models import Aldeao, MovimentacaoDracmas, MovimentacaoXp
 from oraculo.repositories.membros import LinhaRanking
 from oraculo.services.notificacao_service import Notificacao, Severidade
 from oraculo.services.ranking_service import Perfil
@@ -86,6 +86,49 @@ def historico_xp(movimentacoes: list[MovimentacaoXp], *, nome: str) -> discord.E
         embed.add_field(
             name=f"{sinal}{abs(mov.quantidade)} XP · {mov.criado_em:%d/%m/%Y %H:%M}",
             value=f"por **{mov.autor_descricao}** — {mov.motivo}\nsaldo: {mov.saldo_posterior}",
+            inline=False,
+        )
+    return embed
+
+
+def saldo_dracmas(aldeao: Aldeao | None, *, nome: str) -> discord.Embed:
+    """`/saldo` — Comunidade. Sem `Aldeao` ainda, explica como a conta é aberta
+    (`COMUNIDADE_E_CLUBE.md` Art. 3º §3º: só no primeiro crédito de Dracmas)."""
+    if aldeao is None:
+        return discord.Embed(
+            title=f"Saldo de Dracmas — {nome}",
+            description=(
+                "Você ainda não tem conta na Comunidade. Ela é criada automaticamente no "
+                "primeiro crédito de Dracmas que você receber (prêmio de torneio, bônus de "
+                "venda do Mercador, ou uma doação)."
+            ),
+            color=COR[Severidade.INFO],
+        )
+    embed = discord.Embed(
+        title=f"Saldo de Dracmas — {nome}",
+        color=COR[Severidade.ALERTA] if aldeao.suspenso else COR[Severidade.INFO],
+    )
+    embed.add_field(name="Saldo", value=f"{aldeao.saldo_dracmas:,}".replace(",", "."), inline=True)
+    if aldeao.suspenso:
+        embed.add_field(
+            name="⚠️ Conta suspensa",
+            value="Saldo negativo (DRACMAS.md §4) — reversão exige decisão administrativa.",
+            inline=False,
+        )
+    return embed
+
+
+def extrato_dracmas(movimentacoes: list[MovimentacaoDracmas], *, nome: str) -> discord.Embed:
+    """`/extrato-dracmas` — mesmo formato de `historico_xp`, adaptado à carteira de Dracmas."""
+    embed = discord.Embed(title=f"Extrato de Dracmas — {nome}", color=COR[Severidade.INFO])
+    if not movimentacoes:
+        embed.description = "Nenhuma movimentação registrada."
+        return embed
+    for mov in movimentacoes:
+        sinal = "＋" if mov.valor > 0 else "－"
+        embed.add_field(
+            name=f"{sinal}{abs(mov.valor)} Dracmas · {mov.criado_em:%d/%m/%Y %H:%M}",
+            value=f"{mov.tipo.value} — {mov.motivo}\nsaldo: {mov.saldo_posterior}",
             inline=False,
         )
     return embed

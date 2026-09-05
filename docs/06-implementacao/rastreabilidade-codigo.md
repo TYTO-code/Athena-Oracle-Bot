@@ -16,6 +16,11 @@ Fecha a cadeia `Visão → RN/RF/RNF → Casos de Uso → Dívida Técnica → A
 | RN-008 Controle de permissões | Política central + decorator `requer` ([bot/permissions.py](../../src/oraculo/bot/permissions.py)) | `test_permissoes.py` |
 | RN-009 Google Agenda | [google_calendar.py](../../src/oraculo/integrations/google_calendar.py) + `AgendaService` | `test_agenda.py` |
 | RN-010 Histórico imutável | Tabelas append-only; soft-delete de membro e agendamento | `test_agenda.py`, `test_xp_service.py` |
+| RN-011 Camada Comunidade separada de cargo | `Aldeao` ([models.py](../../src/oraculo/db/models.py)), `bot/cogs/comunidade.py` não usa `bot/permissions.py` | `test_dracmas_service.py` |
+| RN-012 Movimentação exige motivo/origem | `DracmasService._validar_motivo`/`_validar_valor` ([dracmas_service.py](../../src/oraculo/services/dracmas_service.py)) | `test_dracmas_service.py` |
+| RN-013 Ledger de Dracmas imutável | Tabela `dracmas_ledger` append-only ([repositories/dracmas.py](../../src/oraculo/repositories/dracmas.py)) | `test_dracmas_service.py` |
+| RN-014 Suspensão automática | `DracmasService.debitar` marca `Aldeao.suspenso` quando o saldo fica negativo | `test_dracmas_service.py` |
+| RN-015 Ingresso na Comunidade | `DracmasService._cobrar_ingresso`, `CUSTO_INGRESSO_COMUNIDADE` | `test_dracmas_service.py` |
 
 ## Requisitos funcionais
 
@@ -31,6 +36,8 @@ Fecha a cadeia `Visão → RN/RF/RNF → Casos de Uso → Dívida Técnica → A
 | RF-010 Notificações | [notificacao_service.py](../../src/oraculo/services/notificacao_service.py), canais Discord e e-mail |
 | RF-011 Google Agenda | `GoogleAgenda.criar/atualizar/cancelar` |
 | RF-012 Logs | Tabela `audit_log` ([repositories/auditoria.py](../../src/oraculo/repositories/auditoria.py)) + `/auditoria` |
+| RF-013 Saldo/extrato de Dracmas | `/saldo`, `/extrato-dracmas` ([cogs/comunidade.py](../../src/oraculo/bot/cogs/comunidade.py)) |
+| RF-014 Doação de Dracmas | `/doar-dracmas`, `DracmasService.doar` |
 
 ## Requisitos não funcionais
 
@@ -72,3 +79,5 @@ Fecha a cadeia `Visão → RN/RF/RNF → Casos de Uso → Dívida Técnica → A
 | Reuniões e eventos | Uma tabela `agendamentos` com `tipo` | Mesmo ciclo de vida, RSVP e sync; muda apenas a permissão de criação |
 | Administrador | Fora da progressão automática | Cargo de governança, atribuído por `/definir-cargo` |
 | WhatsApp | Schema e origem de ação já preveem o canal; adaptador não implementado | Fora da Sprint 1–4; exige ADR próprio (follow-up do ADR-001) |
+| Ingresso na Comunidade (RN-015) | Cobrado automaticamente no primeiro crédito de Dracmas, mesmo se deixar o saldo negativo (suspende a conta, RN-014) | `COMUNIDADE_E_CLUBE.md` Art. 3º §1º e §3º dão duas leituras possíveis para conciliar; decisão documentada em `services/dracmas_service.py`, vale revisar com o Clube TYTO se a leitura ficar contestada |
+| `Membro.dracmas` (US-405) | Segue sem nenhum comando — só a camada Comunidade (`Aldeao`) foi implementada | Migração de saldo Aldeão→Membro na filiação (`COMUNIDADE_E_CLUBE.md` Art. 4º §1º-A) e taxa mensal de manutenção ficam para uma fase seguinte |

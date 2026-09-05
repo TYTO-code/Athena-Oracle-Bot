@@ -78,6 +78,9 @@ Todos os segredos vêm de variáveis de ambiente com o prefixo `ORACULO_` — **
 | `/ajuda` | Lista os comandos e o que seu cargo libera | Membro |
 | `/perfil` | Cargo, XP, próximo cargo e posição (RF-002) | Membro |
 | `/ranking` | Ranking geral ou por período (RF-004) | Membro |
+| `/saldo` | Saldo de Dracmas na Comunidade (RF-013) | Nenhuma — Aldeão não usa cargo |
+| `/extrato-dracmas` | Histórico de movimentações de Dracmas (RF-013) | Nenhuma — Aldeão não usa cargo |
+| `/doar-dracmas` | Doa Dracmas do próprio saldo a outra pessoa (RF-014) | Nenhuma — Aldeão não usa cargo |
 | `/agenda` | Próximas reuniões e eventos | Membro |
 | `/hierarquia` | Cargos e limiares de XP | Membro |
 | `/criar-reuniao` | Cria reunião e sincroniza agenda (RF-007) | Cavalaria |
@@ -159,9 +162,14 @@ O domínio não conhece Discord nem HTTP: as regras valem igualmente para comand
 ## Testes
 
 ```bash
-make test        # 146 testes
+make test        # 146 testes + 13 novos de Dracmas (test_dracmas_service.py) — ver nota abaixo
 make check       # lint + testes
 ```
+
+> `test_dracmas_service.py` (13 testes) não foi executado nesta máquina — sem `.venv` local (ver
+> TD-007/README "Estado" do harness `.claude/`, mesma limitação de ambiente). Sintaxe validada com
+> `python3 -m py_compile`; a suíte completa roda de verdade no CI
+> (`.github/workflows/ci.yml`) no próximo push/PR.
 
 A suíte cobre as regras críticas: cargo único e não acúmulo de cargos (RN-001/TD-005), motivo obrigatório e trilha de XP (RN-005/TD-006), permissões por cargo (RN-004/006/007/008), promoção automática (RN-002/003), cancelamento lógico (RN-010) e rejeição de webhook sem assinatura válida (TD-003).
 
