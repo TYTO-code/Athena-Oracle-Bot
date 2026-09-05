@@ -12,9 +12,17 @@
 | RN-008 | Controle de permissões | Todo acesso a comandos deve ser validado conforme o cargo do membro. | Crítica | RF-* privilegiados |
 | RN-009 | Integração Google Agenda | Integração obrigatória com Google Agenda para reuniões e eventos. | Alta | RF-011, UC-004, UC-005 |
 | RN-010 | Histórico imutável | Nenhuma movimentação crítica poderá ser excluída fisicamente. | Crítica | RF-012 |
+| RN-011 | Camada Comunidade separada de cargo | Um Aldeão (`Institucional/COMUNIDADE_E_CLUBE.md` Art. 2º) não tem cargo de hierarquia nem XP deste bot — é um eixo à parte, sem relação com `hierarchy.py`. | Crítica | RF-013, RF-014 |
+| RN-012 | Movimentação de Dracmas exige motivo e origem | Toda movimentação de Dracmas registra tipo, valor, saldo antes/depois, motivo e data (`Institucional/DRACMAS.md` §2/§3). | Crítica | RF-013, RF-014 |
+| RN-013 | Ledger de Dracmas imutável | Nenhuma movimentação de Dracmas (`dracmas_ledger`) poderá ser excluída ou editada fisicamente — mesmo princípio de RN-010, aplicado à carteira da Comunidade. | Crítica | RF-013, RF-014 |
+| RN-014 | Suspensão automática por saldo negativo | Uma conta de Aldeão com saldo negativo é suspensa automaticamente; reversão é sempre manual (`Institucional/DRACMAS.md` §4). | Crítica | RF-014 |
+| RN-015 | Ingresso na Comunidade custa Dracmas | O primeiro crédito de Dracmas a um `discord_id` sem conta cria o Aldeão e cobra 30.000 Dracmas de ingresso na mesma operação, salvo dispensa nomeada (`Institucional/COMUNIDADE_E_CLUBE.md` Art. 3º §1º/§2º/§3º — ver a decisão de implementação documentada em `services/dracmas_service.py`). | Alta | RF-013, RF-014 |
 
 ## Notas de implementação
 
 - **RN-001 / RN-003:** ao atribuir cargo, remover **todos** os cargos TYTO anteriores antes da nova atribuição (ver TD-005).
 - **RN-005:** persistir em tabela de auditoria (ex.: `xp_audit`); o legado não registra autor/motivo (TD-006).
 - **RN-010:** preferir soft-delete e append-only em logs/auditoria.
+- **RN-011 a RN-015:** implementam só a camada Comunidade (`Aldeao`) — `Membro.dracmas` (US-405)
+  segue sem nenhum comando, fica para uma fase seguinte junto com a migração de saldo na
+  filiação ao Clube (`Institucional/COMUNIDADE_E_CLUBE.md` Art. 4º §1º-A).

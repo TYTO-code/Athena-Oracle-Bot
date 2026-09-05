@@ -15,6 +15,7 @@ from oraculo.integrations.email_canal import CanalEmail
 from oraculo.integrations.google_calendar import AgendaExterna, criar_agenda_externa
 from oraculo.logging_config import get_logger
 from oraculo.services.agenda_service import AgendaService
+from oraculo.services.dracmas_service import DracmasService
 from oraculo.services.notificacao_service import NotificacaoService
 from oraculo.services.promocao_service import PromocaoService, SincronizadorCargos
 from oraculo.services.ranking_service import RankingService
@@ -35,6 +36,7 @@ class Container:
     xp: XpService
     ranking: RankingService
     agenda: AgendaService
+    dracmas: DracmasService
     _fechados: bool = field(default=False, repr=False)
 
     @classmethod
@@ -62,6 +64,7 @@ class Container:
             xp=XpService(promocoes=promocoes, somente_leitura=cfg.xp_somente_leitura),
             ranking=RankingService(cache=cache, settings=cfg),
             agenda=AgendaService(agenda_externa=agenda_externa),
+            dracmas=DracmasService(),
         )
 
     async def fechar(self) -> None:

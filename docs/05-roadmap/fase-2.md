@@ -14,8 +14,8 @@ partir da ratificação, independente de este bot já cobrir ou não a regra.
 | F2-003 | Conquistas (Achievements) | Medalhas por marcos | Perfil, notificações |
 | F2-004 | Painel web administrativo | Gestão web para Conselheiros | API FastAPI, autenticação |
 | F2-005 | Torneios e gestão de times | Criação de chaves e guildas | Cargos, ranking, eventos |
-| F2-006 | Ledger de Dracmas | Saldo único por pessoa e as movimentações oficiais de `Institucional/DRACMAS.md` §2 (taxa mensal, missão, doação, ingresso de camada, bônus de venda do Mercador etc.); suspensão automática por saldo negativo (`DRACMAS.md` §4) | Schema base, F2-001 depende deste |
-| F2-007 | Camadas Comunidade/Clube | Registro de Aldeão (`Institucional/COMUNIDADE_E_CLUBE.md` Art. 2º) — hoje inteiramente ausente: este bot só conhece "Membro" (= Clube), sem a camada intermediária de Comunidade nem o ingresso pago em Dracmas (30.000/70.000) | F2-006 |
+| F2-006 | Ledger de Dracmas | **Parcialmente em pé** — `dracmas_ledger` cobre a camada Comunidade (`Aldeao`): doação, ingresso, prêmio de torneio, bônus de venda do Mercador, suspensão automática (`DRACMAS.md` §4). Falta o lado Clube: taxa mensal de manutenção, migração de saldo na filiação, e ligar `Membro.dracmas` (US-405) a este mesmo ledger em vez de ficar solto | F2-001 ainda depende da parte que falta |
+| F2-007 | Camadas Comunidade/Clube | **Parcialmente em pé** — registro de Aldeão (`Institucional/COMUNIDADE_E_CLUBE.md` Art. 2º) existe, com ingresso pago em 30.000 Dracmas (Art. 3º §1º). Falta o ingresso no Clube (70.000, Art. 4º §1º) e a migração de saldo Aldeão→Membro (Art. 4º §1º-A) | F2-006 (parte que falta) |
 | F2-008 | Crédito de Mérito | Registro provisório de mérito para não-membro (`Institucional/CREDITO_DE_MERITO.md`), convertido em XP na filiação ao Clube | F2-007 |
 | F2-009 | Integração com o Mercador | Conta de Comunidade do Mercador para o bônus de venda em Dracmas (`Institucional/MERCADOR.md` Art. 4º §13º–§14º), criada automaticamente no primeiro bônus se não existir | F2-006, F2-007 |
 

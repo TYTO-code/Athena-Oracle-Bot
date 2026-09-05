@@ -83,6 +83,52 @@ class XpSomenteLeituraError(BusinessRuleError):
         )
 
 
+class SaldoDracmasInsuficienteError(BusinessRuleError):
+    """`Institucional/COMUNIDADE_E_CLUBE.md` Art. 3º §1º / Art. 4º §1º — sem saldo pro ingresso/débito."""
+
+    regra = "DRACMAS.md"
+
+    def __init__(self, saldo_atual: int, valor_necessario: int) -> None:
+        self.saldo_atual = saldo_atual
+        self.valor_necessario = valor_necessario
+        super().__init__(
+            f"Saldo insuficiente: {saldo_atual} Dracmas disponíveis, "
+            f"{valor_necessario} necessários."
+        )
+
+
+class ContaDracmasSuspensaError(BusinessRuleError):
+    """`Institucional/DRACMAS.md` §4 — conta suspensa por saldo negativo não movimenta até reversão manual."""
+
+    regra = "DRACMAS.md §4"
+
+    def __init__(self, discord_id: int) -> None:
+        self.discord_id = discord_id
+        super().__init__(
+            f"Conta de Dracmas de {discord_id} está suspensa (saldo negativo) — reversão "
+            "é sempre manual, mediante decisão administrativa (DRACMAS.md §4)."
+        )
+
+
+class QuantidadeDracmasInvalidaError(BusinessRuleError):
+    """Valor de movimentação de Dracmas precisa ser um inteiro positivo diferente de zero."""
+
+    regra = "DRACMAS.md"
+
+    def __init__(self, valor: int) -> None:
+        self.valor = valor
+        super().__init__(f"Valor de Dracmas inválido: {valor}. Informe um inteiro positivo.")
+
+
+class MotivoDracmasObrigatorioError(BusinessRuleError):
+    """`Institucional/DRACMAS.md` §3 — toda movimentação exige origem/motivo identificável."""
+
+    regra = "DRACMAS.md §3"
+
+    def __init__(self) -> None:
+        super().__init__("O motivo é obrigatório em qualquer movimentação de Dracmas (DRACMAS.md §3).")
+
+
 class RecursoNaoEncontradoError(OraculoError):
     """Entidade referenciada (membro, reunião, evento) não existe."""
 

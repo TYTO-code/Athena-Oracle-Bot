@@ -100,6 +100,29 @@ class NotificacaoService:
         )
 
     @staticmethod
+    def dracmas_creditado(
+        *,
+        nome: str,
+        valor: int,
+        motivo: str,
+        saldo: int,
+        discord_id: int | None,
+        ingresso_cobrado: bool = False,
+    ) -> Notificacao:
+        """Comunidade — aviso de crédito de Dracmas (`DRACMAS.md` §2), com o ingresso automático
+        na Comunidade destacado quando aplicável (`COMUNIDADE_E_CLUBE.md` Art. 3º §1º/§3º)."""
+        corpo = f"**{nome}** recebeu **{valor} Dracmas**."
+        if ingresso_cobrado:
+            corpo += " Conta de Comunidade criada agora — 30.000 Dracmas de ingresso já descontados."
+        return Notificacao(
+            titulo="🪙 Dracmas creditados",
+            corpo=corpo,
+            severidade=Severidade.SUCESSO,
+            destinatario_discord_id=discord_id,
+            campos={"Motivo": motivo, "Saldo atual": str(saldo)},
+        )
+
+    @staticmethod
     def agendamento(
         *, tipo: str, titulo: str, quando: str, organizador: str, guild_id: int | None
     ) -> Notificacao:

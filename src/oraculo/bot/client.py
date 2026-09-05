@@ -27,6 +27,7 @@ COGS = (
     "oraculo.bot.cogs.xp",
     "oraculo.bot.cogs.agenda",
     "oraculo.bot.cogs.admin",
+    "oraculo.bot.cogs.comunidade",
 )
 
 
