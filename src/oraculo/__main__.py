@@ -14,6 +14,7 @@ Uso::
     python -m oraculo backup       # executa um backup imediato
     python -m oraculo importar     # importa os membros da plataforma (Firebase)
     python -m oraculo verificar    # valida a configuração (RNF-003)
+    python -m oraculo promover-admin --discord-id <id>  # bootstrap do 1º Administrador
 """
 
 from __future__ import annotations
@@ -157,6 +158,36 @@ async def comando_backup(cfg: Settings) -> None:
     print(f"Backup gerado em {arquivo}")
 
 
+async def comando_promover_admin(cfg: Settings, *, discord_id: int, nome: str | None) -> None:
+    """CLI para o bootstrap do primeiro Administrador — ver `services.bootstrap_service`."""
+    from oraculo.db.base import criar_schema, encerrar_engine, sessao
+    from oraculo.services.bootstrap_service import (
+        AdministradorJaExisteError,
+        promover_primeiro_administrador,
+    )
+
+    if not cfg.is_production:
+        await criar_schema(cfg)
+
+    try:
+        async with sessao(cfg) as session:
+            membro = await promover_primeiro_administrador(
+                session, discord_id=discord_id, nome=nome
+            )
+            nome_final = membro.nome_exibicao
+    except AdministradorJaExisteError as exc:
+        raise RuntimeError(str(exc)) from exc
+
+    await encerrar_engine()
+    print(f"{nome_final} (discord_id={discord_id}) agora é Administrador no banco do bot.")
+    print(
+        "O cargo do Discord não foi sincronizado por este comando (não há bot conectado "
+        "aqui). Rode /definir-cargo em você mesmo, com o mesmo cargo, dentro do Discord — "
+        "agora que você já é Administrador no banco, o comando vai passar e sincronizar "
+        "o cargo no servidor."
+    )
+
+
 def comando_verificar(cfg: Settings) -> int:
     """RNF-003 — verifica a configuração antes de um deploy."""
     pendencias = cfg.validate_for_production()
@@ -180,7 +211,16 @@ def main(argv: list[str] | None = None) -> int:
         "comando",
         nargs="?",
         default="tudo",
-        choices=["tudo", "bot", "api", "db-init", "backup", "importar", "verificar"],
+        choices=[
+            "tudo",
+            "bot",
+            "api",
+            "db-init",
+            "backup",
+            "importar",
+            "verificar",
+            "promover-admin",
+        ],
         help="O que executar (padrão: tudo, conforme as flags do .env).",
     )
     parser.add_argument(
@@ -192,6 +232,15 @@ def main(argv: list[str] | None = None) -> int:
         "--desativar-ausentes",
         action="store_true",
         help="Só para `importar`: desativa (sem apagar) quem sumiu da plataforma.",
+    )
+    parser.add_argument(
+        "--discord-id",
+        type=int,
+        help="Só para `promover-admin`: ID Discord de quem vira o primeiro Administrador.",
+    )
+    parser.add_argument(
+        "--nome",
+        help="Só para `promover-admin`: nome de exibição, se o membro ainda não existir no banco.",
     )
     args = parser.parse_args(argv)
 
@@ -208,6 +257,16 @@ def main(argv: list[str] | None = None) -> int:
                     cfg, dry_run=args.ensaio, desativar_ausentes=args.desativar_ausentes
                 )
             )
+        except RuntimeError as exc:
+            log.error("%s", exc)
+            return 1
+        return 0
+
+    if args.comando == "promover-admin":
+        if args.discord_id is None:
+            parser.error("promover-admin exige --discord-id")
+        try:
+            asyncio.run(comando_promover_admin(cfg, discord_id=args.discord_id, nome=args.nome))
         except RuntimeError as exc:
             log.error("%s", exc)
             return 1
