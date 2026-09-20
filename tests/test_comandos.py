@@ -14,10 +14,16 @@ from oraculo.bot.permissions import acao_requerida
 from oraculo.domain.hierarchy import CAVALARIA, CONSELHEIRO, LORDE, MEMBRO, pelo_menos
 from oraculo.domain.permissions import cargo_minimo
 
-COMANDOS_SEM_CARGO = frozenset({"saldo", "extrato-dracmas", "doar-dracmas"})
+COMANDOS_SEM_CARGO = frozenset(
+    {"saldo", "extrato-dracmas", "doar-dracmas", "vincular-conta", "confirmar-vinculo"}
+)
 """RN-011 — camada Comunidade opera por `discord_id`, não por `Membro`/cargo
 do Clube (ver docstring de `bot/cogs/comunidade.py`); estes comandos
-legitimamente não passam por `@requer` nem aparecem em `/ajuda` por cargo."""
+legitimamente não passam por `@requer` nem aparecem em `/ajuda` por cargo.
+
+RN-016 — `vincular-conta`/`confirmar-vinculo` têm o mesmo motivo, mas na outra
+ponta: `@requer` criaria o `Membro` "zerado" que o próprio fluxo existe para
+recusar como duplicado (ver docstring de `bot/cogs/vinculo.py`)."""
 
 
 @pytest.fixture

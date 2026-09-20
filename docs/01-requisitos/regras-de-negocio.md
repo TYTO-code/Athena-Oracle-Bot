@@ -17,6 +17,7 @@
 | RN-013 | Ledger de Dracmas imutável | Nenhuma movimentação de Dracmas (`dracmas_ledger`) poderá ser excluída ou editada fisicamente — mesmo princípio de RN-010, aplicado à carteira da Comunidade. | Crítica | RF-013, RF-014 |
 | RN-014 | Suspensão automática por saldo negativo | Uma conta de Aldeão com saldo negativo é suspensa automaticamente; reversão é sempre manual (`Institucional/DRACMAS.md` §4). | Crítica | RF-014 |
 | RN-015 | Ingresso na Comunidade custa Dracmas | O primeiro crédito de Dracmas a um `discord_id` sem conta cria o Aldeão e cobra 30.000 Dracmas de ingresso na mesma operação, salvo dispensa nomeada (`Institucional/COMUNIDADE_E_CLUBE.md` Art. 3º §1º/§2º/§3º — ver a decisão de implementação documentada em `services/dracmas_service.py`). | Alta | RF-013, RF-014 |
+| RN-016 | Prova de posse para autovínculo Discord↔plataforma | A importação (RF-001) só liga `Membro.discord_id` quando o Firestore já traz `discordId`; quando não traz, ninguém pode reivindicar um registro alheio só citando e-mail/ID — precisa provar que controla o e-mail já cadastrado (código de verificação de uso único, TTL curto, tentativas limitadas). A resposta ao pedido de vínculo nunca revela se o identificador existe, está vinculado a outra conta, ou tem outra verificação em andamento — mesma resposta silenciosa nos três casos (evita enumeração e invalidação por terceiros). Nunca aplica cargo/XP nem mescla com um `Membro` que já exista para o mesmo `discord_id` (ver `services/vinculo_service.py`). | Crítica | RF-001 |
 
 ## Notas de implementação
 

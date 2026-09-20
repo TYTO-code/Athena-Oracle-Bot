@@ -135,10 +135,26 @@ async def solicitar_vinculo(
         # Já vinculado a esta mesma conta — seguro revelar (é o próprio dono perguntando).
         raise VinculoJaSolicitadoError("Sua conta já está vinculada a este cadastro.")
 
+    pendente_do_alvo = await session.scalar(
+        select(VinculoPendente).where(
+            VinculoPendente.membro_id == candidato.id,
+            VinculoPendente.expira_em > agora(),
+        )
+    )
+    if pendente_do_alvo is not None:
+        # Alguém já pediu um código pra este registro (o dono de verdade, ou um
+        # terceiro que só sabe o e-mail/ID tentando forçar reenvio). Não apagamos
+        # nem substituímos o pedido em andamento — senão um terceiro sem o código
+        # conseguiria invalidar repetidamente a verificação legítima de outra
+        # pessoa. Mesma resposta silenciosa do caminho "não encontrado".
+        return ResultadoSolicitacao(enviado=False)
+
     if not candidato.email:
         return ResultadoSolicitacao(enviado=False)
 
     codigo = _gerar_codigo()
+    # Só sobra aqui um pendente *expirado* (o `select` acima já garantiu que não
+    # há nenhum ativo) — limpar antes de inserir, já que `membro_id` é único.
     await session.execute(delete(VinculoPendente).where(VinculoPendente.membro_id == candidato.id))
     session.add(
         VinculoPendente(
@@ -154,6 +170,7 @@ async def solicitar_vinculo(
         session,
         acao="vinculo.codigo_enviado",
         resumo=f"Código de vínculo enviado para membro id={candidato.id}",
+        ator_descricao=f"discord:{discord_id}",
         alvo_tipo="membro",
         alvo_id=candidato.id,
         dados={"discord_id": discord_id},
@@ -216,6 +233,7 @@ async def confirmar_vinculo(session: AsyncSession, *, discord_id: int, codigo: s
         session,
         acao="vinculo.confirmado",
         resumo=f"Membro id={alvo.id} vinculado à conta Discord {discord_id}",
+        ator_descricao=f"discord:{discord_id}",
         alvo_tipo="membro",
         alvo_id=alvo.id,
         dados={"discord_id": discord_id},

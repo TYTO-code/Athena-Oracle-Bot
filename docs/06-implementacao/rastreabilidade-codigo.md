@@ -21,12 +21,13 @@ Fecha a cadeia `Visão → RN/RF/RNF → Casos de Uso → Dívida Técnica → A
 | RN-013 Ledger de Dracmas imutável | Tabela `dracmas_ledger` append-only ([repositories/dracmas.py](../../src/oraculo/repositories/dracmas.py)) | `test_dracmas_service.py` |
 | RN-014 Suspensão automática | `DracmasService.debitar` marca `Aldeao.suspenso` quando o saldo fica negativo | `test_dracmas_service.py` |
 | RN-015 Ingresso na Comunidade | `DracmasService._cobrar_ingresso`, `CUSTO_INGRESSO_COMUNIDADE` | `test_dracmas_service.py` |
+| RN-016 Prova de posse para autovínculo | `solicitar_vinculo`/`confirmar_vinculo` ([vinculo_service.py](../../src/oraculo/services/vinculo_service.py)), tabela `vinculos_pendentes`; `bot/cogs/vinculo.py` não usa `bot/permissions.py` (mesmo motivo de RN-011: não pode criar `Membro` antes do vínculo existir) | `test_vinculo_service.py` |
 
 ## Requisitos funcionais
 
 | RF | Implementação |
 |----|---------------|
-| RF-001 Autenticação | `obter_ou_criar_por_discord` ([repositories/membros.py](../../src/oraculo/repositories/membros.py)) |
+| RF-001 Autenticação | `obter_ou_criar_por_discord` ([repositories/membros.py](../../src/oraculo/repositories/membros.py)); autovínculo por prova de posse quando a plataforma não trouxe `discordId` — `/vincular-conta`, `/confirmar-vinculo` ([cogs/vinculo.py](../../src/oraculo/bot/cogs/vinculo.py), RN-016) |
 | RF-002 Perfil | `/perfil` ([cogs/perfil.py](../../src/oraculo/bot/cogs/perfil.py)) + `RankingService.perfil` |
 | RF-003 Gestão de XP | `/conceder-xp`, `/remover-xp`, `/historico-xp` ([cogs/xp.py](../../src/oraculo/bot/cogs/xp.py)) |
 | RF-004 Ranking | `/ranking` ([cogs/ranking.py](../../src/oraculo/bot/cogs/ranking.py)) + cache |

@@ -130,21 +130,21 @@ class MotivoDracmasObrigatorioError(BusinessRuleError):
 
 
 class VinculoJaSolicitadoError(BusinessRuleError):
-    """RF-001 (extensão) — já existe verificação em andamento, ou já está vinculado."""
+    """RN-016 — já existe verificação em andamento, ou já está vinculado."""
 
-    regra = "RF-001"
+    regra = "RN-016"
 
 
 class CodigoInvalidoOuExpiradoError(BusinessRuleError):
-    """RF-001 (extensão) — código incorreto, expirado, ou sem solicitação pendente."""
+    """RN-016 — código incorreto, expirado, ou sem solicitação pendente."""
 
-    regra = "RF-001"
+    regra = "RN-016"
 
 
 class ConflitoDeVinculoError(BusinessRuleError):
-    """RF-001 (extensão) — a conta Discord já tem atividade própria; precisa de Administrador."""
+    """RN-016 — a conta Discord já tem registro no bot; precisa de Administrador."""
 
-    regra = "RF-001"
+    regra = "RN-016"
 
 
 class RecursoNaoEncontradoError(OraculoError):
