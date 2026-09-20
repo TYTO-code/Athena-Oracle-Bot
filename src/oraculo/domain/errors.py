@@ -129,6 +129,24 @@ class MotivoDracmasObrigatorioError(BusinessRuleError):
         super().__init__("O motivo é obrigatório em qualquer movimentação de Dracmas (DRACMAS.md §3).")
 
 
+class VinculoJaSolicitadoError(BusinessRuleError):
+    """RN-016 — já existe verificação em andamento, ou já está vinculado."""
+
+    regra = "RN-016"
+
+
+class CodigoInvalidoOuExpiradoError(BusinessRuleError):
+    """RN-016 — código incorreto, expirado, ou sem solicitação pendente."""
+
+    regra = "RN-016"
+
+
+class ConflitoDeVinculoError(BusinessRuleError):
+    """RN-016 — a conta Discord já tem registro no bot; precisa de Administrador."""
+
+    regra = "RN-016"
+
+
 class RecursoNaoEncontradoError(OraculoError):
     """Entidade referenciada (membro, reunião, evento) não existe."""
 
