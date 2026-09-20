@@ -339,20 +339,43 @@ class FirestoreMembros:
         colecao = cliente.collection(self._cfg.firebase_colecao)
         mapa = {**MAPA_PADRAO_FIREBASE, **(self._cfg.firebase_campos or {})}
 
+        nome_projetos = mapa["projetos"]
+        documento = colecao.document(id_externo)
+
         try:
-            # O id do documento costuma ser a chave estável do membro; se não
-            # for, cai na consulta pelo campo equivalente.
+            # Formato principal do clube: **subcoleção** `membros/{id}/projetos`,
+            # um documento por projeto — o id do documento é o id do projeto.
+            subcolecao = await asyncio.wait_for(
+                _coletar(documento.collection(nome_projetos)),
+                timeout=self._cfg.firebase_timeout,
+            )
+            if subcolecao:
+                return _ids_da_subcolecao(subcolecao)
+
+            # Sem subcoleção: talvez o vínculo esteja como campo no documento
+            # (lista, mapa ou string) — custa uma leitura e evita um "sem acesso"
+            # falso só por diferença de formato.
             snapshot = await asyncio.wait_for(
-                colecao.document(id_externo).get(), timeout=self._cfg.firebase_timeout
+                documento.get(), timeout=self._cfg.firebase_timeout
             )
             dados: Mapping[str, Any] | None = snapshot.to_dict() if snapshot.exists else None
 
             if dados is None:
+                # O id do documento pode não ser a chave estável: procura pelo campo.
                 consulta = colecao.where(mapa["id_externo"], "==", id_externo).limit(1)
                 pagina = await asyncio.wait_for(
                     _coletar(consulta), timeout=self._cfg.firebase_timeout
                 )
-                dados = pagina[0].to_dict() if pagina else None
+                if not pagina:
+                    return []
+                achado = pagina[0]
+                dados = achado.to_dict()
+                subcolecao = await asyncio.wait_for(
+                    _coletar(achado.reference.collection(nome_projetos)),
+                    timeout=self._cfg.firebase_timeout,
+                )
+                if subcolecao:
+                    return _ids_da_subcolecao(subcolecao)
         except TimeoutError as exc:
             raise IntegracaoIndisponivelError(
                 "Firebase", f"tempo esgotado após {self._cfg.firebase_timeout}s"
@@ -364,12 +387,31 @@ class FirestoreMembros:
 
         if not dados:
             return []
-        return _para_lista_de_ids(_buscar(dados, mapa["projetos"]))
+        return _para_lista_de_ids(_buscar(dados, nome_projetos))
 
 
 async def _coletar(consulta: Any) -> list[Any]:
     """Materializa uma página do Firestore, para poder aplicar timeout nela."""
     return [documento async for documento in consulta.stream()]
+
+
+def _ids_da_subcolecao(documentos: list[Any]) -> list[str]:
+    """IDs dos projetos a partir da subcoleção `membros/{id}/projetos` (RN-017).
+
+    O id do documento é o id do projeto. Um documento com `ativo: false` (ou
+    `removido: true`) é tratado como vínculo encerrado — quem sai de um projeto
+    costuma ser desativado, não apagado, e ler isso como acesso válido seria
+    devolver o projeto a quem já saiu.
+    """
+    ids: list[str] = []
+    for documento in documentos:
+        dados = documento.to_dict() or {}
+        if dados.get("ativo") is False or dados.get("removido") is True:
+            continue
+        identificador = str(dados.get("projetoId") or dados.get("id") or documento.id or "").strip()
+        if identificador:
+            ids.append(identificador)
+    return list(dict.fromkeys(ids))
 
 
 def criar_fonte_membros(settings: Settings | None = None) -> FonteMembros | None:

@@ -116,8 +116,9 @@ A API **não** expõe operações de domínio: XP, cargos e agenda passam pelo b
 
 ## Pergunta ao Oráculo (`/perguntar`) — RN-017
 
-O bot responde sobre o **regulamento TYTO** (os `.md` do vault `Institucional/`,
-apontados por `ORACULO_REGRAS_DIR`) e sobre os **projetos em que a pessoa participa**.
+O bot responde sobre o **regulamento TYTO** (os `.md` em
+[`docs/regras-tyto/`](docs/regras-tyto/), já apontados por padrão) e sobre os
+**projetos em que a pessoa participa**.
 
 A regra de segurança que sustenta isso: **a autorização acontece na recuperação,
 nunca no prompt**. O bot descobre no Firebase, no momento da pergunta, em quais
@@ -127,25 +128,42 @@ instrução de prompt (nem texto malicioso salvo no banco) capaz de extraí-lo.
 Quem não tem vínculo Discord↔plataforma (RN-016) não tem projeto algum, e a
 resposta é sempre efêmera, porque conteúdo restrito não pode ir para o canal.
 
-### Contrato do banco externo de projetos
+### Quem pode ver qual projeto (Firebase)
+
+A autorização sai da **subcoleção** `membros/{id_externo}/projetos` no Firestore:
+um documento por projeto, cujo **id do documento é o id do projeto**. Um documento
+com `ativo: false` (ou `removido: true`) é lido como vínculo encerrado — quem sai
+de um projeto normalmente é desativado, não apagado.
+
+Se a subcoleção não existir, o bot ainda tenta um campo `projetos` no próprio
+documento do membro (lista, mapa `{id: true}` ou string com vírgulas) — custa uma
+leitura e evita um "sem acesso" falso só por diferença de formato.
+
+### Banco externo de projetos
 
 `ORACULO_PROJETOS_DATABASE_URL` aponta para um PostgreSQL **separado** do banco do
-bot, com um usuário que tenha **apenas `SELECT`**. O bot não cria nem migra nada
-lá; espera encontrar:
+bot, com um usuário que tenha **apenas `SELECT`**. O schema pronto para rodar está
+em [`docs/projetos-schema.sql`](docs/projetos-schema.sql):
 
-```sql
-projetos(id text, nome text, descricao text, status text, atualizado_em timestamptz)
-projeto_decisoes(id bigint, projeto_id text, titulo text, conteudo text, decidido_em timestamptz)
+```bash
+psql "$PROJETOS_DATABASE_URL" -f docs/projetos-schema.sql
 ```
 
-`projetos.id` precisa casar com os IDs que o Firebase guarda no campo `projetos` de
-cada membro (formato flexível: lista de strings, lista de objetos com `id`, mapa
-`{id: true}` ou string separada por vírgula). Se o banco real usar outros nomes,
-exponha uma `VIEW` com estes — os nomes são fixos no código de propósito:
-identificador de SQL não é parametrizável, então torná-los configuráveis abriria
-uma via de injeção.
+`projetos.id` precisa casar com o id do projeto no Firebase — se os dois lados
+divergirem, ninguém vê nada. Para adaptar um schema que já exista, exponha `VIEW`s
+com esses nomes: eles são fixos no código de propósito, porque identificador de SQL
+não é parametrizável e torná-los configuráveis abriria uma via de injeção.
 
 Sem essa variável, `/perguntar` continua funcionando **só** para o regulamento.
+
+### Custo
+
+O padrão é o modelo mais barato da linha atual (`claude-haiku-4-5`, ~$1/$5 por
+milhão de tokens), e o regulamento inteiro vai num prefixo de prompt **cacheado e
+compartilhado** entre todas as perguntas de todos os membros — a parte cara do
+prompt é paga uma vez, não por pessoa. `ORACULO_PERGUNTA_LIMITE_HORA` (padrão 10)
+é o freio por pessoa: um LLM aberto ao servidor inteiro sem teto é conta aberta.
+Se as respostas ficarem rasas, `ORACULO_LLM_MODEL=claude-sonnet-5` dobra o custo.
 
 ## Plataforma de membros (Firebase)
 
