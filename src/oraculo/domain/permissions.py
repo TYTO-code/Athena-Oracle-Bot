@@ -34,9 +34,6 @@ class Acao(StrEnum):
     VER_RANKING = "ver_ranking"
     RESPONDER_RSVP = "responder_rsvp"
 
-    # Vínculo de conta — RF-001 (extensão)
-    VINCULAR_CONTA = "vincular_conta"
-
     # XP — RF-003, RN-004, RN-005
     CONCEDER_XP = "conceder_xp"
     REMOVER_XP = "remover_xp"
@@ -58,7 +55,6 @@ _POLITICA: dict[Acao, Cargo] = {
     Acao.VER_PERFIL: MEMBRO,
     Acao.VER_RANKING: MEMBRO,
     Acao.RESPONDER_RSVP: MEMBRO,
-    Acao.VINCULAR_CONTA: MEMBRO,
     Acao.CONCEDER_XP: CONSELHEIRO,
     Acao.REMOVER_XP: CONSELHEIRO,
     Acao.VER_HISTORICO_XP: CONSELHEIRO,

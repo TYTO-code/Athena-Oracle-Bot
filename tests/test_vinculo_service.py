@@ -114,6 +114,25 @@ async def test_pedido_duplicado_e_recusado_enquanto_pendente(session):
         await solicitar_vinculo(session, discord_id=555, identificador=str(membro.id_externo))
 
 
+async def test_terceiro_nao_invalida_pedido_em_andamento_de_outra_conta(session):
+    """Só saber o e-mail/ID não deixa um terceiro forçar reenvio e derrubar o código real."""
+    membro = await _plataforma(session)
+    original = await solicitar_vinculo(session, discord_id=555, identificador="perseu@tyto.example")
+
+    resultado = await solicitar_vinculo(
+        session, discord_id=777, identificador="perseu@tyto.example"
+    )
+    assert resultado.enviado is False
+
+    pendente = await session.scalar(
+        select(VinculoPendente).where(VinculoPendente.membro_id == membro.id)
+    )
+    assert pendente.discord_id == 555, "o pedido legítimo em andamento não pode ser substituído"
+
+    confirmado = await confirmar_vinculo(session, discord_id=555, codigo=original.codigo)
+    assert confirmado.discord_id == 555
+
+
 async def test_codigo_enviado_fica_registrado_na_auditoria(session):
     await _plataforma(session)
     await solicitar_vinculo(session, discord_id=555, identificador="perseu@tyto.example")
