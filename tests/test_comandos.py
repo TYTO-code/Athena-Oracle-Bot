@@ -14,6 +14,11 @@ from oraculo.bot.permissions import acao_requerida
 from oraculo.domain.hierarchy import CAVALARIA, CONSELHEIRO, LORDE, MEMBRO, pelo_menos
 from oraculo.domain.permissions import cargo_minimo
 
+COMANDOS_SEM_CARGO = frozenset({"saldo", "extrato-dracmas", "doar-dracmas"})
+"""RN-011 — camada Comunidade opera por `discord_id`, não por `Membro`/cargo
+do Clube (ver docstring de `bot/cogs/comunidade.py`); estes comandos
+legitimamente não passam por `@requer` nem aparecem em `/ajuda` por cargo."""
+
 
 @pytest.fixture
 async def bot(settings):
@@ -27,8 +32,13 @@ async def bot(settings):
 
 
 async def test_todo_comando_declara_a_acao_exigida(bot):
-    """Um comando sem `@requer` escaparia da política e sumiria do /ajuda."""
-    sem_acao = [c.qualified_name for c in bot.tree.walk_commands() if acao_requerida(c) is None]
+    """Um comando sem `@requer` (fora da exceção documentada da Comunidade) escaparia da
+    política e sumiria do /ajuda."""
+    sem_acao = [
+        c.qualified_name
+        for c in bot.tree.walk_commands()
+        if acao_requerida(c) is None and c.qualified_name not in COMANDOS_SEM_CARGO
+    ]
     assert sem_acao == []
 
 
@@ -70,10 +80,12 @@ async def test_cargo_minimo_de_cada_comando(bot, comando, cargo_esperado):
 
 
 async def test_ajuda_agrupa_todos_os_comandos_por_cargo(bot):
-    grupos = agrupar_por_cargo(list(bot.tree.walk_commands()))
+    todos = list(bot.tree.walk_commands())
+    grupos = agrupar_por_cargo(todos)
 
+    com_cargo = [c for c in todos if c.qualified_name not in COMANDOS_SEM_CARGO]
     total_agrupado = sum(len(lista) for lista in grupos.values())
-    assert total_agrupado == len(list(bot.tree.walk_commands()))
+    assert total_agrupado == len(com_cargo)
 
     nomes_membro = {c.qualified_name for c in grupos[MEMBRO]}
     assert {"perfil", "ranking", "ajuda"} <= nomes_membro

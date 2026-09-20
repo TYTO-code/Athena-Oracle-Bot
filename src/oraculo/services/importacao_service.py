@@ -25,13 +25,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from oraculo.db.base import agora
 from oraculo.db.models import Membro, OrigemAcao
-from oraculo.domain.hierarchy import CARGO_INICIAL, Cargo, cargo_por_slug
+from oraculo.domain.hierarchy import CARGO_INICIAL, LORDE, Cargo, cargo_para_xp, cargo_por_slug
 from oraculo.integrations.plataforma import FonteMembros, MembroExterno, normalizar
 from oraculo.logging_config import get_logger
 from oraculo.repositories import auditoria
 from oraculo.services.promocao_service import PromocaoService
 
 log = get_logger(__name__)
+
+CARGO_MAXIMO_AUTOMATICO: Cargo = LORDE
+"""Teto de mitigação: a importação nunca aplica, sozinha, cargo acima deste.
+
+A plataforma (Firebase) não está sob o controle de permissões deste bot
+(RN-008) — as regras de segurança do Firestore que decidem quem pode gravar
+`cargo` ou `xp` em `membros` ficam fora deste repositório. Se essas regras
+permitirem que o próprio usuário edite o documento, a importação aplicaria
+uma promoção até Administrador sem que ninguém tivesse passado por
+`/definir-cargo`, contornando RNF-003. Acima do teto, a importação apenas
+registra a sugestão em auditoria (`importacao.cargo_pendente_confirmacao`) e
+espera confirmação manual de um humano com permissão."""
 
 
 class PoliticaImportacao(StrEnum):
@@ -66,6 +78,7 @@ class Relatorio:
     reativados: int = 0
     desativados: int = 0
     promovidos: int = 0
+    pendentes_confirmacao: int = 0
     sem_discord: int = 0
     invalidos: int = 0
     erros: list[str] = field(default_factory=list)
@@ -86,7 +99,9 @@ class Relatorio:
         return (
             f"{prefixo}{self.total_lidos} lidos · {self.criados} criados · "
             f"{self.atualizados} atualizados · {self.inalterados} sem mudança · "
-            f"{self.promovidos} com cargo alterado · {self.sem_discord} sem Discord · "
+            f"{self.promovidos} com cargo alterado · "
+            f"{self.pendentes_confirmacao} aguardando confirmação manual · "
+            f"{self.sem_discord} sem Discord · "
             f"{self.invalidos} inválidos · {len(self.erros)} erros"
         )
 
@@ -149,6 +164,7 @@ class ImportacaoService:
                     "criados": relatorio.criados,
                     "atualizados": relatorio.atualizados,
                     "promovidos": relatorio.promovidos,
+                    "pendentes_confirmacao": relatorio.pendentes_confirmacao,
                     "desativados": relatorio.desativados,
                     "politica": self._politica.value,
                     "erros": len(relatorio.erros),
@@ -220,7 +236,7 @@ class ImportacaoService:
             PoliticaImportacao.CARGA_INICIAL,
             PoliticaImportacao.ESPELHO,
         )
-        cargo = self._cargo_de(externo) if trazer_progressao else None
+        xp_inicial = max(0, externo.xp or 0) if trazer_progressao else 0
 
         # Nasce sempre no cargo inicial: a subida vira uma promoção registrada,
         # e não um cargo que apareceu no banco sem nenhuma explicação (RN-003).
@@ -230,7 +246,7 @@ class ImportacaoService:
             nome_exibicao=externo.nome,
             email=externo.email,
             cargo_slug=CARGO_INICIAL.slug,
-            xp=max(0, externo.xp or 0) if trazer_progressao else 0,
+            xp=xp_inicial,
             ativo=externo.ativo,
             sincronizado_em=agora(),
         )
@@ -241,28 +257,40 @@ class ImportacaoService:
         if not trazer_progressao:
             return
 
-        if cargo is not None and cargo.slug != CARGO_INICIAL.slug:
-            await self._promocoes.aplicar(
+        cargo_declarado = self._cargo_de(externo)
+        automatica = cargo_declarado is None
+        cargo_alvo = cargo_declarado or cargo_para_xp(xp_inicial)
+
+        if cargo_alvo.slug == CARGO_INICIAL.slug:
+            return
+
+        if cargo_alvo.ordem > CARGO_MAXIMO_AUTOMATICO.ordem:
+            await self._registrar_pendente(
                 session,
                 membro,
-                cargo_novo=cargo,
-                automatica=False,
-                autor_descricao="importação da plataforma",
-                motivo="Cargo trazido da plataforma do clube",
-                origem=OrigemAcao.SISTEMA,
+                cargo_atual=CARGO_INICIAL,
+                cargo_sugerido=cargo_alvo,
+                origem_dado="cargo" if cargo_declarado else "xp",
+                relatorio=relatorio,
                 guild_id=guild_id,
             )
-            relatorio.promovidos += 1
-        elif cargo is None:
-            # Sem cargo na origem, a hierarquia decide pelo XP (RN-002).
-            resultado = await self._promocoes.avaliar(
-                session,
-                membro,
-                autor_descricao="importação da plataforma",
-                origem=OrigemAcao.SISTEMA,
-                guild_id=guild_id,
-            )
-            relatorio.promovidos += int(resultado.promovido)
+            return
+
+        await self._promocoes.aplicar(
+            session,
+            membro,
+            cargo_novo=cargo_alvo,
+            automatica=automatica,
+            autor_descricao="importação da plataforma",
+            motivo=(
+                "Cargo trazido da plataforma do clube"
+                if not automatica
+                else "Progressão por XP trazido da plataforma (RN-002)"
+            ),
+            origem=OrigemAcao.SISTEMA,
+            guild_id=guild_id,
+        )
+        relatorio.promovidos += 1
 
     async def _sobrescrever_progressao(
         self,
@@ -279,34 +307,99 @@ class ImportacaoService:
             membro.xp = max(0, externo.xp)
             mudou = True
 
-        cargo_alvo = self._cargo_de(externo)
-        if cargo_alvo is None:
-            # A plataforma não opina sobre cargo: a progressão por XP decide.
-            resultado = await self._promocoes.avaliar(
+        cargo_declarado = self._cargo_de(externo)
+        automatica = cargo_declarado is None
+        cargo_atual = cargo_por_slug(membro.cargo_slug)
+        cargo_alvo = cargo_declarado or cargo_para_xp(membro.xp)
+
+        if cargo_alvo.slug == cargo_atual.slug:
+            return mudou
+
+        escalada = cargo_alvo.ordem > cargo_atual.ordem
+
+        if automatica and not escalada:
+            # avaliar() nunca rebaixa (REBAIXAMENTO_AUTOMATICO=False); replicado
+            # aqui porque o cálculo de cargo_alvo já foi antecipado para o teto.
+            return mudou
+
+        if escalada and cargo_alvo.ordem > CARGO_MAXIMO_AUTOMATICO.ordem:
+            await self._registrar_pendente(
                 session,
                 membro,
-                autor_descricao="importação da plataforma",
-                origem=OrigemAcao.SISTEMA,
+                cargo_atual=cargo_atual,
+                cargo_sugerido=cargo_alvo,
+                origem_dado="cargo" if cargo_declarado else "xp",
+                relatorio=relatorio,
                 guild_id=guild_id,
             )
-            if resultado.promovido:
-                relatorio.promovidos += 1
-                mudou = True
-        elif cargo_alvo.slug != membro.cargo_slug:
-            await self._promocoes.aplicar(
-                session,
-                membro,
-                cargo_novo=cargo_alvo,
-                automatica=False,
-                autor_descricao="importação da plataforma",
-                motivo="Sincronização com a plataforma do clube",
-                origem=OrigemAcao.SISTEMA,
-                guild_id=guild_id,
-            )
-            relatorio.promovidos += 1
-            mudou = True
+            return mudou
+
+        await self._promocoes.aplicar(
+            session,
+            membro,
+            cargo_novo=cargo_alvo,
+            automatica=automatica,
+            autor_descricao="importação da plataforma",
+            motivo=(
+                "Sincronização com a plataforma do clube"
+                if not automatica
+                else "Progressão por XP trazido da plataforma (RN-002)"
+            ),
+            origem=OrigemAcao.SISTEMA,
+            guild_id=guild_id,
+        )
+        relatorio.promovidos += 1
+        mudou = True
 
         return mudou
+
+    async def _registrar_pendente(
+        self,
+        session: AsyncSession,
+        membro: Membro,
+        *,
+        cargo_atual: Cargo,
+        cargo_sugerido: Cargo,
+        origem_dado: str,
+        relatorio: Relatorio,
+        guild_id: int | None,
+    ) -> None:
+        """Bloqueia a importação de aplicar sozinha cargo acima do teto.
+
+        Não muda `membro.cargo_slug` — só relata. A promoção real, se
+        procedente, é feita por um humano com permissão via
+        `/definir-cargo`, entrando no fluxo normal de auditoria.
+        """
+        relatorio.pendentes_confirmacao += 1
+        log.warning(
+            "Importação sugere promover %s (id=%s) de %s para %s via %s da plataforma; "
+            "acima do teto automático (%s), aguardando confirmação manual.",
+            membro.nome_exibicao,
+            membro.id,
+            cargo_atual.slug,
+            cargo_sugerido.slug,
+            origem_dado,
+            CARGO_MAXIMO_AUTOMATICO.slug,
+        )
+        await auditoria.registrar(
+            session,
+            acao="importacao.cargo_pendente_confirmacao",
+            resumo=(
+                f"{membro.nome_exibicao}: sugestão {cargo_atual.nome} → {cargo_sugerido.nome} "
+                f"via {origem_dado} da plataforma; acima de {CARGO_MAXIMO_AUTOMATICO.nome}, "
+                "requer confirmação manual"
+            ),
+            ator_descricao="importação da plataforma",
+            alvo_tipo="membro",
+            alvo_id=membro.id,
+            dados={
+                "cargo_atual": cargo_atual.slug,
+                "cargo_sugerido": cargo_sugerido.slug,
+                "origem_dado": origem_dado,
+            },
+            origem=OrigemAcao.SISTEMA,
+            guild_id=guild_id,
+        )
 
     def _cargo_de(self, externo: MembroExterno) -> Cargo | None:
         """Cargo declarado pela plataforma, ou `None` para deixar o XP decidir.
