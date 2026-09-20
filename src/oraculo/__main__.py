@@ -43,9 +43,42 @@ async def rodar_bot(cfg: Settings) -> None:
     if not cfg.is_production:
         await criar_schema(cfg)
 
+    await _bootstrap_admin_se_configurado(cfg)
+
     bot = criar_bot(cfg)
     async with bot:
         await bot.start(cfg.require_discord_token())
+
+
+async def _bootstrap_admin_se_configurado(cfg: Settings) -> None:
+    """Bootstrap opcional do 1º Administrador via variável de ambiente (RN-008).
+
+    Alternativa a `python -m oraculo promover-admin` para quem só tem acesso
+    ao painel de variáveis do deploy — sem CLI, sem espaço local, sem shell.
+    Idempotente: silenciosamente não faz nada se já existir um Administrador
+    ativo, então é seguro deixar a variável configurada entre deploys.
+    """
+    if cfg.bootstrap_admin_discord_id is None:
+        return
+
+    from oraculo.db.base import sessao
+    from oraculo.services.bootstrap_service import (
+        AdministradorJaExisteError,
+        promover_primeiro_administrador,
+    )
+
+    try:
+        async with sessao(cfg) as session:
+            await promover_primeiro_administrador(
+                session, discord_id=cfg.bootstrap_admin_discord_id
+            )
+        log.info(
+            "Bootstrap: discord_id=%s promovido a Administrador via "
+            "ORACULO_BOOTSTRAP_ADMIN_DISCORD_ID.",
+            cfg.bootstrap_admin_discord_id,
+        )
+    except AdministradorJaExisteError:
+        log.debug("Bootstrap de Administrador ignorado: já existe um ativo.")
 
 
 async def rodar_api(cfg: Settings) -> None:
