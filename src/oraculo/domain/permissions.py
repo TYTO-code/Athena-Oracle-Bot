@@ -50,6 +50,9 @@ class Acao(StrEnum):
     VER_AUDITORIA = "ver_auditoria"
     ADMINISTRAR_SISTEMA = "administrar_sistema"
 
+    # Vínculo de conta — RN-016
+    RECONCILIAR_CONTA = "reconciliar_conta"
+
 
 _POLITICA: dict[Acao, Cargo] = {
     Acao.VER_PERFIL: MEMBRO,
@@ -65,6 +68,7 @@ _POLITICA: dict[Acao, Cargo] = {
     Acao.DEFINIR_CARGO_MANUAL: ADMINISTRADOR,
     Acao.VER_AUDITORIA: CONSELHEIRO,
     Acao.ADMINISTRAR_SISTEMA: ADMINISTRADOR,
+    Acao.RECONCILIAR_CONTA: ADMINISTRADOR,
 }
 
 

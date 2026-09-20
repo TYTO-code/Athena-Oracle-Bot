@@ -241,3 +241,83 @@ async def confirmar_vinculo(session: AsyncSession, *, discord_id: int, codigo: s
     )
 
     return alvo
+
+
+async def reconciliar_manualmente(
+    session: AsyncSession,
+    *,
+    discord_id: int,
+    identificador: str,
+    autor_descricao: str,
+    guild_id: int | None = None,
+) -> Membro:
+    """Mescla manualmente um registro órfão da plataforma num `Membro` que já existe
+    para `discord_id` — a válvula de escape que `confirmar_vinculo` deixa para um
+    Administrador, exatamente para o caso que ele recusa fazer sozinho.
+
+    O registro do Discord **sobrevive** (mantém `id`, cargo atual e todo o histórico
+    de promoções/auditoria que já tenha). Ele só herda o `id_externo` (e o e-mail,
+    se ainda não tiver um) do registro da plataforma — não copia XP/cargo daqui: a
+    próxima sincronização (`espelho`/`carga_inicial`) já vai casar pelo `id_externo`
+    novo e aplicar XP/cargo pelo fluxo normal, com o mesmo teto de segurança de
+    `importacao_service.CARGO_MAXIMO_AUTOMATICO`. O registro da plataforma vira
+    inativo (RN-010 — nunca apagado fisicamente), com `id_externo` trocado por uma
+    "sepultura" (`mesclado:<id>`) — ele só tinha esse canal, então não pode ficar
+    nulo (`ao_menos_um_canal`), e o valor original precisa ficar livre pro
+    sobrevivente.
+    """
+    sobrevivente = await repo_membros.buscar_por_discord_id(session, discord_id)
+    if sobrevivente is None:
+        raise ConflitoDeVinculoError(
+            f"Nenhum membro do bot está ligado ao discord_id {discord_id}."
+        )
+
+    origem = await _buscar_candidato(session, identificador)
+    if origem is None:
+        raise ConflitoDeVinculoError(
+            f"Nenhum registro da plataforma (não vinculado e sem ambiguidade) casa com "
+            f"{identificador!r}."
+        )
+    if origem.id == sobrevivente.id:
+        raise VinculoJaSolicitadoError("Esse identificador já é o próprio registro desta conta.")
+    if origem.discord_id is not None and origem.discord_id != discord_id:
+        raise ConflitoDeVinculoError(
+            "Esse registro da plataforma já está vinculado a outra conta Discord — "
+            "reconcilie aquela conta, não esta."
+        )
+
+    id_externo_origem = origem.id_externo
+    email_origem = origem.email
+
+    # A origem só existe no banco por ter `id_externo` (é seu único canal — nunca
+    # teve discord_id nem whatsapp, senão a importação não a teria criado assim).
+    # Zerar violaria `ao_menos_um_canal`; por isso ela vira uma "sepultura" com um
+    # valor próprio e único, liberando o valor original para o sobrevivente antes
+    # que as duas linhas coexistam com o mesmo `id_externo` no mesmo flush.
+    origem.id_externo = f"mesclado:{origem.id}"
+    origem.ativo = False
+    origem.desativado_em = agora()
+    await session.flush()
+
+    if id_externo_origem:
+        sobrevivente.id_externo = id_externo_origem
+    if email_origem and not sobrevivente.email:
+        sobrevivente.email = email_origem
+    await session.flush()
+
+    await auditoria.registrar(
+        session,
+        acao="vinculo.reconciliado_manualmente",
+        resumo=(
+            f"Membro id={sobrevivente.id} (discord_id={discord_id}) absorveu o registro "
+            f"id={origem.id} da plataforma (id_externo={id_externo_origem!r})"
+        ),
+        ator_descricao=autor_descricao,
+        alvo_tipo="membro",
+        alvo_id=sobrevivente.id,
+        dados={"origem_id": origem.id, "id_externo": id_externo_origem},
+        origem=OrigemAcao.DISCORD,
+        guild_id=guild_id,
+    )
+
+    return sobrevivente

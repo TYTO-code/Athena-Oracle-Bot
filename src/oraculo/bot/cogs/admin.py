@@ -11,7 +11,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from oraculo.bot import embeds
-from oraculo.bot.permissions import requer
+from oraculo.bot.permissions import obter_autor, requer
 from oraculo.bot.role_sync import cargos_faltantes
 from oraculo.db.base import sessao
 from oraculo.db.models import OrigemAcao
@@ -19,6 +19,7 @@ from oraculo.domain.hierarchy import HIERARQUIA, cargo_por_slug
 from oraculo.domain.permissions import Acao
 from oraculo.repositories import auditoria as repo_auditoria
 from oraculo.repositories import membros as repo_membros
+from oraculo.services import vinculo_service
 from oraculo.services.notificacao_service import NotificacaoService
 
 
@@ -100,6 +101,35 @@ class AdminCog(commands.Cog):
         )
 
     @app_commands.command(
+        name="reconciliar-conta",
+        description="Mescla um registro órfão da plataforma numa conta Discord (RN-016).",
+    )
+    @app_commands.describe(
+        membro="Conta Discord que já existe no bot.",
+        identificador="E-mail ou ID (id_externo) do registro da plataforma a mesclar.",
+    )
+    @requer(Acao.RECONCILIAR_CONTA, efemero=True)
+    async def reconciliar_conta(
+        self, interaction: discord.Interaction, membro: discord.Member, identificador: str
+    ) -> None:
+        autor = await obter_autor(interaction)
+        async with sessao() as session:
+            sobrevivente = await vinculo_service.reconciliar_manualmente(
+                session,
+                discord_id=membro.id,
+                identificador=identificador,
+                autor_descricao=autor.nome_exibicao,
+                guild_id=interaction.guild_id,
+            )
+            id_externo = sobrevivente.id_externo
+
+        await interaction.followup.send(
+            f"Conta de **{membro.display_name}** agora está ligada ao registro da plataforma "
+            f"`{id_externo}`. XP/cargo acompanham a próxima sincronização.",
+            ephemeral=True,
+        )
+
+    @app_commands.command(
         name="verificar-cargos", description="Verifica se os cargos TYTO existem no servidor."
     )
     @requer(Acao.ADMINISTRAR_SISTEMA, efemero=True)
@@ -112,9 +142,8 @@ class AdminCog(commands.Cog):
 
         faltantes = await cargos_faltantes(interaction.guild)
         if faltantes:
-            texto = (
-                "Cargos ausentes (a sincronização falhará até criá-los):\n"
-                + "\n".join(f"• {nome}" for nome in faltantes)
+            texto = "Cargos ausentes (a sincronização falhará até criá-los):\n" + "\n".join(
+                f"• {nome}" for nome in faltantes
             )
             cor = discord.Color.orange()
         else:
@@ -136,9 +165,7 @@ class AdminCog(commands.Cog):
     ) -> None:
         async with sessao() as session:
             registros = await repo_auditoria.listar(session, limite=limite)
-            linhas = [
-                f"`{r.criado_em:%d/%m %H:%M}` **{r.acao}** — {r.resumo}" for r in registros
-            ]
+            linhas = [f"`{r.criado_em:%d/%m %H:%M}` **{r.acao}** — {r.resumo}" for r in registros]
 
         await interaction.followup.send(
             embed=discord.Embed(
