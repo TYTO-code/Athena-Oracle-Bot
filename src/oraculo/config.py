@@ -91,14 +91,20 @@ class Settings(BaseSettings):
     # --- Pergunta ao Oráculo: LLM + base de projetos (RN-017) ----------------
     #: Chave da API Anthropic. Vazia = `/perguntar` desligado (nada é consultado).
     anthropic_api_key: str | None = None
-    llm_model: str = "claude-opus-5"
+    #: Modelo mais barato da linha atual (~$1/$5 por milhão de tokens), escolhido
+    #: a pedido do clube ("mínimo viável, sem gastar muito"). Pergunta sobre
+    #: regulamento é exatamente o caso em que o modelo pequeno se sai bem: o
+    #: material vem inteiro no contexto, não é preciso "lembrar" nada. Se as
+    #: respostas ficarem rasas em pergunta que cruza documentos, subir para
+    #: `claude-sonnet-5` é trocar uma variável — e multiplicar o custo por ~2.
+    llm_model: str = "claude-haiku-4-5"
     #: Teto de saída. Precisa acomodar o raciocínio do modelo **mais** a
     #: resposta; a brevidade da resposta em si é pedida no prompt, porque o
     #: embed do Discord corta em ~4096 caracteres.
     llm_max_tokens: int = 4000
-    #: Diretório com os `.md` do regulamento TYTO (vault `Institucional/`).
-    #: Vazio = o bot responde que a base de regras não está configurada.
-    regras_dir: Path | None = None
+    #: Diretório com os `.md` do regulamento TYTO, dentro da documentação do
+    #: próprio bot. Já vem apontado: basta largar os arquivos lá.
+    regras_dir: Path | None = Path("docs/regras-tyto")
     #: PostgreSQL **externo** (somente leitura) com os dados dos projetos.
     #: Separado do banco do bot de propósito: credencial e blast radius distintos.
     projetos_database_url: str | None = None

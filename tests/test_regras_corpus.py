@@ -60,6 +60,18 @@ def test_ignora_arquivo_grande_demais(tmp_path):
     assert corpus.documentos == ("ok.md",)
 
 
+def test_readme_do_diretorio_nao_vira_regra(tmp_path):
+    """O README explica como usar a pasta — o bot responderia sobre a própria
+    configuração como se fosse regulamento, e ainda pagaria tokens por isso."""
+    (tmp_path / "XP.md").write_text("Art. 2º", encoding="utf-8")
+    (tmp_path / "README.md").write_text("Coloque aqui os .md do regulamento", encoding="utf-8")
+
+    corpus = carregar_corpus(_cfg(tmp_path))
+
+    assert corpus.documentos == ("XP.md",)
+    assert "Coloque aqui" not in corpus.texto
+
+
 def test_ignora_arquivo_vazio_e_nao_md(tmp_path):
     (tmp_path / "ok.md").write_text("regra", encoding="utf-8")
     (tmp_path / "vazio.md").write_text("   ", encoding="utf-8")

@@ -28,6 +28,11 @@ LIMITE_BYTES_ARQUIVO = 512 * 1024
 """Teto por arquivo. Um `.md` maior que isso quase certamente não é regulamento
 (dump, binário renomeado) e só encareceria o prompt."""
 
+IGNORADOS = frozenset({"readme.md"})
+"""O README do diretório explica como usar a pasta — não é regra do clube.
+Sem isso, o bot responderia sobre a própria configuração como se fosse
+regulamento, e ainda pagaria tokens por isso."""
+
 
 @dataclass(frozen=True, slots=True)
 class Corpus:
@@ -64,6 +69,8 @@ def carregar_corpus(settings: Settings | None = None) -> Corpus:
     partes: list[str] = []
     nomes: list[str] = []
     for arquivo in sorted(caminho.rglob("*.md"), key=lambda p: str(p).casefold()):
+        if arquivo.name.casefold() in IGNORADOS:
+            continue
         try:
             if arquivo.stat().st_size > LIMITE_BYTES_ARQUIVO:
                 log.warning("Documento de regras ignorado (grande demais): %s", arquivo.name)
