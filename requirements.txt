@@ -44,3 +44,6 @@ aiosmtplib==5.1.2
 
 # --- Logging estruturado -----------------------------------------------------
 structlog==26.1.0
+
+# --- Pergunta ao Oráculo: LLM (RN-017) ---------------------------------------
+anthropic==1.7.0

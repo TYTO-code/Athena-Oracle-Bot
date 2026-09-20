@@ -85,6 +85,7 @@ Todos os segredos vêm de variáveis de ambiente com o prefixo `ORACULO_` — **
 | Comando | Função | Cargo mínimo |
 |---------|--------|--------------|
 | `/ajuda` | Lista os comandos e o que seu cargo libera | Membro |
+| `/perguntar` | Pergunta sobre o regulamento TYTO e sobre **seus** projetos (RN-017) | Membro |
 | `/perfil` | Cargo, XP, próximo cargo e posição (RF-002) | Membro |
 | `/ranking` | Ranking geral ou por período (RF-004) | Membro |
 | `/saldo` | Saldo de Dracmas na Comunidade (RF-013) | Nenhuma — Aldeão não usa cargo |
@@ -112,6 +113,39 @@ RSVP (UC-006) é feito pelos botões do anúncio — eles continuam funcionando 
 | `POST /webhooks/clickup` | Webhook assinado com HMAC-SHA256 no header `X-Signature` |
 
 A API **não** expõe operações de domínio: XP, cargos e agenda passam pelo bot, onde a identidade do autor é conhecida e a política de permissões (RN-008) é aplicada.
+
+## Pergunta ao Oráculo (`/perguntar`) — RN-017
+
+O bot responde sobre o **regulamento TYTO** (os `.md` do vault `Institucional/`,
+apontados por `ORACULO_REGRAS_DIR`) e sobre os **projetos em que a pessoa participa**.
+
+A regra de segurança que sustenta isso: **a autorização acontece na recuperação,
+nunca no prompt**. O bot descobre no Firebase, no momento da pergunta, em quais
+projetos o autor está; só esses são lidos do banco externo; só então o modelo é
+chamado. Dado de projeto alheio nunca entra no contexto — então não existe
+instrução de prompt (nem texto malicioso salvo no banco) capaz de extraí-lo.
+Quem não tem vínculo Discord↔plataforma (RN-016) não tem projeto algum, e a
+resposta é sempre efêmera, porque conteúdo restrito não pode ir para o canal.
+
+### Contrato do banco externo de projetos
+
+`ORACULO_PROJETOS_DATABASE_URL` aponta para um PostgreSQL **separado** do banco do
+bot, com um usuário que tenha **apenas `SELECT`**. O bot não cria nem migra nada
+lá; espera encontrar:
+
+```sql
+projetos(id text, nome text, descricao text, status text, atualizado_em timestamptz)
+projeto_decisoes(id bigint, projeto_id text, titulo text, conteudo text, decidido_em timestamptz)
+```
+
+`projetos.id` precisa casar com os IDs que o Firebase guarda no campo `projetos` de
+cada membro (formato flexível: lista de strings, lista de objetos com `id`, mapa
+`{id: true}` ou string separada por vírgula). Se o banco real usar outros nomes,
+exponha uma `VIEW` com estes — os nomes são fixos no código de propósito:
+identificador de SQL não é parametrizável, então torná-los configuráveis abriria
+uma via de injeção.
+
+Sem essa variável, `/perguntar` continua funcionando **só** para o regulamento.
 
 ## Plataforma de membros (Firebase)
 
