@@ -21,7 +21,7 @@ Fecha a cadeia `Visão → RN/RF/RNF → Casos de Uso → Dívida Técnica → A
 | RN-013 Ledger de Dracmas imutável | Tabela `dracmas_ledger` append-only ([repositories/dracmas.py](../../src/oraculo/repositories/dracmas.py)) | `test_dracmas_service.py` |
 | RN-014 Suspensão automática | `DracmasService.debitar` marca `Aldeao.suspenso` quando o saldo fica negativo | `test_dracmas_service.py` |
 | RN-015 Ingresso na Comunidade | `DracmasService._cobrar_ingresso`, `CUSTO_INGRESSO_COMUNIDADE` | `test_dracmas_service.py` |
-| RN-016 Prova de posse para autovínculo | `solicitar_vinculo`/`confirmar_vinculo` ([vinculo_service.py](../../src/oraculo/services/vinculo_service.py)), tabela `vinculos_pendentes`; `bot/cogs/vinculo.py` não usa `bot/permissions.py` (mesmo motivo de RN-011: não pode criar `Membro` antes do vínculo existir) | `test_vinculo_service.py` |
+| RN-016 Prova de posse para autovínculo | `solicitar_vinculo`/`confirmar_vinculo` ([vinculo_service.py](../../src/oraculo/services/vinculo_service.py)), tabela `vinculos_pendentes`; `bot/cogs/vinculo.py` não usa `bot/permissions.py` (mesmo motivo de RN-011: não pode criar `Membro` antes do vínculo existir); válvula de escape para Administrador quando `confirmar_vinculo` recusa por já existir registro no bot: `reconciliar_manualmente` + `/reconciliar-conta` ([cogs/admin.py](../../src/oraculo/bot/cogs/admin.py)) | `test_vinculo_service.py` |
 
 ## Requisitos funcionais
 

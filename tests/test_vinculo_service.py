@@ -19,8 +19,12 @@ from oraculo.domain.errors import (
     ConflitoDeVinculoError,
     VinculoJaSolicitadoError,
 )
-from oraculo.domain.hierarchy import CAVALARIA, MEMBRO
-from oraculo.services.vinculo_service import confirmar_vinculo, solicitar_vinculo
+from oraculo.domain.hierarchy import ADMINISTRADOR, CAVALARIA, MEMBRO
+from oraculo.services.vinculo_service import (
+    confirmar_vinculo,
+    reconciliar_manualmente,
+    solicitar_vinculo,
+)
 
 
 async def _plataforma(session, *, id_externo="u1", email="perseu@tyto.example", xp=700) -> Membro:
@@ -254,3 +258,90 @@ async def test_confirmado_fica_registrado_na_auditoria(session):
     )
     assert registro is not None
     assert registro.dados["discord_id"] == 555
+
+
+# --- reconciliar_manualmente (válvula de escape do Administrador) -----------
+
+
+async def test_reconcilia_absorvendo_registro_orfao(session):
+    """O registro do Discord sobrevive (mantém cargo/histórico); só herda id_externo/email."""
+    sobrevivente = Membro(
+        discord_id=555, nome_exibicao="D-San", cargo_slug=ADMINISTRADOR.slug, xp=0
+    )
+    session.add(sobrevivente)
+    origem = await _plataforma(session, id_externo="u1", email="dsan@tyto.example")
+
+    resultado = await reconciliar_manualmente(
+        session, discord_id=555, identificador="u1", autor_descricao="discord:555"
+    )
+
+    assert resultado.id == sobrevivente.id
+    assert resultado.cargo_slug == ADMINISTRADOR.slug, "cargo do sobrevivente não muda aqui"
+    assert resultado.id_externo == "u1"
+    assert resultado.email == "dsan@tyto.example"
+
+    orfao = await session.get(Membro, origem.id)
+    assert orfao.id_externo == f"mesclado:{origem.id}"
+    assert orfao.ativo is False
+
+
+async def test_reconciliar_nao_sobrescreve_email_ja_existente(session):
+    sobrevivente = Membro(
+        discord_id=555, nome_exibicao="D-San", email="ja-tenho@tyto.example", xp=0
+    )
+    session.add(sobrevivente)
+    await _plataforma(session, id_externo="u1", email="da-plataforma@tyto.example")
+
+    resultado = await reconciliar_manualmente(
+        session, discord_id=555, identificador="u1", autor_descricao="discord:555"
+    )
+
+    assert resultado.email == "ja-tenho@tyto.example"
+
+
+async def test_reconciliar_recusa_sem_sobrevivente(session):
+    await _plataforma(session, id_externo="u1")
+
+    with pytest.raises(ConflitoDeVinculoError):
+        await reconciliar_manualmente(
+            session, discord_id=555, identificador="u1", autor_descricao="discord:999"
+        )
+
+
+async def test_reconciliar_recusa_identificador_inexistente(session):
+    session.add(Membro(discord_id=555, nome_exibicao="D-San"))
+    await session.flush()
+
+    with pytest.raises(ConflitoDeVinculoError):
+        await reconciliar_manualmente(
+            session, discord_id=555, identificador="ninguem", autor_descricao="discord:999"
+        )
+
+
+async def test_reconciliar_recusa_origem_ja_vinculada_a_outra_conta(session):
+    session.add(Membro(discord_id=555, nome_exibicao="D-San"))
+    origem = await _plataforma(session, id_externo="u1")
+    origem.discord_id = 777
+    await session.flush()
+
+    with pytest.raises(ConflitoDeVinculoError):
+        await reconciliar_manualmente(
+            session, discord_id=555, identificador="u1", autor_descricao="discord:999"
+        )
+
+
+async def test_reconciliacao_fica_registrada_na_auditoria(session):
+    session.add(Membro(discord_id=555, nome_exibicao="D-San"))
+    await _plataforma(session, id_externo="u1")
+
+    await reconciliar_manualmente(
+        session, discord_id=555, identificador="u1", autor_descricao="discord:999"
+    )
+
+    registro = await session.scalar(
+        select(RegistroAuditoria).where(
+            RegistroAuditoria.acao == "vinculo.reconciliado_manualmente"
+        )
+    )
+    assert registro is not None
+    assert registro.ator_descricao == "discord:999"
