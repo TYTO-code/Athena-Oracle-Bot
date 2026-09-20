@@ -88,6 +88,24 @@ class Settings(BaseSettings):
     #: Sincroniza uma vez logo após o bot conectar, além do intervalo.
     importacao_ao_iniciar: bool = True
 
+    # --- Pergunta ao Oráculo: LLM + base de projetos (RN-017) ----------------
+    #: Chave da API Anthropic. Vazia = `/perguntar` desligado (nada é consultado).
+    anthropic_api_key: str | None = None
+    llm_model: str = "claude-opus-5"
+    #: Teto de saída. Precisa acomodar o raciocínio do modelo **mais** a
+    #: resposta; a brevidade da resposta em si é pedida no prompt, porque o
+    #: embed do Discord corta em ~4096 caracteres.
+    llm_max_tokens: int = 4000
+    #: Diretório com os `.md` do regulamento TYTO (vault `Institucional/`).
+    #: Vazio = o bot responde que a base de regras não está configurada.
+    regras_dir: Path | None = None
+    #: PostgreSQL **externo** (somente leitura) com os dados dos projetos.
+    #: Separado do banco do bot de propósito: credencial e blast radius distintos.
+    projetos_database_url: str | None = None
+    #: Perguntas por pessoa por hora. Um bot de LLM aberto ao servidor inteiro
+    #: sem teto é conta aberta — este é o freio (0 = sem limite).
+    pergunta_limite_hora: int = 10
+
     # --- E-mail (RF-010) -----------------------------------------------------
     smtp_host: str | None = None
     smtp_port: int = 587
@@ -159,6 +177,16 @@ class Settings(BaseSettings):
     @property
     def email_enabled(self) -> bool:
         return bool(self.smtp_host)
+
+    @property
+    def llm_habilitado(self) -> bool:
+        """Sem chave, `/perguntar` recusa na porta em vez de falhar no meio."""
+        return bool(self.anthropic_api_key)
+
+    @property
+    def projetos_habilitado(self) -> bool:
+        """Consulta a projetos exige o banco externo; regras TYTO não."""
+        return bool(self.projetos_database_url)
 
     def require_discord_token(self) -> str:
         """Falha cedo e com mensagem clara quando o token não foi provisionado."""

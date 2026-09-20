@@ -147,6 +147,27 @@ class ConflitoDeVinculoError(BusinessRuleError):
     regra = "RN-016"
 
 
+class LimiteDePerguntasError(BusinessRuleError):
+    """RN-017 — teto de perguntas por hora atingido (freio de custo)."""
+
+    regra = "RN-017"
+
+    def __init__(self, limite: int) -> None:
+        self.limite = limite
+        super().__init__(
+            f"Você já fez {limite} perguntas nesta hora. Espere um pouco antes da próxima."
+        )
+
+
+class PerguntaVaziaError(BusinessRuleError):
+    """RN-017 — pergunta sem conteúdo utilizável."""
+
+    regra = "RN-017"
+
+    def __init__(self) -> None:
+        super().__init__("Faça uma pergunta — não consigo responder a um texto vazio.")
+
+
 class RecursoNaoEncontradoError(OraculoError):
     """Entidade referenciada (membro, reunião, evento) não existe."""
 
