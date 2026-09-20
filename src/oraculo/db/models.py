@@ -177,6 +177,41 @@ class Membro(TimestampMixin, Base):
         )
 
 
+class VinculoPendente(Base):
+    """Verificação de vínculo Discord ↔ plataforma pendente de confirmação.
+
+    RF-001 (extensão) — a importação sozinha não cria esse vínculo: ele só
+    existe se o documento do Firestore já trouxer `discordId` correto. Quando
+    não traz, este fluxo deixa o próprio dono provar que controla o e-mail
+    cadastrado na plataforma, em vez de qualquer um poder "reivindicar" um
+    registro só citando um identificador.
+
+    Tabela efêmera (expira em minutos) — fica separada de `Membro` para não
+    misturar estado transitório de verificação com o cadastro estável.
+    """
+
+    __tablename__ = "vinculos_pendentes"
+    __table_args__ = (
+        UniqueConstraint("membro_id", name="uma_solicitacao_por_membro"),
+        Index("ix_vinculos_pendentes_discord_id", "discord_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    membro_id: Mapped[int] = mapped_column(
+        ForeignKey("membros.id", ondelete="CASCADE"), nullable=False
+    )
+    discord_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    #: Nunca o código em claro — só o hash, como uma senha de uso único.
+    codigo_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    tentativas: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    expira_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    criado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=agora, nullable=False
+    )
+
+    membro: Mapped[Membro] = relationship(lazy="raise")
+
+
 class MovimentacaoXp(Base):
     """Tabela `xp_audit` — TD-006 / RN-005.
 

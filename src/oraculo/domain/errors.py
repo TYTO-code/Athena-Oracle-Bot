@@ -129,6 +129,24 @@ class MotivoDracmasObrigatorioError(BusinessRuleError):
         super().__init__("O motivo é obrigatório em qualquer movimentação de Dracmas (DRACMAS.md §3).")
 
 
+class VinculoJaSolicitadoError(BusinessRuleError):
+    """RF-001 (extensão) — já existe verificação em andamento, ou já está vinculado."""
+
+    regra = "RF-001"
+
+
+class CodigoInvalidoOuExpiradoError(BusinessRuleError):
+    """RF-001 (extensão) — código incorreto, expirado, ou sem solicitação pendente."""
+
+    regra = "RF-001"
+
+
+class ConflitoDeVinculoError(BusinessRuleError):
+    """RF-001 (extensão) — a conta Discord já tem atividade própria; precisa de Administrador."""
+
+    regra = "RF-001"
+
+
 class RecursoNaoEncontradoError(OraculoError):
     """Entidade referenciada (membro, reunião, evento) não existe."""
 
