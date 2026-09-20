@@ -24,6 +24,7 @@ dependencies = [
     "google-cloud-firestore>=2.16",
     "aiosmtplib>=3.0",
     "structlog>=24.1",
+    "anthropic>=1.0",
 ]
 
 [project.optional-dependencies]
