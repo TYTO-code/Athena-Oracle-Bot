@@ -29,6 +29,7 @@ COGS = (
     "oraculo.bot.cogs.admin",
     "oraculo.bot.cogs.comunidade",
     "oraculo.bot.cogs.vinculo",
+    "oraculo.bot.cogs.pergunta",
 )
 
 

@@ -34,6 +34,11 @@ class Acao(StrEnum):
     VER_RANKING = "ver_ranking"
     RESPONDER_RSVP = "responder_rsvp"
 
+    # Pergunta ao Oráculo — RN-017. Cargo mínimo Membro: o que cada pessoa pode
+    # *ler* não é decidido por cargo, e sim pelos projetos em que ela está
+    # (verificado no Firebase a cada pergunta, em `pergunta_service.py`).
+    PERGUNTAR = "perguntar"
+
     # XP — RF-003, RN-004, RN-005
     CONCEDER_XP = "conceder_xp"
     REMOVER_XP = "remover_xp"
@@ -58,6 +63,7 @@ _POLITICA: dict[Acao, Cargo] = {
     Acao.VER_PERFIL: MEMBRO,
     Acao.VER_RANKING: MEMBRO,
     Acao.RESPONDER_RSVP: MEMBRO,
+    Acao.PERGUNTAR: MEMBRO,
     Acao.CONCEDER_XP: CONSELHEIRO,
     Acao.REMOVER_XP: CONSELHEIRO,
     Acao.VER_HISTORICO_XP: CONSELHEIRO,

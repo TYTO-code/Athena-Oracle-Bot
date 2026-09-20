@@ -36,6 +36,9 @@ WORKDIR /app
 COPY alembic.ini ./
 COPY migrations ./migrations
 COPY --chown=oraculo:oraculo src ./src
+# RN-017 — o regulamento TYTO é lido em runtime por `/perguntar`. Sem esta cópia
+# o comando sobe "funcionando", mas sem base de regras nenhuma para responder.
+COPY --chown=oraculo:oraculo docs/regras-tyto ./docs/regras-tyto
 
 RUN mkdir -p /app/data /app/backups && chown -R oraculo:oraculo /app
 USER oraculo
