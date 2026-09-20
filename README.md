@@ -70,6 +70,10 @@ Todos os segredos vêm de variáveis de ambiente com o prefixo `ORACULO_` — **
 2. Posicione o cargo do bot **acima** deles na lista de cargos (senão o Discord recusa a atribuição).
 3. Habilite o intent **Server Members** no portal do desenvolvedor.
 4. Rode `/verificar-cargos` no servidor para confirmar.
+5. `/definir-cargo` exige Administrador — e ninguém começa com esse cargo. Quebre o ciclo uma vez com
+   acesso direto ao servidor/banco: `python -m oraculo promover-admin --discord-id <seu id>` (recusa se
+   já existir um Administrador ativo). Depois, use `/definir-cargo` normalmente no Discord — inclusive
+   para sincronizar o cargo desse primeiro Administrador no servidor.
 
 ## Comandos do bot
 
