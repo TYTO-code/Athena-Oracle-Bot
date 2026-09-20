@@ -38,6 +38,13 @@ class Settings(BaseSettings):
     discord_guild_ids: Annotated[list[int], NoDecode] = Field(default_factory=list)
     discord_log_channel_id: int | None = None
 
+    #: Bootstrap opcional do 1º Administrador (RN-008), lido no start do bot.
+    #: Alternativa a `python -m oraculo promover-admin` para quem só tem acesso
+    #: ao painel de variáveis do deploy (ex.: sem espaço/CLI local) — mesma barra
+    #: de confiança, já que só quem edita as variáveis do serviço chega aqui.
+    #: Sem efeito se já existir um Administrador ativo (idempotente).
+    bootstrap_admin_discord_id: int | None = None
+
     # --- Banco de dados (TD-002 / ADR-001) -----------------------------------
     database_url: str = "sqlite+aiosqlite:///./data/oraculo.sqlite3"
     db_echo: bool = False
