@@ -142,12 +142,14 @@ async def test_espelho_preserva_membros_ausentes(session):
     assert medeia.ativo is True
 
 
-async def test_carga_inicial_traz_xp_e_cargo_apenas_de_novos(session):
-    await servico(politica=PoliticaImportacao.CARGA_INICIAL).importar(session)
+async def test_carga_inicial_traz_xp_mas_capa_cargo_declarado_acima_do_teto(session):
+    """XP vem da plataforma; cargo declarado acima do teto vira pendência, não promoção."""
+    relatorio = await servico(politica=PoliticaImportacao.CARGA_INICIAL).importar(session)
 
     medeia = await session.scalar(select(Membro).where(Membro.id_externo == "u2"))
     assert medeia.xp == 4000
-    assert medeia.cargo_slug == CONSELHEIRO.slug
+    assert medeia.cargo_slug == MEMBRO.slug, "conselheiro está acima do teto automático (Lorde)"
+    assert relatorio.pendentes_confirmacao == 1
 
     # Segunda rodada com XP diferente não pode sobrescrever o que o bot registrou.
     novos_docs = [{**DOCS[1], "xp": 99}]
@@ -182,26 +184,95 @@ async def test_espelho_atualiza_xp_a_cada_sincronizacao(session):
 
 
 async def test_espelho_deriva_cargo_do_xp_quando_a_plataforma_nao_informa(session):
-    """Sem campo `cargo` no Firestore, a hierarquia decide — RN-002."""
-    documentos = [{"id": "u7", "nome": "Sem cargo", "discordId": 7, "xp": 3600}]
+    """Sem campo `cargo` no Firestore, a hierarquia decide — RN-002 (dentro do teto)."""
+    documentos = [{"id": "u7", "nome": "Sem cargo", "discordId": 7, "xp": 1600}]
 
     await servico(documentos, politica=PoliticaImportacao.ESPELHO).importar(session)
 
     membro = await session.scalar(select(Membro).where(Membro.id_externo == "u7"))
-    assert membro.cargo_slug == CONSELHEIRO.slug
+    assert membro.cargo_slug == LORDE.slug
 
 
 async def test_campo_cargo_ausente_nunca_rebaixa(session):
     """A armadilha do espelho: campo faltando não pode zerar a hierarquia."""
+    session.add(
+        Membro(discord_id=8, nome_exibicao="Veterano", cargo_slug=CONSELHEIRO.slug, xp=4000)
+    )
+    await session.flush()
+
     documentos = [{"id": "u8", "nome": "Veterano", "discordId": 8, "xp": 4000}]
     await servico(documentos, politica=PoliticaImportacao.ESPELHO).importar(session)
 
-    membro = await session.scalar(select(Membro).where(Membro.id_externo == "u8"))
+    membro = await session.scalar(select(Membro).where(Membro.discord_id == 8))
     assert membro.cargo_slug == CONSELHEIRO.slug
 
     # Segunda leitura, ainda sem campo de cargo: o cargo tem de se manter.
     await servico(documentos, politica=PoliticaImportacao.ESPELHO).importar(session)
     assert membro.cargo_slug == CONSELHEIRO.slug
+
+
+# --- Teto de segurança da importação (mitigação: Firestore não é fonte de --
+# --- verdade de privilégio — ver RN-008) -------------------------------------
+
+
+async def test_cargo_declarado_acima_do_teto_nao_e_aplicado_automaticamente(session):
+    """Campo `cargo` da plataforma não pode, sozinho, promover a Conselheiro+."""
+    documentos = [
+        {"id": "u10", "nome": "Suspeito", "discordId": 10, "cargo": "administrador", "xp": 0}
+    ]
+
+    relatorio = await servico(documentos, politica=PoliticaImportacao.CARGA_INICIAL).importar(
+        session
+    )
+
+    membro = await session.scalar(select(Membro).where(Membro.id_externo == "u10"))
+    assert membro.cargo_slug == MEMBRO.slug
+    assert relatorio.pendentes_confirmacao == 1
+
+    pendencia = await session.scalar(
+        select(RegistroAuditoria).where(
+            RegistroAuditoria.acao == "importacao.cargo_pendente_confirmacao"
+        )
+    )
+    assert pendencia is not None
+    assert pendencia.dados["cargo_sugerido"] == "administrador"
+    assert pendencia.dados["origem_dado"] == "cargo"
+
+
+async def test_xp_espelhado_alto_nao_promove_sozinho_acima_do_teto(session):
+    """Mesmo em ESPELHO, XP espelhado não escala sozinho até Conselheiro+."""
+    documentos = [{"id": "u11", "nome": "XP alto", "discordId": 11, "xp": 3500}]
+
+    relatorio = await servico(documentos, politica=PoliticaImportacao.ESPELHO).importar(session)
+
+    membro = await session.scalar(select(Membro).where(Membro.id_externo == "u11"))
+    assert membro.xp == 3500, "o XP em si continua espelhado; só o cargo fica pendente"
+    assert membro.cargo_slug == MEMBRO.slug
+    assert relatorio.pendentes_confirmacao == 1
+
+
+async def test_cargo_no_teto_ainda_e_aplicado_automaticamente(session):
+    """O teto é em Lorde: até ali (inclusive), a importação segue automática."""
+    documentos = [{"id": "u12", "nome": "No teto", "discordId": 12, "cargo": "lorde", "xp": 0}]
+
+    await servico(documentos, politica=PoliticaImportacao.CARGA_INICIAL).importar(session)
+
+    membro = await session.scalar(select(Membro).where(Membro.id_externo == "u12"))
+    assert membro.cargo_slug == LORDE.slug
+
+
+async def test_cargo_declarado_pode_rebaixar_mesmo_com_teto(session):
+    """O teto trava escalada acima do limiar, não um rebaixamento explícito."""
+    session.add(Membro(discord_id=13, nome_exibicao="Ex-lorde", cargo_slug=LORDE.slug, xp=1600))
+    await session.flush()
+
+    documentos = [
+        {"id": "u13", "nome": "Ex-lorde", "discordId": 13, "cargo": "membro", "xp": 1600}
+    ]
+    await servico(documentos, politica=PoliticaImportacao.ESPELHO).importar(session)
+
+    membro = await session.scalar(select(Membro).where(Membro.discord_id == 13))
+    assert membro.cargo_slug == MEMBRO.slug
 
 
 async def test_vincula_membro_ja_existente_pelo_discord_id(session):
