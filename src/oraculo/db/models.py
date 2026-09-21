@@ -75,6 +75,34 @@ class StatusPresenca(StrEnum):
     RECUSADO = "recusado"
 
 
+class StatusComunicado(StrEnum):
+    """Ciclo de vida de um comunicado programado — RN-018.
+
+    `PUBLICANDO` é o estado de reserva: a linha foi tomada por um ciclo do
+    publicador e ainda não voltou com resposta do Discord. Existe para que uma
+    queda do bot no meio do envio seja *visível* em vez de virar publicação
+    repetida no próximo ciclo.
+    """
+
+    AGENDADO = "agendado"
+    PUBLICANDO = "publicando"
+    PUBLICADO = "publicado"
+    CANCELADO = "cancelado"
+    FALHOU = "falhou"
+
+
+class TipoMencao(StrEnum):
+    """Quem o comunicado tem direito de notificar — RN-018.
+
+    O valor é traduzido em `discord.AllowedMentions` na hora do envio; o texto
+    do comunicado nunca decide isso sozinho.
+    """
+
+    NENHUMA = "nenhuma"
+    AQUI = "aqui"
+    TODOS = "todos"
+
+
 class TipoMovimentacaoXp(StrEnum):
     CONCESSAO = "concessao"
     REMOCAO = "remocao"
@@ -481,6 +509,84 @@ class Presenca(TimestampMixin, Base):
 
     agendamento: Mapped[Agendamento] = relationship(back_populates="presencas", lazy="raise")
     membro: Mapped[Membro] = relationship(lazy="raise")
+
+
+# ---------------------------------------------------------------------------
+# Comunicados — RF-015 / RN-018
+# ---------------------------------------------------------------------------
+
+
+class Comunicado(TimestampMixin, Base):
+    """Aviso oficial publicado pelo bot num canal do servidor — RN-018.
+
+    Separado de `Agendamento` de propósito: um comunicado não tem RSVP, não tem
+    duração, não vai para o Google Agenda e não tem organizador — tem um autor,
+    um canal e uma hora de publicação. Juntar os dois numa tabela só obrigaria
+    metade das colunas a ficar nula em cada uso.
+
+    O par `status`/`reservado_em` é o que torna a publicação segura contra
+    reinício: o ciclo do publicador *reserva* a linha (AGENDADO → PUBLICANDO) e
+    só então fala com o Discord. Se o processo morrer no meio, a linha fica
+    marcada como PUBLICANDO e é encerrada como FALHOU — nunca republicada
+    automaticamente, porque um `@everyone` duplicado é pior que um atrasado.
+    """
+
+    __tablename__ = "comunicados"
+    __table_args__ = (
+        CheckConstraint("length(trim(titulo)) > 0", name="titulo_obrigatorio"),
+        CheckConstraint("length(trim(corpo)) > 0", name="corpo_obrigatorio"),
+        Index("ix_comunicados_fila", "status", "publicar_em"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    titulo: Mapped[str] = mapped_column(String(160), nullable=False)
+    corpo: Mapped[str] = mapped_column(Text, nullable=False)
+
+    #: Canal de destino, resolvido e congelado na criação: mudar a variável de
+    #: ambiente depois não deve mover um comunicado já programado.
+    canal_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    guild_id: Mapped[int | None] = mapped_column(BigInteger, index=True)
+
+    mencao: Mapped[TipoMencao] = mapped_column(
+        enum_col(TipoMencao), default=TipoMencao.NENHUMA, nullable=False
+    )
+
+    publicar_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    status: Mapped[StatusComunicado] = mapped_column(
+        enum_col(StatusComunicado), default=StatusComunicado.AGENDADO, nullable=False
+    )
+
+    autor_id: Mapped[int] = mapped_column(
+        ForeignKey("membros.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+
+    #: Momento em que o ciclo tomou a linha para publicar (ver docstring).
+    reservado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    tentativas: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    erro: Mapped[str | None] = mapped_column(Text)
+
+    publicado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    mensagem_id: Mapped[int | None] = mapped_column(BigInteger)
+
+    #: RN-010 — cancelar é lógico; a linha permanece para auditoria.
+    cancelado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelado_por_id: Mapped[int | None] = mapped_column(ForeignKey("membros.id"))
+    motivo_cancelamento: Mapped[str | None] = mapped_column(String(500))
+
+    autor: Mapped[Membro] = relationship(foreign_keys=[autor_id], lazy="raise")
+
+    @property
+    def pendente(self) -> bool:
+        return self.status == StatusComunicado.AGENDADO
+
+    def __repr__(self) -> str:  # pragma: no cover - depuração
+        return (
+            f"<Comunicado id={self.id} titulo={self.titulo!r} "
+            f"status={self.status} publicar_em={self.publicar_em}>"
+        )
 
 
 # ---------------------------------------------------------------------------

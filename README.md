@@ -96,6 +96,10 @@ Todos os segredos vêm de variáveis de ambiente com o prefixo `ORACULO_` — **
 | `/criar-reuniao` | Cria reunião e sincroniza agenda (RF-007) | Cavalaria |
 | `/cancelar-agendamento` | Cancelamento lógico (RN-010) | Cavalaria / organizador |
 | `/criar-evento` | Cria evento oficial (RF-008) | Lorde |
+| `/comunicar` | Publica um comunicado oficial num canal (RF-015) | Lorde |
+| `/agendar-comunicado` | Programa um comunicado para depois (RF-015) | Lorde |
+| `/comunicados` | Fila de comunicados: programados, publicados, falhados | Lorde |
+| `/cancelar-comunicado` | Cancela um comunicado ainda não publicado (RN-010) | Lorde / autor |
 | `/conceder-xp`, `/remover-xp` | Movimenta XP com motivo obrigatório (RF-003) | Conselheiro |
 | `/historico-xp` | Trilha auditável de um membro (RF-012) | Conselheiro |
 | `/auditoria` | Últimos registros do log | Conselheiro |
@@ -113,6 +117,52 @@ RSVP (UC-006) é feito pelos botões do anúncio — eles continuam funcionando 
 | `POST /webhooks/clickup` | Webhook assinado com HMAC-SHA256 no header `X-Signature` |
 
 A API **não** expõe operações de domínio: XP, cargos e agenda passam pelo bot, onde a identidade do autor é conhecida e a política de permissões (RN-008) é aplicada.
+
+## Comunicados (`/comunicar`, `/agendar-comunicado`) — RN-018
+
+O bot publica avisos oficiais num canal do servidor — tipicamente o `#comunicados` —
+na hora ou em data marcada.
+
+```bash
+# .env — o canal padrão dos comunicados
+ORACULO_DISCORD_COMUNICADOS_CHANNEL_ID=123456789012345678
+```
+
+Para pegar o ID: no Discord, **Configurações → Avançado → Modo desenvolvedor**, depois
+botão direito no canal → **Copiar ID do canal**. Sem essa variável os comandos seguem
+funcionando, mas exigem o canal informado a cada vez.
+
+No Discord:
+
+```
+/agendar-comunicado titulo:Assembleia de outubro
+                    corpo:Pauta: orçamento e novos Lordes.\nComparecimento recomendado.
+                    quando:05/10/2026 19:30
+```
+
+`\n` no corpo vira quebra de linha (o campo do slash command não aceita Enter).
+O bot confirma em resposta privada e publica na hora marcada. `/comunicados` mostra a
+fila; `/cancelar-comunicado` desmarca o que ainda não saiu.
+
+### O que está protegido aqui
+
+- **Publicar é Lorde+; `@here`/`@everyone` é Conselheiro+.** Escrever no canal atinge
+  quem for ler; um ping atinge o celular de cada membro — é um degrau a mais de cargo.
+- **O texto do aviso não consegue forçar um ping.** O corpo vai no *embed*, e menção
+  dentro de embed não notifica ninguém: escrever `@everyone` no texto produz as letras
+  `@everyone`, nada mais. Quem notifica é o parâmetro `mencao`, que passou pela política
+  de permissões.
+- **Um comunicado programado sai uma vez, ou nenhuma.** O publicador reserva a linha no
+  banco antes de falar com o Discord; se o bot cair no meio do envio, aquele comunicado
+  é encerrado como falha e aparece em `/comunicados` — nunca republicado sozinho, porque
+  um `@everyone` duplicado é pior que um aviso atrasado.
+- **Comunicado atrasado demais não vai ao ar.** Passadas
+  `ORACULO_COMUNICADOS_ATRASO_MAXIMO_HORAS` (6h por padrão) da hora marcada, ele expira
+  em vez de aparecer fora de hora — útil exatamente quando o bot passou um tempo fora.
+
+O ciclo de publicação roda dentro do processo do próprio bot, a cada
+`ORACULO_COMUNICADOS_INTERVALO_SEGUNDOS` (60 por padrão; `0` desliga). Não há agendador
+externo — mesma escolha do backup e da sincronização (ADR-001).
 
 ## Pergunta ao Oráculo (`/perguntar`) — RN-017
 
