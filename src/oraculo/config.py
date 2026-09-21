@@ -45,6 +45,17 @@ class Settings(BaseSettings):
     #: Sem efeito se já existir um Administrador ativo (idempotente).
     bootstrap_admin_discord_id: int | None = None
 
+    # --- Comunicados (RF-015 / RN-018) ---------------------------------------
+    #: Canal padrão dos comunicados oficiais (o `#comunicados` do servidor).
+    #: Sem ele, `/comunicar` e `/agendar-comunicado` exigem o canal no comando.
+    discord_comunicados_channel_id: int | None = None
+    #: De quanto em quanto tempo o publicador procura comunicados vencidos.
+    #: 0 desliga o ciclo (comunicados programados deixam de sair sozinhos).
+    comunicados_intervalo_segundos: int = 60
+    #: Atraso além do qual um comunicado não é mais publicado — se o bot passou
+    #: o fim de semana fora do ar, o aviso de sexta não aparece na segunda.
+    comunicados_atraso_maximo_horas: float = 6.0
+
     # --- Banco de dados (TD-002 / ADR-001) -----------------------------------
     database_url: str = "sqlite+aiosqlite:///./data/oraculo.sqlite3"
     db_echo: bool = False
@@ -179,6 +190,11 @@ class Settings(BaseSettings):
     def credenciais_firebase(self) -> Path | None:
         """Arquivo de credenciais a usar, com o fallback documentado acima."""
         return self.firebase_credentials_file or self.google_credentials_file
+
+    @property
+    def comunicados_periodicos(self) -> bool:
+        """Publicação programada só roda se houver intervalo configurado."""
+        return self.comunicados_intervalo_segundos > 0
 
     @property
     def email_enabled(self) -> bool:
