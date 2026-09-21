@@ -113,7 +113,10 @@ class NotificacaoService:
         na Comunidade destacado quando aplicável (`COMUNIDADE_E_CLUBE.md` Art. 3º §1º/§3º)."""
         corpo = f"**{nome}** recebeu **{valor} Dracmas**."
         if ingresso_cobrado:
-            corpo += " Conta de Comunidade criada agora — 30.000 Dracmas de ingresso já descontados."
+            corpo += (
+                " Conta de Comunidade criada agora — 30.000 Dracmas de ingresso"
+                " já descontados."
+            )
         return Notificacao(
             titulo="🪙 Dracmas creditados",
             corpo=corpo,

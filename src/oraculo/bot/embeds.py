@@ -6,7 +6,15 @@ from datetime import datetime
 
 import discord
 
-from oraculo.db.models import Aldeao, MovimentacaoDracmas, MovimentacaoXp
+from oraculo.db.base import como_utc
+from oraculo.db.models import (
+    Aldeao,
+    Comunicado,
+    MovimentacaoDracmas,
+    MovimentacaoXp,
+    StatusComunicado,
+    TipoMencao,
+)
 from oraculo.repositories.membros import LinhaRanking
 from oraculo.services.notificacao_service import Notificacao, Severidade
 from oraculo.services.ranking_service import Perfil
@@ -37,6 +45,52 @@ def erro(mensagem: str, *, titulo: str = "Operação não realizada") -> discord
     return discord.Embed(title=f"⚠️ {titulo}", description=mensagem, color=COR[Severidade.ERRO])
 
 
+def sucesso(mensagem: str, *, titulo: str = "Feito") -> discord.Embed:
+    return discord.Embed(title=titulo, description=mensagem, color=COR[Severidade.SUCESSO])
+
+
+MARCA_STATUS_COMUNICADO = {
+    StatusComunicado.AGENDADO: "🗓️",
+    StatusComunicado.PUBLICANDO: "📡",
+    StatusComunicado.PUBLICADO: "📢",
+    StatusComunicado.CANCELADO: "🗑️",
+    StatusComunicado.FALHOU: "⚠️",
+}
+
+MARCA_MENCAO = {
+    TipoMencao.NENHUMA: "",
+    TipoMencao.AQUI: " · @here",
+    TipoMencao.TODOS: " · @everyone",
+}
+
+
+def lista_comunicados(comunicados: list[Comunicado]) -> discord.Embed:
+    """`/comunicados` — RF-015. Mostra também cancelados e falhados: é neles
+    que alguém precisa reparar, e RN-010 mantém a linha justamente para isso."""
+    embed = discord.Embed(title="📢 Comunicados", color=COR[Severidade.INFO])
+    if not comunicados:
+        embed.description = "Nenhum comunicado registrado ainda."
+        return embed
+
+    for item in comunicados:
+        status = StatusComunicado(item.status)
+        mencao = TipoMencao(item.mencao)
+        linhas = [
+            f"<t:{int(como_utc(item.publicar_em).timestamp())}:F> · "
+            f"<#{item.canal_id}>{MARCA_MENCAO[mencao]}"
+        ]
+        if item.motivo_cancelamento:
+            linhas.append(f"Cancelado: {item.motivo_cancelamento}")
+        if item.erro:
+            linhas.append(f"⚠️ {item.erro}")
+        embed.add_field(
+            name=f"{MARCA_STATUS_COMUNICADO[status]} #{item.id} · {item.titulo}"[:256],
+            value="\n".join(linhas)[:1024],
+            inline=False,
+        )
+    return embed
+
+
 def perfil(dados: Perfil) -> discord.Embed:
     """RF-002 — cargo, XP atual, próximo cargo, XP necessário e posição."""
     membro = dados.membro
@@ -47,9 +101,7 @@ def perfil(dados: Perfil) -> discord.Embed:
     )
     embed.add_field(name="Cargo", value=dados.cargo.nome, inline=True)
     embed.add_field(name="XP", value=f"{membro.xp:,}".replace(",", "."), inline=True)
-    embed.add_field(
-        name="Ranking", value=f"#{dados.posicao} de {dados.total_membros}", inline=True
-    )
+    embed.add_field(name="Ranking", value=f"#{dados.posicao} de {dados.total_membros}", inline=True)
 
     if dados.no_topo:
         embed.add_field(name="Progressão", value="Topo da progressão automática 🏛️", inline=False)

@@ -50,6 +50,13 @@ class Acao(StrEnum):
     CRIAR_EVENTO = "criar_evento"
     GERIR_EVENTO = "gerir_evento"
 
+    # Comunicados — RF-015, RN-018. `MENCIONAR_TODOS` é um degrau acima de
+    # publicar de propósito: escrever no canal atinge quem for ler; `@everyone`
+    # atinge o servidor inteiro no celular de cada um.
+    PUBLICAR_COMUNICADO = "publicar_comunicado"
+    GERIR_COMUNICADO = "gerir_comunicado"
+    MENCIONAR_TODOS = "mencionar_todos"
+
     # Governança — RF-012, RNF-003, RNF-004
     DEFINIR_CARGO_MANUAL = "definir_cargo_manual"
     VER_AUDITORIA = "ver_auditoria"
@@ -71,6 +78,9 @@ _POLITICA: dict[Acao, Cargo] = {
     Acao.GERIR_REUNIAO: CAVALARIA,
     Acao.CRIAR_EVENTO: LORDE,
     Acao.GERIR_EVENTO: LORDE,
+    Acao.PUBLICAR_COMUNICADO: LORDE,
+    Acao.GERIR_COMUNICADO: LORDE,
+    Acao.MENCIONAR_TODOS: CONSELHEIRO,
     Acao.DEFINIR_CARGO_MANUAL: ADMINISTRADOR,
     Acao.VER_AUDITORIA: CONSELHEIRO,
     Acao.ADMINISTRAR_SISTEMA: ADMINISTRADOR,

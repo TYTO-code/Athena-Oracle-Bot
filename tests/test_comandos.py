@@ -65,6 +65,10 @@ async def test_comandos_esperados_estao_registrados(bot):
         "auditoria",
         "definir-cargo",
         "verificar-cargos",
+        "comunicar",
+        "agendar-comunicado",
+        "comunicados",
+        "cancelar-comunicado",
     } <= nomes
 
 
@@ -78,6 +82,9 @@ async def test_comandos_esperados_estao_registrados(bot):
         ("criar-evento", LORDE),
         ("conceder-xp", CONSELHEIRO),
         ("historico-xp", CONSELHEIRO),
+        ("comunicar", LORDE),
+        ("agendar-comunicado", LORDE),
+        ("cancelar-comunicado", LORDE),
     ],
 )
 async def test_cargo_minimo_de_cada_comando(bot, comando, cargo_esperado):

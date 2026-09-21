@@ -8,47 +8,29 @@ precisar manter estado em memória.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
+from datetime import timedelta
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
+from oraculo.bot.datas import interpretar_data
 from oraculo.bot.permissions import requer
-from oraculo.config import get_settings
 from oraculo.db.base import sessao
 from oraculo.db.models import OrigemAcao, StatusPresenca, TipoAgendamento
 from oraculo.domain.permissions import Acao
 from oraculo.logging_config import get_logger
 from oraculo.repositories import agenda as repo_agenda
 from oraculo.repositories import membros as repo_membros
-from oraculo.services.agenda_service import DataInvalidaError
 from oraculo.services.notificacao_service import NotificacaoService
 
 log = get_logger(__name__)
-
-FORMATOS_DATA = ("%d/%m/%Y %H:%M", "%d/%m/%Y %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M")
 
 ROTULOS_RSVP = {
     StatusPresenca.CONFIRMADO: ("✅ Confirmar", discord.ButtonStyle.success),
     StatusPresenca.RECUSADO: ("❌ Recusar", discord.ButtonStyle.danger),
     StatusPresenca.PENDENTE: ("🤔 Pendente", discord.ButtonStyle.secondary),
 }
-
-
-def interpretar_data(texto: str) -> datetime:
-    """Converte a data digitada para `datetime` com fuso do clube."""
-    fuso = ZoneInfo(get_settings().google_timezone)
-    limpo = texto.strip()
-    for formato in FORMATOS_DATA:
-        try:
-            return datetime.strptime(limpo, formato).replace(tzinfo=fuso)
-        except ValueError:
-            continue
-    raise DataInvalidaError(
-        f"Data inválida: {texto!r}. Use `DD/MM/AAAA HH:MM` (ex.: 25/12/2026 19:30)."
-    )
 
 
 class BotaoRsvp(
@@ -223,9 +205,7 @@ class AgendaCog(commands.Cog):
     @app_commands.command(
         name="cancelar-agendamento", description="Cancela uma reunião ou evento (RN-010)."
     )
-    @app_commands.describe(
-        identificador="ID exibido em /agenda.", motivo="Motivo do cancelamento."
-    )
+    @app_commands.describe(identificador="ID exibido em /agenda.", motivo="Motivo do cancelamento.")
     @requer(Acao.GERIR_REUNIAO)
     async def cancelar(
         self,
@@ -292,8 +272,7 @@ class AgendaCog(commands.Cog):
 
         embed = discord.Embed(
             title=(
-                f"📅 {'Reunião' if tipo is TipoAgendamento.REUNIAO else 'Evento oficial'}: "
-                f"{titulo}"
+                f"📅 {'Reunião' if tipo is TipoAgendamento.REUNIAO else 'Evento oficial'}: {titulo}"
             ),
             description=descricao or "Sem descrição.",
             color=discord.Color.green(),

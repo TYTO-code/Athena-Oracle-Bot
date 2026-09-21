@@ -84,7 +84,8 @@ class XpSomenteLeituraError(BusinessRuleError):
 
 
 class SaldoDracmasInsuficienteError(BusinessRuleError):
-    """`Institucional/COMUNIDADE_E_CLUBE.md` Art. 3º §1º / Art. 4º §1º — sem saldo pro ingresso/débito."""
+    """`Institucional/COMUNIDADE_E_CLUBE.md` Art. 3º §1º / Art. 4º §1º —
+    sem saldo para o ingresso/débito."""
 
     regra = "DRACMAS.md"
 
@@ -98,7 +99,8 @@ class SaldoDracmasInsuficienteError(BusinessRuleError):
 
 
 class ContaDracmasSuspensaError(BusinessRuleError):
-    """`Institucional/DRACMAS.md` §4 — conta suspensa por saldo negativo não movimenta até reversão manual."""
+    """`Institucional/DRACMAS.md` §4 — conta suspensa por saldo negativo não
+    movimenta até reversão manual."""
 
     regra = "DRACMAS.md §4"
 
@@ -126,7 +128,9 @@ class MotivoDracmasObrigatorioError(BusinessRuleError):
     regra = "DRACMAS.md §3"
 
     def __init__(self) -> None:
-        super().__init__("O motivo é obrigatório em qualquer movimentação de Dracmas (DRACMAS.md §3).")
+        super().__init__(
+            "O motivo é obrigatório em qualquer movimentação de Dracmas (DRACMAS.md §3)."
+        )
 
 
 class VinculoJaSolicitadoError(BusinessRuleError):

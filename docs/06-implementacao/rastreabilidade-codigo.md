@@ -23,6 +23,7 @@ Fecha a cadeia `Visão → RN/RF/RNF → Casos de Uso → Dívida Técnica → A
 | RN-015 Ingresso na Comunidade | `DracmasService._cobrar_ingresso`, `CUSTO_INGRESSO_COMUNIDADE` | `test_dracmas_service.py` |
 | RN-016 Prova de posse para autovínculo | `solicitar_vinculo`/`confirmar_vinculo` ([vinculo_service.py](../../src/oraculo/services/vinculo_service.py)), tabela `vinculos_pendentes`; `bot/cogs/vinculo.py` não usa `bot/permissions.py` (mesmo motivo de RN-011: não pode criar `Membro` antes do vínculo existir); válvula de escape para Administrador quando `confirmar_vinculo` recusa por já existir registro no bot: `reconciliar_manualmente` + `/reconciliar-conta` ([cogs/admin.py](../../src/oraculo/bot/cogs/admin.py)) | `test_vinculo_service.py` |
 | RN-017 Autorização na recuperação | `PerguntaService._projetos_autorizados`/`_carregar_projetos` ([pergunta_service.py](../../src/oraculo/services/pergunta_service.py)); filtro obrigatório em [projetos_db.py](../../src/oraculo/integrations/projetos_db.py); leitura pontual em `FirestoreMembros.projetos_de` ([plataforma.py](../../src/oraculo/integrations/plataforma.py)); resposta efêmera em [cogs/pergunta.py](../../src/oraculo/bot/cogs/pergunta.py) | `test_pergunta_service.py`, `test_projetos_db.py`, `test_autorizacao_projetos.py` |
+| RN-018 Comunicado publica uma vez | `ComunicadoService.publicar_pendentes` / `_encerrar_orfaos` / `_expirar` ([comunicado_service.py](../../src/oraculo/services/comunicado_service.py)); reserva atômica em `reservar_vencidos` ([repositories/comunicados.py](../../src/oraculo/repositories/comunicados.py)); menção explícita em `permissoes_de_mencao` ([bot/comunicador.py](../../src/oraculo/bot/comunicador.py)) | `test_comunicado_service.py`, `test_comunicador_discord.py` |
 
 ## Requisitos funcionais
 
@@ -40,6 +41,7 @@ Fecha a cadeia `Visão → RN/RF/RNF → Casos de Uso → Dívida Técnica → A
 | RF-012 Logs | Tabela `audit_log` ([repositories/auditoria.py](../../src/oraculo/repositories/auditoria.py)) + `/auditoria` |
 | RF-013 Saldo/extrato de Dracmas | `/saldo`, `/extrato-dracmas` ([cogs/comunidade.py](../../src/oraculo/bot/cogs/comunidade.py)) |
 | RF-014 Doação de Dracmas | `/doar-dracmas`, `DracmasService.doar` |
+| RF-015 Comunicados oficiais | `/comunicar`, `/agendar-comunicado`, `/comunicados`, `/cancelar-comunicado` e o ciclo `publicar_programados` ([cogs/comunicados.py](../../src/oraculo/bot/cogs/comunicados.py)) |
 
 ## Requisitos não funcionais
 

@@ -13,5 +13,11 @@ __pycache__/
 data/
 backups/
 *.sqlite3
-docs/
+# `docs/` NÃO é ignorado por inteiro: o Dockerfile copia docs/regras-tyto, que o
+# /perguntar (RN-017) lê em runtime. Se a pasta ficar fora do contexto o COPY
+# falha e o build inteiro cai (foi o que aconteceu no deploy de ca7d823).
+# Também não use `docs/` + `!docs/regras-tyto`: exceção dentro de pasta ignorada
+# depende de detalhe do builder, e quando falha derruba o build. Aqui só o que é
+# pesado fica de fora — o resto de docs/ custa alguns KB de contexto e nada na imagem.
+**/*.pdf
 tests/
