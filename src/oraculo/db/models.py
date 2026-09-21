@@ -119,7 +119,8 @@ class TipoMovimentacaoDracmas(StrEnum):
 
     DOACAO = "doacao"  # DRACMAS.md §2 "Doação livre entre membros"
     PAGAMENTO_MARKETPLACE = "pagamento_marketplace"  # §2 "Pagamento de pedido/oferta"
-    TAXA_MENSAL = "taxa_mensal"  # §2 "Taxa mensal de manutenção" — só Clube (COMUNIDADE_E_CLUBE.md Art. 4º §4º)
+    # §2 "Taxa mensal de manutenção" — só Clube (COMUNIDADE_E_CLUBE.md Art. 4º §4º)
+    TAXA_MENSAL = "taxa_mensal"
     INGRESSO_COMUNIDADE = "ingresso_comunidade"  # COMUNIDADE_E_CLUBE.md Art. 3º §1º — 30.000
     INGRESSO_CLUBE = "ingresso_clube"  # COMUNIDADE_E_CLUBE.md Art. 4º §1º — 70.000
     PREMIO_TORNEIO = "premio_torneio"  # DRACMAS.md §2 "Prêmio de torneio (pódio)"
