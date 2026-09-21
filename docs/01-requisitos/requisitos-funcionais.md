@@ -16,6 +16,7 @@
 | RF-012 | Sistema de logs | Registro de todas as movimentações críticas e eventos. | Crítica | RN-005, RN-010 | UC-001, UC-003 |
 | RF-013 | Consulta de saldo/extrato de Dracmas | Qualquer Aldeão consulta o próprio saldo e histórico sem intermediação humana. | Alta | RN-011, RN-013 | — |
 | RF-014 | Doação de Dracmas | Um titular de saldo doa Dracmas a outro, criando a conta do destinatário se necessário. | Média | RN-011, RN-012, RN-013, RN-014, RN-015 | — |
+| RF-015 | Comunicados oficiais | Publicar um aviso do clube num canal (o `#comunicados`), na hora ou programado para depois; listar e cancelar o que está na fila. | Média | RN-008, RN-010, RN-018 | — |
 
 ## Comandos Discord previstos (Sprint 2+)
 
@@ -28,4 +29,5 @@
 | `/remover-xp` | RF-003 | Conselheiro+ |
 | Comandos de reunião | RF-007 | Cavalaria+ |
 | Comandos de evento | RF-008 | Lorde+ |
+| `/comunicar`, `/agendar-comunicado`, `/comunicados`, `/cancelar-comunicado` | RF-015 | Lorde+ para publicar; Conselheiro+ para `@here`/`@everyone` (RN-018) |
 | `/saldo`, `/extrato-dracmas`, `/doar-dracmas` | RF-013, RF-014 | Nenhuma — aberto a qualquer pessoa registrada no Atena, camada Comunidade não usa cargo de hierarquia (ver `regras-de-negocio.md` RN-011) |

@@ -46,6 +46,17 @@ def agora() -> datetime:
     return datetime.now(UTC)
 
 
+def como_utc(momento: datetime) -> datetime:
+    """Datetime lido do banco, garantidamente timezone-aware.
+
+    SQLite não guarda o fuso: a mesma coluna `DateTime(timezone=True)` volta
+    *naive* de lá e *aware* do PostgreSQL. Como tudo é gravado em UTC por
+    `agora()`, o naive é UTC — esta função diz isso em voz alta, em vez de
+    deixar a comparação estourar só no ambiente de desenvolvimento.
+    """
+    return momento if momento.tzinfo is not None else momento.replace(tzinfo=UTC)
+
+
 _engine: AsyncEngine | None = None
 _sessionmaker: async_sessionmaker[AsyncSession] | None = None
 
