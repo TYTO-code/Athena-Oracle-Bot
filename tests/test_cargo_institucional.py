@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 import pytest
 from sqlalchemy import select
-from tests.test_promocao import SincronizadorEspiao
 
 from oraculo.db.models import OrigemAcao, Promocao, RegistroAuditoria
 from oraculo.domain.errors import (
@@ -16,6 +17,25 @@ from oraculo.domain.errors import (
 )
 from oraculo.domain.hierarchy import OFICIAL, OMNI, CargoInstitucional
 from oraculo.services.cargo_institucional_service import CargoInstitucionalService
+
+
+@dataclass
+class SincronizadorEspiao:
+    """Registra as chamadas de papel institucional em vez de falar com o Discord."""
+
+    institucionais: list[tuple[int, str, bool]] = field(default_factory=list)
+    falhar: bool = False
+
+    async def sincronizar(self, *, discord_id: int, patente, guild_id=None):
+        pass
+
+    async def definir_cargo_institucional(
+        self, *, discord_id: int, cargo: CargoInstitucional, ativo: bool, guild_id=None
+    ):
+        if self.falhar:
+            raise RuntimeError("Discord fora do ar")
+        self.institucionais.append((discord_id, cargo.value, ativo))
+
 
 CONSELHEIRO = CargoInstitucional.CONSELHEIRO
 ADMINISTRADOR = CargoInstitucional.ADMINISTRADOR
