@@ -7,10 +7,13 @@ from datetime import timedelta
 import pytest
 
 from oraculo.db.base import agora
-from oraculo.domain.hierarchy import CAVALARIA, CONSELHEIRO, MEMBRO
+from oraculo.domain.hierarchy import NEOFITO, OMNI, VETERANO, CargoInstitucional
 from oraculo.integrations.cache import CacheMemoria
 from oraculo.services.ranking_service import RankingService
 from oraculo.services.xp_service import XpService
+
+CONSELHEIRO = CargoInstitucional.CONSELHEIRO
+MEMBRO = NEOFITO
 
 
 @pytest.fixture
@@ -24,22 +27,22 @@ def servico(cache, settings) -> RankingService:
 
 
 async def test_perfil_traz_progressao_completa(session, criar_membro, servico):
-    """RF-002 — cargo, XP, próximo cargo, XP necessário e posição."""
-    membro = await criar_membro(CAVALARIA, xp=900)
+    """RF-002 — patente, XP, próxima patente, XP necessário e posição."""
+    membro = await criar_membro(VETERANO, xp=2_000)
     await criar_membro(CONSELHEIRO, xp=4_000)
 
     perfil = await servico.perfil(session, membro)
 
-    assert perfil.cargo is CAVALARIA
-    assert perfil.proximo.slug == "lorde"
-    assert perfil.xp_para_proximo == 600
+    assert perfil.patente == VETERANO
+    assert perfil.proxima.slug == "mestre-de-armas"
+    assert perfil.xp_para_proximo == 4_600
     assert perfil.posicao == 2
     assert perfil.total_membros == 2
     assert perfil.no_topo is False
 
 
 async def test_perfil_no_topo_da_progressao(session, criar_membro, servico):
-    membro = await criar_membro(CONSELHEIRO, xp=5_000)
+    membro = await criar_membro(OMNI, xp=300_000_000_000)
 
     perfil = await servico.perfil(session, membro)
 

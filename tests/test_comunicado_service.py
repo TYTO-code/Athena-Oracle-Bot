@@ -9,7 +9,7 @@ import pytest
 from oraculo.db.base import agora
 from oraculo.db.models import Comunicado, StatusComunicado, TipoMencao
 from oraculo.domain.errors import PermissaoNegadaError
-from oraculo.domain.hierarchy import CAVALARIA, CONSELHEIRO, LORDE, MEMBRO
+from oraculo.domain.hierarchy import NEOFITO, OFICIAL, VETERANO, CargoInstitucional
 from oraculo.repositories import auditoria
 from oraculo.repositories import comunicados as repo
 from oraculo.services.comunicado_service import (
@@ -20,6 +20,8 @@ from oraculo.services.comunicado_service import (
     ComunicadoService,
     DataDeComunicadoInvalidaError,
 )
+
+CONSELHEIRO = CargoInstitucional.CONSELHEIRO
 
 CANAL = 999_000_111
 
@@ -66,8 +68,8 @@ async def _agendar_direto(session, autor, *, quando, mencao=TipoMencao.NENHUMA) 
 # -- Permissões (RN-008) ----------------------------------------------------
 
 
-async def test_lorde_programa_comunicado(session, criar_membro, servico):
-    autor = await criar_membro(LORDE)
+async def test_oficial_programa_comunicado(session, criar_membro, servico):
+    autor = await criar_membro(OFICIAL)
 
     comunicado = await servico.programar(
         session,
@@ -82,8 +84,8 @@ async def test_lorde_programa_comunicado(session, criar_membro, servico):
     assert comunicado.canal_id == CANAL
 
 
-@pytest.mark.parametrize("cargo", [MEMBRO, CAVALARIA])
-async def test_abaixo_de_lorde_nao_publica(session, criar_membro, servico, cargo):
+@pytest.mark.parametrize("cargo", [NEOFITO, VETERANO])
+async def test_abaixo_de_oficial_nao_publica(session, criar_membro, servico, cargo):
     autor = await criar_membro(cargo)
 
     with pytest.raises(PermissaoNegadaError):
@@ -99,8 +101,8 @@ async def test_abaixo_de_lorde_nao_publica(session, criar_membro, servico, cargo
 
 @pytest.mark.parametrize("mencao", [TipoMencao.AQUI, TipoMencao.TODOS])
 async def test_mencionar_o_servidor_exige_conselheiro(session, criar_membro, servico, mencao):
-    """Publicar é Lorde+; acordar o servidor inteiro é um degrau acima (RN-018)."""
-    lorde = await criar_membro(LORDE)
+    """Publicar é Oficial+; acordar o servidor inteiro exige o cargo Conselheiro (RN-018)."""
+    oficial = await criar_membro(OFICIAL)
 
     with pytest.raises(PermissaoNegadaError):
         await servico.programar(
@@ -108,7 +110,7 @@ async def test_mencionar_o_servidor_exige_conselheiro(session, criar_membro, ser
             titulo="Urgente",
             corpo="Texto",
             canal_id=CANAL,
-            autor=lorde,
+            autor=oficial,
             publicar_em=agora() + timedelta(days=1),
             mencao=mencao,
         )
@@ -130,7 +132,7 @@ async def test_mencionar_o_servidor_exige_conselheiro(session, criar_membro, ser
 
 
 async def test_recusa_data_no_passado(session, criar_membro, servico):
-    autor = await criar_membro(LORDE)
+    autor = await criar_membro(OFICIAL)
 
     with pytest.raises(DataDeComunicadoInvalidaError):
         await servico.programar(
@@ -146,7 +148,7 @@ async def test_recusa_data_no_passado(session, criar_membro, servico):
 async def test_recusa_data_sem_fuso(session, criar_membro, servico):
     from datetime import datetime
 
-    autor = await criar_membro(LORDE)
+    autor = await criar_membro(OFICIAL)
 
     with pytest.raises(DataDeComunicadoInvalidaError):
         await servico.programar(
@@ -160,7 +162,7 @@ async def test_recusa_data_sem_fuso(session, criar_membro, servico):
 
 
 async def test_sem_canal_no_comando_nem_no_ambiente(session, criar_membro, servico):
-    autor = await criar_membro(LORDE)
+    autor = await criar_membro(OFICIAL)
 
     with pytest.raises(CanalNaoConfiguradoError):
         await servico.programar(
@@ -175,7 +177,7 @@ async def test_sem_canal_no_comando_nem_no_ambiente(session, criar_membro, servi
 
 
 async def test_canal_do_comando_vence_o_padrao(session, criar_membro, servico):
-    autor = await criar_membro(LORDE)
+    autor = await criar_membro(OFICIAL)
 
     comunicado = await servico.programar(
         session,
@@ -194,7 +196,7 @@ async def test_canal_do_comando_vence_o_padrao(session, criar_membro, servico):
 
 
 async def test_publica_o_vencido_e_deixa_o_futuro(session, criar_membro, servico, publicador):
-    autor = await criar_membro(LORDE)
+    autor = await criar_membro(OFICIAL)
     vencido = await _agendar_direto(session, autor, quando=agora() - timedelta(minutes=1))
     futuro = await _agendar_direto(session, autor, quando=agora() + timedelta(days=2))
 
@@ -209,7 +211,7 @@ async def test_publica_o_vencido_e_deixa_o_futuro(session, criar_membro, servico
 
 async def test_nao_republica_no_ciclo_seguinte(session, criar_membro, servico, publicador):
     """A garantia central: um comunicado programado sai uma vez, não a cada minuto."""
-    autor = await criar_membro(LORDE)
+    autor = await criar_membro(OFICIAL)
     await _agendar_direto(session, autor, quando=agora() - timedelta(minutes=1))
 
     await servico.publicar_pendentes(session)
@@ -221,7 +223,7 @@ async def test_nao_republica_no_ciclo_seguinte(session, criar_membro, servico, p
 
 async def test_sem_publicador_nada_acontece(session, criar_membro):
     """Processo só de API não deve publicar nem marcar nada como perdido."""
-    autor = await criar_membro(LORDE)
+    autor = await criar_membro(OFICIAL)
     pendente = await _agendar_direto(session, autor, quando=agora() - timedelta(minutes=1))
 
     resultado = await ComunicadoService().publicar_pendentes(session)
@@ -231,7 +233,7 @@ async def test_sem_publicador_nada_acontece(session, criar_membro):
 
 
 async def test_falha_de_envio_volta_para_a_fila(session, criar_membro):
-    autor = await criar_membro(LORDE)
+    autor = await criar_membro(OFICIAL)
     servico = ComunicadoService(publicador=PublicadorFalso(erro=RuntimeError("canal fora do ar")))
     pendente = await _agendar_direto(session, autor, quando=agora() - timedelta(minutes=1))
 
@@ -244,7 +246,7 @@ async def test_falha_de_envio_volta_para_a_fila(session, criar_membro):
 
 
 async def test_desiste_depois_do_limite_de_tentativas(session, criar_membro):
-    autor = await criar_membro(LORDE)
+    autor = await criar_membro(OFICIAL)
     servico = ComunicadoService(publicador=PublicadorFalso(erro=RuntimeError("sem permissão")))
     pendente = await _agendar_direto(session, autor, quando=agora() - timedelta(minutes=1))
 
@@ -257,7 +259,7 @@ async def test_desiste_depois_do_limite_de_tentativas(session, criar_membro):
 
 async def test_comunicado_atrasado_demais_nao_vai_ao_ar(session, criar_membro, publicador):
     """Se o bot passou o fim de semana fora, o aviso de sexta não sai na segunda."""
-    autor = await criar_membro(LORDE)
+    autor = await criar_membro(OFICIAL)
     servico = ComunicadoService(publicador=publicador, atraso_maximo=timedelta(hours=6))
     velho = await _agendar_direto(session, autor, quando=agora() - timedelta(days=2))
 
@@ -272,7 +274,7 @@ async def test_comunicado_atrasado_demais_nao_vai_ao_ar(session, criar_membro, p
 async def test_reserva_orfa_vira_falha_sem_republicar(session, criar_membro, servico, publicador):
     """Bot reiniciado no meio do envio: a dúvida é resolvida a favor de não
     duplicar o `@everyone`, e a linha fica visível como falha."""
-    autor = await criar_membro(LORDE)
+    autor = await criar_membro(OFICIAL)
     preso = await _agendar_direto(session, autor, quando=agora() - timedelta(hours=1))
     preso.status = StatusComunicado.PUBLICANDO
     preso.reservado_em = agora() - RESERVA_MAXIMA - timedelta(minutes=1)
@@ -287,7 +289,7 @@ async def test_reserva_orfa_vira_falha_sem_republicar(session, criar_membro, ser
 
 async def test_reserva_recente_e_deixada_em_paz(session, criar_membro, servico):
     """Reserva de segundos atrás é o ciclo normal em andamento, não um órfão."""
-    autor = await criar_membro(LORDE)
+    autor = await criar_membro(OFICIAL)
     emandamento = await _agendar_direto(session, autor, quando=agora() - timedelta(minutes=1))
     emandamento.status = StatusComunicado.PUBLICANDO
     emandamento.reservado_em = agora()
@@ -300,7 +302,7 @@ async def test_reserva_recente_e_deixada_em_paz(session, criar_membro, servico):
 
 
 async def test_publicar_agora_sai_na_hora(session, criar_membro, servico, publicador):
-    autor = await criar_membro(LORDE)
+    autor = await criar_membro(OFICIAL)
 
     comunicado = await servico.publicar_agora(
         session,
@@ -315,7 +317,7 @@ async def test_publicar_agora_sai_na_hora(session, criar_membro, servico, public
 
 
 async def test_publicar_agora_respeita_a_regra_de_mencao(session, criar_membro, servico):
-    lorde = await criar_membro(LORDE)
+    oficial = await criar_membro(OFICIAL)
 
     with pytest.raises(PermissaoNegadaError):
         await servico.publicar_agora(
@@ -323,7 +325,7 @@ async def test_publicar_agora_respeita_a_regra_de_mencao(session, criar_membro, 
             titulo="Agora",
             corpo="Texto",
             canal_id=CANAL,
-            autor=lorde,
+            autor=oficial,
             mencao=TipoMencao.TODOS,
         )
 
@@ -332,7 +334,7 @@ async def test_publicar_agora_respeita_a_regra_de_mencao(session, criar_membro, 
 
 
 async def test_autor_cancela_o_proprio_comunicado(session, criar_membro, servico):
-    autor = await criar_membro(LORDE)
+    autor = await criar_membro(OFICIAL)
     comunicado = await _agendar_direto(session, autor, quando=agora() + timedelta(days=1))
 
     await servico.cancelar(
@@ -345,8 +347,8 @@ async def test_autor_cancela_o_proprio_comunicado(session, criar_membro, servico
 
 
 async def test_terceiro_sem_cargo_nao_cancela(session, criar_membro, servico):
-    autor = await criar_membro(LORDE)
-    intruso = await criar_membro(CAVALARIA)
+    autor = await criar_membro(OFICIAL)
+    intruso = await criar_membro(VETERANO)
     comunicado = await _agendar_direto(session, autor, quando=agora() + timedelta(days=1))
 
     with pytest.raises(PermissaoNegadaError):
@@ -358,7 +360,7 @@ async def test_terceiro_sem_cargo_nao_cancela(session, criar_membro, servico):
 
 async def test_cancelado_nao_e_apagado(session, criar_membro, servico):
     """RN-010 — a linha continua no banco, com o motivo."""
-    autor = await criar_membro(LORDE)
+    autor = await criar_membro(OFICIAL)
     comunicado = await _agendar_direto(session, autor, quando=agora() + timedelta(days=1))
 
     await servico.cancelar(session, comunicado=comunicado, solicitante=autor, motivo="Erro meu")
@@ -367,7 +369,7 @@ async def test_cancelado_nao_e_apagado(session, criar_membro, servico):
 
 
 async def test_nao_cancela_o_que_ja_foi_publicado(session, criar_membro, servico):
-    autor = await criar_membro(LORDE)
+    autor = await criar_membro(OFICIAL)
     comunicado = await _agendar_direto(session, autor, quando=agora() - timedelta(minutes=1))
     await servico.publicar_pendentes(session)
 
@@ -378,7 +380,7 @@ async def test_nao_cancela_o_que_ja_foi_publicado(session, criar_membro, servico
 
 
 async def test_cancelado_nao_e_publicado_depois(session, criar_membro, servico, publicador):
-    autor = await criar_membro(LORDE)
+    autor = await criar_membro(OFICIAL)
     comunicado = await _agendar_direto(session, autor, quando=agora() + timedelta(seconds=1))
     await servico.cancelar(session, comunicado=comunicado, solicitante=autor, motivo="Desmarcado")
 
@@ -392,7 +394,7 @@ async def test_cancelado_nao_e_publicado_depois(session, criar_membro, servico, 
 
 
 async def test_trilha_de_auditoria_do_ciclo_completo(session, criar_membro, servico):
-    autor = await criar_membro(LORDE)
+    autor = await criar_membro(OFICIAL)
     await servico.programar(
         session,
         titulo="Assembleia",
@@ -411,7 +413,7 @@ async def test_trilha_de_auditoria_do_ciclo_completo(session, criar_membro, serv
 
 
 async def test_listagem_mostra_tambem_os_que_falharam(session, criar_membro, servico):
-    autor = await criar_membro(LORDE)
+    autor = await criar_membro(OFICIAL)
     await _agendar_direto(session, autor, quando=agora() - timedelta(days=3))
     await servico.publicar_pendentes(session)
 

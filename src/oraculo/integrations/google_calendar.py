@@ -1,4 +1,8 @@
-"""Integração com o Google Agenda — RN-009 / RF-011 / US-305.
+"""Integração com o Google Agenda — RN-009 / RF-011 / US-305 (bidirecional).
+
+Bot → Google: criar, atualizar e cancelar o espelho de cada agendamento.
+Google → bot: `alteracoes_desde` lista o que mudou no calendário (inclusive
+eventos apagados) para `AgendaService.aplicar_alteracoes_externas`.
 
 A biblioteca oficial é síncrona; as chamadas são executadas em thread separada
 (`asyncio.to_thread`) para não bloquear o event loop do bot.
@@ -36,6 +40,19 @@ class EventoExterno:
     convidados_email: tuple[str, ...] = ()
 
 
+@dataclass(slots=True)
+class AlteracaoExterna:
+    """Estado atual de um evento que mudou no calendário externo."""
+
+    evento_id: str
+    cancelado: bool
+    titulo: str | None = None
+    descricao: str | None = None
+    local: str | None = None
+    inicio_em: datetime | None = None
+    fim_em: datetime | None = None
+
+
 class AgendaExterna(Protocol):
     """Porta de calendário — permite trocar Google por outro provedor."""
 
@@ -44,6 +61,8 @@ class AgendaExterna(Protocol):
     async def atualizar(self, evento_id: str, evento: EventoExterno) -> None: ...
 
     async def cancelar(self, evento_id: str) -> None: ...
+
+    async def alteracoes_desde(self, desde: datetime) -> list[AlteracaoExterna]: ...
 
 
 class AgendaDesabilitada:
@@ -58,6 +77,9 @@ class AgendaDesabilitada:
 
     async def cancelar(self, evento_id: str) -> None:
         log.info("Google Agenda desabilitado; cancelamento de %s ignorado.", evento_id)
+
+    async def alteracoes_desde(self, desde: datetime) -> list[AlteracaoExterna]:
+        return []
 
 
 class GoogleAgenda:
@@ -102,6 +124,11 @@ class GoogleAgenda:
     async def cancelar(self, evento_id: str) -> None:
         await asyncio.to_thread(self._cancelar_sync, evento_id)
 
+    async def alteracoes_desde(self, desde: datetime) -> list[AlteracaoExterna]:
+        """Eventos alterados (ou apagados) no calendário desde `desde`."""
+        brutos = await asyncio.to_thread(self._listar_alterados_sync, desde)
+        return [alteracao_de_evento(bruto) for bruto in brutos]
+
     # -- Implementação síncrona -------------------------------------------
 
     def _criar_sync(self, corpo: dict) -> dict:
@@ -124,6 +151,30 @@ class GoogleAgenda:
             )
             .execute()
         )
+
+    def _listar_alterados_sync(self, desde: datetime) -> list[dict]:
+        servico = self._conectar()
+        eventos: list[dict] = []
+        pagina: str | None = None
+        while True:
+            resposta = (
+                servico.events()
+                .list(
+                    calendarId=self._cfg.google_calendar_id,
+                    updatedMin=desde.isoformat(),
+                    # Apagados vêm com status "cancelled" — é assim que o bot
+                    # descobre um cancelamento feito direto no Google.
+                    showDeleted=True,
+                    singleEvents=True,
+                    maxResults=250,
+                    pageToken=pagina,
+                )
+                .execute()
+            )
+            eventos.extend(resposta.get("items", []))
+            pagina = resposta.get("nextPageToken")
+            if not pagina:
+                return eventos
 
     def _cancelar_sync(self, evento_id: str) -> None:
         servico = self._conectar()
@@ -152,6 +203,31 @@ class GoogleAgenda:
                 ],
             },
         }
+
+
+def _data_do_evento(campo: dict | None) -> datetime | None:
+    """`start`/`end` do Google: `dateTime` (evento com hora) ou `date` (dia inteiro)."""
+    if not campo:
+        return None
+    valor = campo.get("dateTime") or campo.get("date")
+    if not valor:
+        return None
+    return datetime.fromisoformat(valor.replace("Z", "+00:00"))
+
+
+def alteracao_de_evento(evento: dict) -> AlteracaoExterna:
+    """Converte um item de `events.list` no formato neutro da porta."""
+    if evento.get("status") == "cancelled":
+        return AlteracaoExterna(evento_id=evento["id"], cancelado=True)
+    return AlteracaoExterna(
+        evento_id=evento["id"],
+        cancelado=False,
+        titulo=evento.get("summary"),
+        descricao=evento.get("description") or None,
+        local=evento.get("location") or None,
+        inicio_em=_data_do_evento(evento.get("start")),
+        fim_em=_data_do_evento(evento.get("end")),
+    )
 
 
 def criar_agenda_externa(settings: Settings | None = None) -> AgendaExterna:

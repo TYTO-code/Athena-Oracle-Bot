@@ -14,8 +14,8 @@ partir da ratificação, independente de este bot já cobrir ou não a regra.
 | F2-003 | Conquistas (Achievements) | Medalhas por marcos | Perfil, notificações |
 | F2-004 | Painel web administrativo | Gestão web para Conselheiros | API FastAPI, autenticação |
 | F2-005 | Torneios e gestão de times | Criação de chaves e guildas | Cargos, ranking, eventos |
-| F2-006 | Ledger de Dracmas | **Parcialmente em pé** — `dracmas_ledger` cobre a camada Comunidade (`Aldeao`): doação, ingresso, prêmio de torneio, bônus de venda do Mercador, suspensão automática (`DRACMAS.md` §4). Falta o lado Clube: taxa mensal de manutenção, migração de saldo na filiação, e ligar `Membro.dracmas` (US-405) a este mesmo ledger em vez de ficar solto | F2-001 ainda depende da parte que falta |
-| F2-007 | Camadas Comunidade/Clube | **Parcialmente em pé** — registro de Aldeão (`Institucional/COMUNIDADE_E_CLUBE.md` Art. 2º) existe, com ingresso pago em 30.000 Dracmas (Art. 3º §1º). Falta o ingresso no Clube (70.000, Art. 4º §1º) e a migração de saldo Aldeão→Membro (Art. 4º §1º-A) | F2-006 (parte que falta) |
+| F2-006 | Ledger de Dracmas | **Camada Comunidade em pé; camada Clube resolvida por decisão de arquitetura** (Clube TYTO, 2026-09-26): os Dracmas de quem é do Clube vivem **só na plataforma** (TYTO.club-API), que já cobra a taxa mensal de manutenção. O bot mantém apenas o `dracmas_ledger` da Comunidade; `Membro.dracmas` fica sem uso, e não há segunda taxa mensal aqui (evita cobrança dupla) | — |
+| F2-007 | Camadas Comunidade/Clube | **Migração de saldo em pé** — `/migrar-para-clube` leva o saldo inteiro do Aldeão para a conta de Membro na plataforma (Art. 4º §1º-A), via rota interna idempotente da TYTO.club-API; a conta migrada não movimenta mais nada no bot. **Falta** o ingresso no Clube (70.000, Art. 4º §1º): a ordem entre ingresso e migração e de qual saldo ele sai dependem do texto de `COMUNIDADE_E_CLUBE.md`, ausente deste repositório | Texto de `COMUNIDADE_E_CLUBE.md` |
 | F2-008 | Crédito de Mérito | Registro provisório de mérito para não-membro (`Institucional/CREDITO_DE_MERITO.md`), convertido em XP na filiação ao Clube | F2-007 |
 | F2-009 | Integração com o Mercador | Conta de Comunidade do Mercador para o bônus de venda em Dracmas (`Institucional/MERCADOR.md` Art. 4º §13º–§14º), criada automaticamente no primeiro bônus se não existir | F2-006, F2-007 |
 
@@ -23,13 +23,11 @@ partir da ratificação, independente de este bot já cobrir ou não a regra.
 
 Nenhum item F2-* inicia desenvolvimento com dívida crítica (TD-001–TD-006) aberta ou com Atena v1.0 incompleta.
 
-## Nota sobre a hierarquia de cargos deste bot
+## Nota sobre a hierarquia deste bot
 
-Registrada formalmente como **TD-007** em
-[divida-tecnica.md](../03-analise/divida-tecnica.md#dívida-técnica-pós-baseline-não-é-do-legado-bot-xp-discord):
-a hierarquia Membro/Cavalaria/Lorde/Conselheiro/Administrador vem do "Documento Único de
-Especificação do Bot Oráculo", fonte externa a este repositório — não corresponde à escala de
-patentes de `Institucional/XP.md` Art. 2º (Neófito→Omni) nem aos cargos institucionais de
-`Institucional/CARTA_INSTITUCIONAL.md` (Conselheiro, Tribuno, Dux Vecturium, Rex). Nenhum item deste
-backlog resolve essa divergência sozinho — TD-007 fica aberta até decisão explícita do Clube TYTO, e
-bloqueia especificamente F2-007 e F2-008 abaixo até lá.
+A divergência registrada como **TD-007** em
+[divida-tecnica.md](../03-analise/divida-tecnica.md#dívida-técnica-pós-baseline-não-é-do-legado-bot-xp-discord)
+foi fechada: o Clube TYTO decidiu **unificar** a hierarquia do bot com `Institucional/XP.md`. A
+patente agora é a escala oficial de 17 patamares (Neófito→Omni), e Conselheiro/Administrador são
+cargos institucionais independentes da patente (`CARTA_INSTITUCIONAL.md` Art. VIII). `Membro` é a
+filiação ao Clube, o que desbloqueia F2-007 e F2-008.

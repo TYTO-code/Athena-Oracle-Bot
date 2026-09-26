@@ -2,8 +2,10 @@
 
 Princípios estruturais:
 
-* **RN-001** — o cargo vive em uma única coluna (`Membro.cargo_slug`); não há
-  tabela de associação que permita acúmulo de cargos.
+* **RN-001** — a patente vive em uma única coluna (`Membro.patente_slug`); não
+  há tabela de associação que permita acúmulo de patentes. Cargos
+  institucionais (TD-007) são flags à parte (`conselheiro`, `administrador`),
+  acumuláveis com qualquer patente — Carta Art. VIII.
 * **RN-005 / RN-010** — `xp_audit`, `promocoes` e `audit_log` são *append-only*:
   não existe caminho de código que atualize ou apague linhas dessas tabelas.
 * **RN-010** — desativações usam soft-delete (`Membro.ativo`,
@@ -36,7 +38,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from oraculo.db.base import Base, agora
-from oraculo.domain.hierarchy import CARGO_INICIAL
+from oraculo.domain.hierarchy import PATENTE_INICIAL, Perfil, patente_por_slug
 
 
 def enum_col(enum_cls: type[Enum], tamanho: int = 16) -> SAEnum:
@@ -106,6 +108,7 @@ class TipoMencao(StrEnum):
 class TipoMovimentacaoXp(StrEnum):
     CONCESSAO = "concessao"
     REMOCAO = "remocao"
+    """Só em linhas históricas: XP é irrevogável desde TD-007 (XP.md Art. 1º §1º)."""
 
 
 class TipoMovimentacaoDracmas(StrEnum):
@@ -125,6 +128,9 @@ class TipoMovimentacaoDracmas(StrEnum):
     INGRESSO_CLUBE = "ingresso_clube"  # COMUNIDADE_E_CLUBE.md Art. 4º §1º — 70.000
     PREMIO_TORNEIO = "premio_torneio"  # DRACMAS.md §2 "Prêmio de torneio (pódio)"
     BONUS_VENDA_MERCADOR = "bonus_venda_mercador"  # MERCADOR.md Art. 4º §13º–§14º
+    #: COMUNIDADE_E_CLUBE.md Art. 4º §1º-A — saldo inteiro sai da Comunidade para o Clube
+    #: (conta de Membro na plataforma) na filiação.
+    MIGRACAO_CLUBE = "migracao_clube"
     OUTRA = "outra"  # fallback para movimentações ainda sem tipo próprio catalogado
 
 
@@ -178,11 +184,20 @@ class Membro(TimestampMixin, Base):
     nome_exibicao: Mapped[str] = mapped_column(String(120), nullable=False)
     email: Mapped[str | None] = mapped_column(String(254))
 
-    #: RN-001 — cargo único de hierarquia; slug validado contra o catálogo TYTO.
-    cargo_slug: Mapped[str] = mapped_column(
-        String(32), default=CARGO_INICIAL.slug, nullable=False, index=True
+    #: RN-001 — patente única (XP.md Art. 2º); slug validado contra a escala.
+    #: Derivada do XP e irrevogável — só sobe (XP.md Art. 1º §3º).
+    patente_slug: Mapped[str] = mapped_column(
+        String(32), default=PATENTE_INICIAL.slug, nullable=False, index=True
     )
-    xp: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    #: BigInteger: a escala vai até Omni, 300 bilhões de XP (XP.md Art. 2º).
+    xp: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+
+    #: Cargos institucionais (TD-007) — nunca vêm do XP; concedidos/revogados
+    #: por um Administrador via `/cargo-institucional`, sempre auditados.
+    conselheiro: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    administrador: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, index=True
+    )
 
     #: RN-010 — soft-delete; membros inativos somem das consultas, não do banco.
     ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -199,10 +214,19 @@ class Membro(TimestampMixin, Base):
     )
     promocoes: Mapped[list[Promocao]] = relationship(back_populates="membro", lazy="raise")
 
+    @property
+    def perfil(self) -> Perfil:
+        """Posição do membro nos eixos da Carta Art. VIII — base de toda permissão."""
+        return Perfil(
+            patente=patente_por_slug(self.patente_slug),
+            conselheiro=bool(self.conselheiro),
+            administrador=bool(self.administrador),
+        )
+
     def __repr__(self) -> str:  # pragma: no cover - depuração
         return (
             f"<Membro id={self.id} nome={self.nome_exibicao!r} "
-            f"cargo={self.cargo_slug} xp={self.xp}>"
+            f"patente={self.patente_slug} xp={self.xp}>"
         )
 
 
@@ -267,10 +291,11 @@ class MovimentacaoXp(Base):
     autor_descricao: Mapped[str] = mapped_column(String(120), default="sistema", nullable=False)
 
     tipo: Mapped[TipoMovimentacaoXp] = mapped_column(enum_col(TipoMovimentacaoXp), nullable=False)
-    #: Positiva em concessões, negativa em remoções — soma = XP atual.
-    quantidade: Mapped[int] = mapped_column(Integer, nullable=False)
-    saldo_anterior: Mapped[int] = mapped_column(Integer, nullable=False)
-    saldo_posterior: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: Positiva em concessões. Negativa só em linhas históricas de remoção,
+    #: anteriores a TD-007 — XP é irrevogável (XP.md Art. 1º §1º). Soma = XP atual.
+    quantidade: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    saldo_anterior: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    saldo_posterior: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
     #: RN-005 — obrigatório; validado no serviço e por CheckConstraint.
     motivo: Mapped[str] = mapped_column(String(500), nullable=False)
@@ -287,7 +312,12 @@ class MovimentacaoXp(Base):
 
 
 class Promocao(Base):
-    """RN-003 / RF-005 — histórico imutável de mudanças de cargo."""
+    """RN-003 / RF-005 — histórico imutável de mudanças de patente.
+
+    As colunas mantêm o nome `cargo_*` por compatibilidade com o histórico
+    anterior a TD-007 (que guardava slugs de Membro/Cavalaria/…); linhas novas
+    guardam slugs de patente.
+    """
 
     __tablename__ = "promocoes"
     __table_args__ = (Index("ix_promocoes_membro_data", "membro_id", "criado_em"),)
@@ -299,9 +329,10 @@ class Promocao(Base):
 
     cargo_anterior: Mapped[str] = mapped_column(String(32), nullable=False)
     cargo_novo: Mapped[str] = mapped_column(String(32), nullable=False)
-    xp_no_momento: Mapped[int] = mapped_column(Integer, nullable=False)
+    xp_no_momento: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
-    #: True quando decorrente da progressão automática por XP (RN-002).
+    #: True quando decorrente da progressão automática por XP (RN-002); False
+    #: quando um Administrador confirmou uma patente retida pela importação.
     automatica: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     autor_descricao: Mapped[str] = mapped_column(String(120), default="sistema", nullable=False)
     motivo: Mapped[str] = mapped_column(String(500), default="Progressão automática por XP")
@@ -321,9 +352,8 @@ class Promocao(Base):
 # Comunidade e Dracmas — RN-011 a RN-015, RF-013/RF-014
 #
 # Implementa `Institucional/COMUNIDADE_E_CLUBE.md` e `Institucional/DRACMAS.md` — eixo
-# inteiramente separado da hierarquia de cargos (Art. VIII da Carta trata os dois como eixos
-# independentes; a divergência entre esta hierarquia e a patente institucional já está
-# registrada como TD-007). `Aldeao` é a camada Comunidade (registro só pelo Atena, sem conta na
+# inteiramente separado da hierarquia de patentes (Art. VIII da Carta trata os dois como eixos
+# independentes). `Aldeao` é a camada Comunidade (registro só pelo Atena, sem conta na
 # plataforma — COMUNIDADE_E_CLUBE.md Art. 1º §2º); `Membro` acima já é a camada Clube.
 # ---------------------------------------------------------------------------
 

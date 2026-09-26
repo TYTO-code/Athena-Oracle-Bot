@@ -8,7 +8,7 @@ nunca capturou isso, não existe vínculo nenhum — o bot não tem como
 Este serviço resolve isso com prova de posse: quem pede o vínculo precisa
 comprovar que controla o e-mail **já cadastrado** na plataforma, nunca um que
 informe na hora. Sem essa prova, qualquer pessoa que soubesse o e-mail ou o
-ID de outro membro poderia "roubar" o registro dela — XP, cargo e tudo.
+ID de outro membro poderia "roubar" o registro dela — XP, patente e tudo.
 
 Princípios de segurança do fluxo:
 
@@ -23,7 +23,7 @@ Princípios de segurança do fluxo:
   política de escalada em dois lugares.
 * **Nunca mescla registros sozinho.** Se a conta Discord que está vinculando
   já tem *qualquer* registro no bot — mesmo "zerado" (auto-criado no primeiro
-  `/perfil`, sem XP nem cargo) — o vínculo automático é recusado: mesclar com
+  `/perfil`, sem XP nem patente) — o vínculo automático é recusado: mesclar com
   segurança exigiria zerar a única identidade desse registro ou apagá-lo
   (arriscando referências como RSVP), então fica para um Administrador.
 """
@@ -255,11 +255,11 @@ async def reconciliar_manualmente(
     para `discord_id` — a válvula de escape que `confirmar_vinculo` deixa para um
     Administrador, exatamente para o caso que ele recusa fazer sozinho.
 
-    O registro do Discord **sobrevive** (mantém `id`, cargo atual e todo o histórico
+    O registro do Discord **sobrevive** (mantém `id`, patente, cargos e todo o histórico
     de promoções/auditoria que já tenha). Ele só herda o `id_externo` (e o e-mail,
-    se ainda não tiver um) do registro da plataforma — não copia XP/cargo daqui: a
+    se ainda não tiver um) do registro da plataforma — não copia XP/patente daqui: a
     próxima sincronização (`espelho`/`carga_inicial`) já vai casar pelo `id_externo`
-    novo e aplicar XP/cargo pelo fluxo normal, com o mesmo teto de segurança de
+    novo e aplicar XP/patente pelo fluxo normal, com o mesmo teto de segurança de
     `importacao_service.CARGO_MAXIMO_AUTOMATICO`. O registro da plataforma vira
     inativo (RN-010 — nunca apagado fisicamente), com `id_externo` trocado por uma
     "sepultura" (`mesclado:<id>`) — ele só tinha esse canal, então não pode ficar

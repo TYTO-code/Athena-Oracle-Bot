@@ -18,7 +18,7 @@ class PerfilCog(commands.Cog):
         self.bot = bot
 
     @app_commands.command(
-        name="perfil", description="Mostra cargo, XP, próximo cargo e posição no ranking."
+        name="perfil", description="Mostra patente, XP, próxima patente e posição no ranking."
     )
     @app_commands.describe(membro="Membro a consultar (padrão: você mesmo).")
     @requer(Acao.VER_PERFIL)

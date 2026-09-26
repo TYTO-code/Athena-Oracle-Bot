@@ -25,6 +25,8 @@ dependencies = [
     "aiosmtplib>=3.0",
     "structlog>=24.1",
     "anthropic>=1.0",
+    "boto3>=1.34",
+    "httpx>=0.27",
 ]
 
 [project.optional-dependencies]

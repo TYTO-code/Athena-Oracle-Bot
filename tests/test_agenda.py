@@ -10,13 +10,18 @@ from sqlalchemy import func, select
 from oraculo.db.base import agora
 from oraculo.db.models import (
     Agendamento,
+    RegistroAuditoria,
     StatusAgendamento,
     StatusPresenca,
     TipoAgendamento,
 )
 from oraculo.domain.errors import PermissaoNegadaError
-from oraculo.domain.hierarchy import CAVALARIA, LORDE, MEMBRO
-from oraculo.integrations.google_calendar import EventoExterno
+from oraculo.domain.hierarchy import NEOFITO, OFICIAL, VETERANO
+from oraculo.integrations.google_calendar import (
+    AlteracaoExterna,
+    EventoExterno,
+    alteracao_de_evento,
+)
 from oraculo.services.agenda_service import (
     AgendamentoEncerradoError,
     AgendaService,
@@ -44,6 +49,9 @@ class AgendaExternaFalsa:
     async def cancelar(self, evento_id: str) -> None:
         self.cancelados.append(evento_id)
 
+    async def alteracoes_desde(self, desde):
+        return []
+
 
 @pytest.fixture
 def externa() -> AgendaExternaFalsa:
@@ -60,11 +68,11 @@ def amanha():
     return agora() + timedelta(days=1)
 
 
-async def test_cavalaria_cria_reuniao_e_sincroniza_agenda(
+async def test_veterano_cria_reuniao_e_sincroniza_agenda(
     session, criar_membro, servico, externa, amanha
 ):
     """UC-004 / RN-006 / RN-009."""
-    organizador = await criar_membro(CAVALARIA, nome="Sir Tyto")
+    organizador = await criar_membro(VETERANO, nome="Sir Tyto")
 
     resultado = await servico.criar(
         session,
@@ -85,8 +93,8 @@ async def test_cavalaria_cria_reuniao_e_sincroniza_agenda(
 
 
 async def test_membro_comum_nao_cria_reuniao(session, criar_membro, servico, amanha):
-    """RN-006 — abaixo de Cavalaria a criação é bloqueada e nada é gravado."""
-    organizador = await criar_membro(MEMBRO)
+    """RN-006 — abaixo de Veterano a criação é bloqueada e nada é gravado."""
+    organizador = await criar_membro(NEOFITO)
 
     with pytest.raises(PermissaoNegadaError):
         await servico.criar(
@@ -100,9 +108,9 @@ async def test_membro_comum_nao_cria_reuniao(session, criar_membro, servico, ama
     assert await session.scalar(select(func.count()).select_from(Agendamento)) == 0
 
 
-async def test_cavalaria_nao_cria_evento_oficial(session, criar_membro, servico, amanha):
-    """RN-007 — evento oficial exige Lorde+."""
-    organizador = await criar_membro(CAVALARIA)
+async def test_veterano_nao_cria_evento_oficial(session, criar_membro, servico, amanha):
+    """RN-007 — evento oficial exige Oficial+."""
+    organizador = await criar_membro(VETERANO)
 
     with pytest.raises(PermissaoNegadaError):
         await servico.criar(
@@ -114,8 +122,8 @@ async def test_cavalaria_nao_cria_evento_oficial(session, criar_membro, servico,
         )
 
 
-async def test_lorde_cria_evento_oficial(session, criar_membro, servico, amanha):
-    organizador = await criar_membro(LORDE)
+async def test_oficial_cria_evento_oficial(session, criar_membro, servico, amanha):
+    organizador = await criar_membro(OFICIAL)
 
     resultado = await servico.criar(
         session,
@@ -129,7 +137,7 @@ async def test_lorde_cria_evento_oficial(session, criar_membro, servico, amanha)
 
 
 async def test_data_no_passado_e_rejeitada(session, criar_membro, servico):
-    organizador = await criar_membro(CAVALARIA)
+    organizador = await criar_membro(VETERANO)
 
     with pytest.raises(DataInvalidaError):
         await servico.criar(
@@ -144,7 +152,7 @@ async def test_data_no_passado_e_rejeitada(session, criar_membro, servico):
 async def test_falha_no_google_nao_impede_o_registro(session, criar_membro, amanha):
     """RN-009 degrada com aviso: a reunião local continua válida."""
     servico = AgendaService(agenda_externa=AgendaExternaFalsa(falhar=True))
-    organizador = await criar_membro(CAVALARIA)
+    organizador = await criar_membro(VETERANO)
 
     resultado = await servico.criar(
         session,
@@ -161,7 +169,7 @@ async def test_falha_no_google_nao_impede_o_registro(session, criar_membro, aman
 
 async def test_cancelamento_e_logico(session, criar_membro, servico, externa, amanha):
     """RN-010 — a linha permanece no banco com motivo e autor do cancelamento."""
-    organizador = await criar_membro(CAVALARIA)
+    organizador = await criar_membro(VETERANO)
     criado = await servico.criar(
         session,
         tipo=TipoAgendamento.REUNIAO,
@@ -187,8 +195,8 @@ async def test_cancelamento_e_logico(session, criar_membro, servico, externa, am
 async def test_membro_comum_nao_cancela_reuniao_de_outro(
     session, criar_membro, servico, amanha
 ):
-    organizador = await criar_membro(CAVALARIA)
-    intruso = await criar_membro(MEMBRO)
+    organizador = await criar_membro(VETERANO)
+    intruso = await criar_membro(NEOFITO)
     criado = await servico.criar(
         session,
         tipo=TipoAgendamento.REUNIAO,
@@ -207,8 +215,8 @@ async def test_membro_comum_nao_cancela_reuniao_de_outro(
 
 async def test_rsvp_registra_e_contabiliza(session, criar_membro, servico, amanha):
     """UC-006 — confirmar, recusar e voltar a pendente."""
-    organizador = await criar_membro(CAVALARIA)
-    convidado = await criar_membro(MEMBRO)
+    organizador = await criar_membro(VETERANO)
+    convidado = await criar_membro(NEOFITO)
     criado = await servico.criar(
         session,
         tipo=TipoAgendamento.REUNIAO,
@@ -243,8 +251,8 @@ async def test_rsvp_registra_e_contabiliza(session, criar_membro, servico, amanh
 async def test_rsvp_em_agendamento_cancelado_e_bloqueado(
     session, criar_membro, servico, amanha
 ):
-    organizador = await criar_membro(CAVALARIA)
-    convidado = await criar_membro(MEMBRO)
+    organizador = await criar_membro(VETERANO)
+    convidado = await criar_membro(NEOFITO)
     criado = await servico.criar(
         session,
         tipo=TipoAgendamento.REUNIAO,
@@ -263,3 +271,120 @@ async def test_rsvp_em_agendamento_cancelado_e_bloqueado(
             membro=convidado,
             status=StatusPresenca.CONFIRMADO,
         )
+
+
+# --- Google Agenda → bot (US-305, sentido de volta) ---------------------------
+
+
+async def _reuniao_espelhada(session, criar_membro, servico, amanha):
+    organizador = await criar_membro(VETERANO)
+    resultado = await servico.criar(
+        session,
+        tipo=TipoAgendamento.REUNIAO,
+        titulo="Assembleia",
+        inicio_em=amanha,
+        organizador=organizador,
+        fim_em=amanha + timedelta(hours=1),
+    )
+    return resultado.agendamento
+
+
+async def test_evento_apagado_no_google_cancela_no_bot(
+    session, criar_membro, servico, externa, amanha
+):
+    agendamento = await _reuniao_espelhada(session, criar_membro, servico, amanha)
+
+    resumo = await servico.aplicar_alteracoes_externas(
+        session, [AlteracaoExterna(evento_id="gcal-1", cancelado=True)]
+    )
+
+    assert resumo.cancelados == 1
+    assert agendamento.status is StatusAgendamento.CANCELADO
+    assert agendamento.motivo_cancelamento == "Cancelado no Google Agenda"
+    assert externa.cancelados == [], "não tenta apagar de novo no Google"
+    registro = await session.scalar(
+        select(RegistroAuditoria).where(RegistroAuditoria.acao == "reuniao.cancelado")
+    )
+    assert registro.ator_descricao == "Google Agenda"
+
+
+async def test_horario_e_titulo_alterados_no_google_vao_para_o_bot(
+    session, criar_membro, servico, amanha
+):
+    agendamento = await _reuniao_espelhada(session, criar_membro, servico, amanha)
+    novo_inicio = amanha + timedelta(hours=2)
+
+    resumo = await servico.aplicar_alteracoes_externas(
+        session,
+        [
+            AlteracaoExterna(
+                evento_id="gcal-1",
+                cancelado=False,
+                titulo="Assembleia extraordinária",
+                inicio_em=novo_inicio,
+                fim_em=novo_inicio + timedelta(hours=1),
+            )
+        ],
+    )
+
+    assert resumo.atualizados == 1
+    assert agendamento.titulo == "Assembleia extraordinária"
+    assert agendamento.inicio_em == novo_inicio
+    registro = await session.scalar(
+        select(RegistroAuditoria).where(
+            RegistroAuditoria.acao == "reuniao.atualizado_externamente"
+        )
+    )
+    assert set(registro.dados) == {"titulo", "inicio_em", "fim_em"}
+
+
+async def test_alteracao_sem_diferenca_e_idempotente(session, criar_membro, servico, amanha):
+    agendamento = await _reuniao_espelhada(session, criar_membro, servico, amanha)
+    igual = AlteracaoExterna(
+        evento_id="gcal-1",
+        cancelado=False,
+        titulo=agendamento.titulo,
+        inicio_em=agendamento.inicio_em,
+        fim_em=agendamento.fim_em,
+    )
+
+    resumo = await servico.aplicar_alteracoes_externas(session, [igual])
+
+    assert (resumo.atualizados, resumo.ignorados) == (0, 1)
+
+
+async def test_evento_desconhecido_ou_ja_cancelado_e_ignorado(
+    session, criar_membro, servico, amanha
+):
+    agendamento = await _reuniao_espelhada(session, criar_membro, servico, amanha)
+    agendamento.status = StatusAgendamento.CANCELADO
+
+    resumo = await servico.aplicar_alteracoes_externas(
+        session,
+        [
+            AlteracaoExterna(evento_id="gcal-1", cancelado=False, titulo="X"),
+            AlteracaoExterna(evento_id="de-outro-calendario", cancelado=True),
+        ],
+    )
+
+    assert resumo.ignorados == 2
+
+
+def test_evento_do_google_e_convertido():
+    alterado = alteracao_de_evento(
+        {
+            "id": "abc",
+            "status": "confirmed",
+            "summary": "Reunião",
+            "location": "",
+            "start": {"dateTime": "2026-10-01T19:00:00-03:00"},
+            "end": {"dateTime": "2026-10-01T20:00:00Z"},
+        }
+    )
+    assert alterado.titulo == "Reunião"
+    assert alterado.local is None
+    assert alterado.inicio_em.utcoffset() == timedelta(hours=-3)
+    assert alterado.fim_em.utcoffset() == timedelta(0)
+
+    apagado = alteracao_de_evento({"id": "abc", "status": "cancelled"})
+    assert apagado.cancelado is True

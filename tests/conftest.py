@@ -16,7 +16,7 @@ from oraculo.config import Settings
 from oraculo.db import base as db_base
 from oraculo.db.base import Base
 from oraculo.db.models import Membro
-from oraculo.domain.hierarchy import Cargo
+from oraculo.domain.hierarchy import NEOFITO, CargoInstitucional, Patente
 
 
 @pytest.fixture
@@ -65,13 +65,19 @@ def criar_membro(session):
     """Fábrica de membros persistidos."""
     contador = {"n": 0}
 
-    async def _criar(cargo: Cargo, *, xp: int = 0, nome: str | None = None) -> Membro:
+    async def _criar(
+        posicao: Patente | CargoInstitucional, *, xp: int = 0, nome: str | None = None
+    ) -> Membro:
+        """`posicao` é a patente do membro, ou um cargo institucional (com patente Neófito)."""
         contador["n"] += 1
+        patente = posicao if isinstance(posicao, Patente) else NEOFITO
         membro = Membro(
             discord_id=1_000_000 + contador["n"],
             nome_exibicao=nome or f"Membro {contador['n']}",
-            cargo_slug=cargo.slug,
+            patente_slug=patente.slug,
             xp=xp,
+            conselheiro=posicao is CargoInstitucional.CONSELHEIRO,
+            administrador=posicao is CargoInstitucional.ADMINISTRADOR,
             email=f"membro{contador['n']}@clubetyto.example",
         )
         session.add(membro)

@@ -64,7 +64,7 @@ Bot de gestão operacional integrado a Discord e WhatsApp, com API/webhooks (ex.
 
 ### 2.3 Características dos usuários
 
-Membros, Cavalaria+, Lordes+, Conselheiros+ e Administradores (ver visão do produto).
+Membros de qualquer patente (Neófito→Omni, `XP.md` Art. 2º), com privilégios a partir de Veterano e Oficial, e os cargos institucionais Conselheiro e Administrador (ver visão do produto).
 
 ### 2.4 Restrições
 

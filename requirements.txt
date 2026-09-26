@@ -47,3 +47,6 @@ structlog==26.1.0
 
 # --- Pergunta ao Oráculo: LLM (RN-017) ---------------------------------------
 anthropic==1.7.0
+
+# --- Backup fora do disco local: object storage S3-compatível (RNF-005) -------
+boto3==1.43.103
