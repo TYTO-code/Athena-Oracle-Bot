@@ -1,10 +1,10 @@
 """Carteira de Dracmas da camada Comunidade — `Institucional/DRACMAS.md` e `COMUNIDADE_E_CLUBE.md`.
 
-**Escopo desta primeira fase:** só a camada Comunidade (`Aldeao`). `Membro.dracmas` já existe no
-schema (US-405) mas nenhum comando o movimenta ainda — estender este serviço (ou um par
-equivalente) para o Clube, incluindo a migração de saldo na filiação
-(`COMUNIDADE_E_CLUBE.md` Art. 4º §1º-A) e a taxa mensal de manutenção (`DRACMAS.md` §2), fica
-para uma fase seguinte.
+**Escopo:** só a camada Comunidade (`Aldeao`). Decisão de arquitetura (F2-006): os Dracmas do
+Clube vivem **só na plataforma** (TYTO.club-API), que já cobra a taxa mensal de manutenção —
+o bot não mantém um segundo saldo de Clube. Na filiação, o saldo do Aldeão é transferido para a
+plataforma por `filiacao_service.py` (`COMUNIDADE_E_CLUBE.md` Art. 4º §1º-A), e a conta de
+Aldeão migrada não recebe nem movimenta mais nada aqui. `Membro.dracmas` fica sem uso.
 
 **Decisão de implementação — conciliação Art. 3º §1º × §3º:**
 `COMUNIDADE_E_CLUBE.md` Art. 3º §1º diz que o ingresso custa 30.000 Dracmas; o §3º diz que um
@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from oraculo.db.base import agora
 from oraculo.db.models import Aldeao, MovimentacaoDracmas, TipoMovimentacaoDracmas
 from oraculo.domain.errors import (
+    ContaComunidadeMigradaError,
     ContaDracmasSuspensaError,
     MotivoDracmasObrigatorioError,
     QuantidadeDracmasInvalidaError,
@@ -92,6 +93,8 @@ class DracmasService:
             aldeao = await repo_dracmas.criar_aldeao(session, discord_id=discord_id)
         else:
             aldeao = await repo_dracmas.bloquear_aldeao(session, aldeao)
+            if aldeao.migrado:
+                raise ContaComunidadeMigradaError(discord_id)
         # Diferente de `debitar`, crédito nunca é bloqueado por `aldeao.suspenso` — é o único
         # jeito de um saldo negativo se recuperar; DRACMAS.md §4 só exige decisão administrativa
         # para *reverter* a suspensão em si, não impede a conta de receber Dracmas enquanto isso.
@@ -154,6 +157,8 @@ class DracmasService:
         motivo_limpo = self._validar_motivo(motivo)
 
         aldeao = await repo_dracmas.bloquear_aldeao(session, aldeao)
+        if aldeao.migrado:
+            raise ContaComunidadeMigradaError(aldeao.discord_id)
         if aldeao.suspenso:
             raise ContaDracmasSuspensaError(aldeao.discord_id)
 

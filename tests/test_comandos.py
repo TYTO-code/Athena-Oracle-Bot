@@ -94,6 +94,7 @@ async def test_comandos_esperados_estao_registrados(bot):
         ("cargo-institucional", ADMINISTRADOR),
         ("confirmar-patente", ADMINISTRADOR),
         ("sincronizar-papeis", ADMINISTRADOR),
+        ("migrar-para-clube", ADMINISTRADOR),
     ],
 )
 async def test_requisito_de_cada_comando(bot, comando, requisito):

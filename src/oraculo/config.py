@@ -86,6 +86,11 @@ class Settings(BaseSettings):
     # --- Plataforma de membros (Firebase) ------------------------------------
     #: Sem `project_id` a integração fica inerte — nada é consultado.
     firebase_project_id: str | None = None
+    #: API da plataforma (TYTO.club-API) e a chave serviço-a-serviço
+    #: (`ATHENA_SERVICE_KEY` lá). Usadas para migrar o saldo da Comunidade para
+    #: o Clube na filiação — os Dracmas do Clube vivem só na plataforma.
+    plataforma_api_url: str | None = None
+    plataforma_api_chave: str | None = None
     #: JSON da service account. Se vazio, cai no ORACULO_GOOGLE_CREDENTIALS_FILE
     #: e, por último, no Application Default Credentials do ambiente.
     firebase_credentials_file: Path | None = None

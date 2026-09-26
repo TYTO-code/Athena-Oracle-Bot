@@ -26,6 +26,7 @@ COMANDOS_EFEMEROS = {
     "cargo-institucional",
     "confirmar-patente",
     "sincronizar-papeis",
+    "migrar-para-clube",
     "verificar-cargos",
 }
 

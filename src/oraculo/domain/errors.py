@@ -131,6 +131,23 @@ class ContaDracmasSuspensaError(BusinessRuleError):
         )
 
 
+class ContaComunidadeMigradaError(BusinessRuleError):
+    """COMUNIDADE_E_CLUBE.md Art. 4º §1º-A — a conta de Aldeão já migrou para o Clube.
+
+    Os Dracmas de quem é do Clube vivem na plataforma; creditar aqui prenderia o
+    valor numa conta que ninguém mais movimenta.
+    """
+
+    regra = "COMUNIDADE_E_CLUBE.md Art. 4º §1º-A"
+
+    def __init__(self, discord_id: int) -> None:
+        self.discord_id = discord_id
+        super().__init__(
+            f"A conta de Comunidade de {discord_id} já foi migrada para o Clube — os Dracmas "
+            "dessa pessoa agora ficam na plataforma."
+        )
+
+
 class QuantidadeDracmasInvalidaError(BusinessRuleError):
     """Valor de movimentação de Dracmas precisa ser um inteiro positivo diferente de zero."""
 

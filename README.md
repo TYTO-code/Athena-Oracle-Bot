@@ -109,6 +109,7 @@ Todos os segredos vêm de variáveis de ambiente com o prefixo `ORACULO_` — **
 | `/cargo-institucional` | Concede ou revoga Conselheiro/Administrador | Administrador |
 | `/confirmar-patente` | Libera a patente que o XP determina, retida pela importação | Administrador |
 | `/sincronizar-papeis` | Reaplica no Discord a patente e os cargos do banco | Administrador |
+| `/migrar-para-clube` | Na filiação, leva o saldo inteiro da Comunidade para a conta do Clube na plataforma (RN-019) | Administrador |
 | `/verificar-cargos` | Diagnóstico dos papéis do servidor | Administrador |
 
 RSVP (UC-006) é feito pelos botões do anúncio — eles continuam funcionando após reiniciar o bot.
@@ -283,7 +284,7 @@ O domínio não conhece Discord nem HTTP: as regras valem igualmente para comand
 ## Testes
 
 ```bash
-make test        # 315 testes
+make test        # 337 testes
 make check       # lint + testes
 ```
 

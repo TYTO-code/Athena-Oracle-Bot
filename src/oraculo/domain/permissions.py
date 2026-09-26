@@ -81,6 +81,9 @@ class Acao(StrEnum):
     # Vínculo de conta — RN-016
     RECONCILIAR_CONTA = "reconciliar_conta"
 
+    # Filiação ao Clube — F2-007 (COMUNIDADE_E_CLUBE.md Art. 4º §1º-A)
+    MIGRAR_SALDO_COMUNIDADE = "migrar_saldo_comunidade"
+
 
 _POLITICA: dict[Acao, Requisito] = {
     Acao.VER_PERFIL: NEOFITO,
@@ -101,6 +104,7 @@ _POLITICA: dict[Acao, Requisito] = {
     Acao.VER_AUDITORIA: CargoInstitucional.CONSELHEIRO,
     Acao.ADMINISTRAR_SISTEMA: CargoInstitucional.ADMINISTRADOR,
     Acao.RECONCILIAR_CONTA: CargoInstitucional.ADMINISTRADOR,
+    Acao.MIGRAR_SALDO_COMUNIDADE: CargoInstitucional.ADMINISTRADOR,
 }
 
 
