@@ -119,6 +119,8 @@ RSVP (UC-006) é feito pelos botões do anúncio — eles continuam funcionando 
 |------|-----|
 | `GET /health` | Liveness (US-403) |
 | `GET /health/ready` | Readiness: banco e cache |
+| `GET /metrics` | Métricas no formato Prometheus (membros por patente e cargo, XP, promoções, agenda, comunicados, Comunidade, último backup/importação) — exige `ORACULO_METRICAS_TOKEN` |
+| `GET /painel` | As mesmas métricas numa página HTML (`?token=` ou `Authorization: Bearer`) |
 | `POST /webhooks/clickup` | Webhook assinado com HMAC-SHA256 no header `X-Signature` |
 
 A API **não** expõe operações de domínio: XP, cargos e agenda passam pelo bot, onde a identidade do autor é conhecida e a política de permissões (RN-008) é aplicada.
@@ -272,8 +274,8 @@ src/oraculo/
 ├── services/          Casos de uso (XP, promoção, ranking, agenda, notificações)
 ├── integrations/      Cache, Google Agenda, e-mail, Firestore
 ├── bot/               Cliente Discord, cogs, sincronização de papéis (TD-005)
-├── api/               FastAPI: health e webhooks (TD-003)
-└── tasks/             Backup diário (RNF-005) e sincronização com a plataforma
+├── api/               FastAPI: health, webhooks (TD-003) e painel de métricas
+└── tasks/             Backup diário com cópia remota (RNF-005), sincronização com a plataforma e Google Agenda → bot
 ```
 
 O domínio não conhece Discord nem HTTP: as regras valem igualmente para comandos, webhooks e rotinas.

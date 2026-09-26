@@ -97,6 +97,7 @@ async def rodar_api(cfg: Settings) -> None:
 
 
 async def rodar_tudo(cfg: Settings) -> None:
+    from oraculo.tasks.agenda_google import loop_agenda_google
     from oraculo.tasks.backup import loop_backup
     from oraculo.tasks.sincronizacao import loop_sincronizacao
 
@@ -107,6 +108,8 @@ async def rodar_tudo(cfg: Settings) -> None:
         tarefas.append(asyncio.create_task(rodar_api(cfg), name="api"))
     if cfg.backup_enabled:
         tarefas.append(asyncio.create_task(loop_backup(cfg), name="backup"))
+    if cfg.google_enabled and cfg.google_sync_intervalo_minutos > 0:
+        tarefas.append(asyncio.create_task(loop_agenda_google(cfg), name="agenda_google"))
     if cfg.plataforma_habilitada and cfg.importacao_ao_iniciar or cfg.sincronizacao_periodica:
         tarefas.append(asyncio.create_task(loop_sincronizacao(cfg), name="sincronizacao"))
 
