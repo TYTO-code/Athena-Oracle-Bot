@@ -1,7 +1,8 @@
 """Comandos administrativos — RN-008, RF-012, RNF-003, RNF-004.
 
-Inclui o diagnóstico de cargos ausentes no servidor, que é a causa mais comum
-de falha silenciosa na sincronização (RF-006).
+Inclui o diagnóstico de papéis ausentes no servidor, que é a causa mais comum
+de falha silenciosa na sincronização (RF-006), e a gestão dos cargos
+institucionais fora da escala de patentes (TD-007).
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ from oraculo.bot.permissions import obter_autor, requer
 from oraculo.bot.role_sync import cargos_faltantes
 from oraculo.db.base import sessao
 from oraculo.db.models import OrigemAcao
-from oraculo.domain.hierarchy import HIERARQUIA, cargo_por_slug
+from oraculo.domain.hierarchy import PATENTES, CargoInstitucional
 from oraculo.domain.permissions import Acao
 from oraculo.repositories import auditoria as repo_auditoria
 from oraculo.repositories import membros as repo_membros
@@ -28,42 +29,57 @@ class AdminCog(commands.Cog):
         self.bot = bot
 
     @app_commands.command(
-        name="hierarquia", description="Mostra a hierarquia TYTO e os limiares de XP."
+        name="hierarquia", description="Mostra a escala de patentes e os cargos institucionais."
     )
     @requer(Acao.VER_PERFIL, efemero=True)
     async def hierarquia(self, interaction: discord.Interaction) -> None:
-        linhas = []
-        for cargo in HIERARQUIA:
-            limiar = f"{cargo.xp_minimo} XP" if cargo.automatico else "atribuição manual"
-            linhas.append(f"**{cargo.nome}** — {limiar}\n> {cargo.descricao}")
-        await interaction.followup.send(
-            embed=discord.Embed(
-                title="🏛️ Hierarquia do Clube TYTO",
-                description="\n\n".join(linhas),
-                color=discord.Color.blurple(),
-            ),
-            ephemeral=True,
+        patentes = "\n".join(
+            f"`{p.ordem:>2}` **{p.nome}** — {p.xp_minimo:,} XP".replace(",", ".")
+            for p in PATENTES
         )
+        cargos = (
+            "**Conselheiro** — eleito pelo Conselho Régio (Carta Art. III/IV)\n"
+            "**Administrador** — governança técnica do bot\n"
+            "Concedidos por um Administrador, acumuláveis com qualquer patente."
+        )
+        embed = discord.Embed(
+            title="🏛️ Hierarquia do Clube TYTO",
+            description=(
+                "A patente vem só do XP e nunca é perdida (XP.md Art. 1º).\n\n" + patentes
+            ),
+            color=discord.Color.blurple(),
+        )
+        embed.add_field(name="Cargos institucionais", value=cargos, inline=False)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(
-        name="definir-cargo", description="Define manualmente o cargo de um membro (Admin)."
+        name="cargo-institucional",
+        description="Concede ou revoga Conselheiro/Administrador (Admin).",
     )
     @app_commands.describe(
-        membro="Membro alvo.", cargo="Cargo TYTO de destino.", motivo="Justificativa (auditada)."
+        membro="Membro alvo.",
+        cargo="Cargo institucional.",
+        operacao="Conceder ou revogar.",
+        motivo="Justificativa (auditada).",
     )
     @app_commands.choices(
-        cargo=[app_commands.Choice(name=c.nome, value=c.slug) for c in HIERARQUIA]
+        cargo=[app_commands.Choice(name=c.nome, value=c.value) for c in CargoInstitucional],
+        operacao=[
+            app_commands.Choice(name="Conceder", value="conceder"),
+            app_commands.Choice(name="Revogar", value="revogar"),
+        ],
     )
-    @requer(Acao.DEFINIR_CARGO_MANUAL, efemero=True)
-    async def definir_cargo(
+    @requer(Acao.DEFINIR_CARGO_INSTITUCIONAL, efemero=True)
+    async def cargo_institucional(
         self,
         interaction: discord.Interaction,
         membro: discord.Member,
         cargo: app_commands.Choice[str],
+        operacao: app_commands.Choice[str],
         motivo: app_commands.Range[str, 3, 500],
     ) -> None:
-        destino = cargo_por_slug(cargo.value)
-        container = self.bot.container
+        destino = CargoInstitucional(cargo.value)
+        ativo = operacao.value == "conceder"
 
         async with sessao() as session:
             autor = await repo_membros.obter_ou_criar_por_discord(
@@ -74,29 +90,110 @@ class AdminCog(commands.Cog):
             alvo = await repo_membros.obter_ou_criar_por_discord(
                 session, discord_id=membro.id, nome_exibicao=membro.display_name
             )
-            resultado = await container.promocoes.aplicar(
+            resultado = await self.bot.container.cargos.definir(
                 session,
-                alvo,
-                cargo_novo=destino,
-                automatica=False,
-                autor_descricao=autor.nome_exibicao,
+                membro=alvo,
+                cargo=destino,
+                ativo=ativo,
                 motivo=motivo,
+                autor=autor,
                 origem=OrigemAcao.DISCORD,
                 guild_id=interaction.guild_id,
             )
 
+        verbo = "concedido a" if ativo else "revogado de"
+        aviso = "" if resultado.sincronizado else "\n⚠️ Papel não sincronizado no Discord."
+        await interaction.followup.send(
+            f"Cargo **{destino.nome}** {verbo} **{membro.display_name}**.{aviso}",
+            ephemeral=True,
+        )
+
+    @app_commands.command(
+        name="confirmar-patente",
+        description="Libera a patente que o XP determina, retida pela importação (Admin).",
+    )
+    @app_commands.describe(membro="Membro com patente pendente de confirmação.")
+    @requer(Acao.CONFIRMAR_PATENTE, efemero=True)
+    async def confirmar_patente(
+        self, interaction: discord.Interaction, membro: discord.Member
+    ) -> None:
+        container = self.bot.container
+        async with sessao() as session:
+            autor = await repo_membros.obter_ou_criar_por_discord(
+                session,
+                discord_id=interaction.user.id,
+                nome_exibicao=interaction.user.display_name,
+            )
+            alvo = await repo_membros.obter_ou_criar_por_discord(
+                session, discord_id=membro.id, nome_exibicao=membro.display_name
+            )
+            resultado = await container.promocoes.confirmar(
+                session,
+                alvo,
+                autor_descricao=autor.nome_exibicao,
+                origem=OrigemAcao.DISCORD,
+                guild_id=interaction.guild_id,
+            )
+            xp = alvo.xp
+
+        if not resultado.promovido:
+            await interaction.followup.send(
+                f"**{membro.display_name}** já está na patente que o XP determina "
+                f"(**{resultado.patente_atual.nome}**). Nada a confirmar.",
+                ephemeral=True,
+            )
+            return
+
         await container.notificacoes.enviar(
             NotificacaoService.promocao(
                 nome=membro.display_name,
-                cargo_anterior=resultado.cargo_anterior.nome,
-                cargo_novo=resultado.cargo_atual.nome,
-                xp=alvo.xp,
+                cargo_anterior=resultado.patente_anterior.nome,
+                cargo_novo=resultado.patente_atual.nome,
+                xp=xp,
                 discord_id=membro.id,
             )
         )
-        aviso = "" if resultado.sincronizado else "\n⚠️ Cargo não sincronizado no Discord."
+        aviso = "" if resultado.sincronizado else "\n⚠️ Papel não sincronizado no Discord."
         await interaction.followup.send(
-            f"Cargo de **{membro.display_name}** definido como **{destino.nome}**.{aviso}",
+            f"Patente de **{membro.display_name}** confirmada: "
+            f"**{resultado.patente_atual.nome}**.{aviso}",
+            ephemeral=True,
+        )
+
+    @app_commands.command(
+        name="sincronizar-papeis",
+        description="Reaplica no Discord a patente e os cargos gravados no banco (Admin).",
+    )
+    @app_commands.describe(membro="Membro cujos papéis devem ser reaplicados.")
+    @requer(Acao.ADMINISTRAR_SISTEMA, efemero=True)
+    async def sincronizar_papeis(
+        self, interaction: discord.Interaction, membro: discord.Member
+    ) -> None:
+        sincronizador = self.bot.container.promocoes.sincronizador
+        if sincronizador is None:
+            await interaction.followup.send(
+                embed=embeds.erro("Sincronização com o Discord indisponível."), ephemeral=True
+            )
+            return
+
+        async with sessao() as session:
+            alvo = await repo_membros.obter_ou_criar_por_discord(
+                session, discord_id=membro.id, nome_exibicao=membro.display_name
+            )
+            perfil = alvo.perfil
+
+        await sincronizador.sincronizar(
+            discord_id=membro.id, patente=perfil.patente, guild_id=interaction.guild_id
+        )
+        for cargo in CargoInstitucional:
+            await sincronizador.definir_cargo_institucional(
+                discord_id=membro.id,
+                cargo=cargo,
+                ativo=perfil.possui(cargo),
+                guild_id=interaction.guild_id,
+            )
+        await interaction.followup.send(
+            f"Papéis de **{membro.display_name}** reaplicados: **{perfil.descricao()}**.",
             ephemeral=True,
         )
 
@@ -125,12 +222,12 @@ class AdminCog(commands.Cog):
 
         await interaction.followup.send(
             f"Conta de **{membro.display_name}** agora está ligada ao registro da plataforma "
-            f"`{id_externo}`. XP/cargo acompanham a próxima sincronização.",
+            f"`{id_externo}`. XP e patente acompanham a próxima sincronização.",
             ephemeral=True,
         )
 
     @app_commands.command(
-        name="verificar-cargos", description="Verifica se os cargos TYTO existem no servidor."
+        name="verificar-cargos", description="Verifica se os papéis TYTO existem no servidor."
     )
     @requer(Acao.ADMINISTRAR_SISTEMA, efemero=True)
     async def verificar_cargos(self, interaction: discord.Interaction) -> None:
@@ -142,21 +239,21 @@ class AdminCog(commands.Cog):
 
         faltantes = await cargos_faltantes(interaction.guild)
         if faltantes:
-            texto = "Cargos ausentes (a sincronização falhará até criá-los):\n" + "\n".join(
+            texto = "Papéis ausentes (a sincronização falhará até criá-los):\n" + "\n".join(
                 f"• {nome}" for nome in faltantes
             )
             cor = discord.Color.orange()
         else:
-            texto = "Todos os cargos da hierarquia TYTO existem neste servidor. ✅"
+            texto = "Todos os papéis TYTO (patentes e cargos) existem neste servidor. ✅"
             cor = discord.Color.green()
 
         await interaction.followup.send(
-            embed=discord.Embed(title="Diagnóstico de cargos", description=texto, color=cor),
+            embed=discord.Embed(title="Diagnóstico de papéis", description=texto, color=cor),
             ephemeral=True,
         )
 
     @app_commands.command(
-        name="auditoria", description="Últimos registros do log de auditoria (Conselheiro+)."
+        name="auditoria", description="Últimos registros do log de auditoria (Conselheiro)."
     )
     @app_commands.describe(limite="Quantidade de registros (1 a 20).")
     @requer(Acao.VER_AUDITORIA, efemero=True)

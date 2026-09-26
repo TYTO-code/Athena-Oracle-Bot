@@ -15,7 +15,7 @@ from sqlalchemy import select
 from oraculo.bot.client import COGS, OraculoBot
 from oraculo.bot.permissions import PermissaoInsuficiente
 from oraculo.db.models import Membro
-from oraculo.domain.hierarchy import CONSELHEIRO, MEMBRO
+from oraculo.domain.hierarchy import NEOFITO
 
 # Comandos cuja resposta deve ser visível só para quem chamou.
 COMANDOS_EFEMEROS = {
@@ -23,7 +23,9 @@ COMANDOS_EFEMEROS = {
     "hierarquia",
     "historico-xp",
     "auditoria",
-    "definir-cargo",
+    "cargo-institucional",
+    "confirmar-patente",
+    "sincronizar-papeis",
     "verificar-cargos",
 }
 
@@ -98,7 +100,7 @@ async def test_permissao_negada_tambem_confirma_a_interacao(bot, session, engine
 
 
 async def test_autor_e_registrado_no_primeiro_contato(bot, session, engine):
-    """RF-001 — auto-onboarding: quem nunca usou o bot nasce como Membro."""
+    """RF-001 — auto-onboarding: quem nunca usou o bot nasce Neófito, sem cargo."""
     interacao = InteracaoFalsa(user=UsuarioFalso(id=777, display_name="Novato"))
 
     await executar_checagens(bot, "perfil", interacao)
@@ -106,12 +108,14 @@ async def test_autor_e_registrado_no_primeiro_contato(bot, session, engine):
     membro = await session.scalar(select(Membro).where(Membro.discord_id == 777))
     assert membro is not None
     assert membro.nome_exibicao == "Novato"
-    assert membro.cargo_slug == MEMBRO.slug
+    assert membro.patente_slug == NEOFITO.slug
+    assert membro.conselheiro is False and membro.administrador is False
 
 
 async def test_conselheiro_passa_na_checagem_de_xp(bot, session, engine):
     session.add(
-        Membro(discord_id=555, nome_exibicao="Atena", cargo_slug=CONSELHEIRO.slug, xp=4000)
+        Membro(discord_id=555, nome_exibicao="Atena", patente_slug="veterano", xp=4000,
+               conselheiro=True)
     )
     await session.commit()
     interacao = InteracaoFalsa(user=UsuarioFalso(id=555, display_name="Atena"))

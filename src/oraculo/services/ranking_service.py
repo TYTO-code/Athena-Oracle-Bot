@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from oraculo.config import Settings, get_settings
 from oraculo.db.base import agora
 from oraculo.db.models import Membro
-from oraculo.domain.hierarchy import Cargo, cargo_por_slug, proximo_cargo, xp_faltante
+from oraculo.domain.hierarchy import Patente, Perfil, proxima_patente, xp_faltante
 from oraculo.integrations.cache import Cache, CacheMemoria
 from oraculo.repositories import membros as repo_membros
 from oraculo.repositories.membros import LinhaRanking
@@ -29,19 +29,23 @@ PERIODOS = {
 
 
 @dataclass(slots=True)
-class Perfil:
+class DadosPerfil:
     """Dados de `/perfil` — RF-002."""
 
     membro: Membro
-    cargo: Cargo
-    proximo: Cargo | None
+    perfil: Perfil
+    proxima: Patente | None
     xp_para_proximo: int | None
     posicao: int
     total_membros: int
 
     @property
+    def patente(self) -> Patente:
+        return self.perfil.patente
+
+    @property
     def no_topo(self) -> bool:
-        return self.proximo is None
+        return self.proxima is None
 
 
 class RankingService:
@@ -49,14 +53,14 @@ class RankingService:
         self._settings = settings or get_settings()
         self._cache = cache or CacheMemoria()
 
-    async def perfil(self, session: AsyncSession, membro: Membro) -> Perfil:
-        """RF-002 — cargo, XP atual, próximo cargo, XP necessário e ranking."""
-        cargo = cargo_por_slug(membro.cargo_slug)
-        return Perfil(
+    async def perfil(self, session: AsyncSession, membro: Membro) -> DadosPerfil:
+        """RF-002 — patente, cargos, XP atual, próxima patente, XP necessário e ranking."""
+        perfil = membro.perfil
+        return DadosPerfil(
             membro=membro,
-            cargo=cargo,
-            proximo=proximo_cargo(cargo),
-            xp_para_proximo=xp_faltante(membro.xp, cargo),
+            perfil=perfil,
+            proxima=proxima_patente(perfil.patente),
+            xp_para_proximo=xp_faltante(membro.xp, perfil.patente),
             posicao=await repo_membros.posicao_no_ranking(session, membro),
             total_membros=await repo_membros.total_ativos(session),
         )

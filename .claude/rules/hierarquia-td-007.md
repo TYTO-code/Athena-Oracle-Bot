@@ -1,19 +1,21 @@
 ---
-description: hierarchy.py carrega uma divergência conhecida (TD-007) com Institucional/XP.md — não resolver sozinho
+description: hierarchy.py implementa Institucional/XP.md (TD-007 fechada) — patente irrevogável, cargos institucionais à parte
 paths:
   - "src/oraculo/domain/hierarchy.py"
+  - "src/oraculo/domain/permissions.py"
 ---
 
-Você está mexendo em `hierarchy.py`. Esta hierarquia (`Membro → Cavalaria → Lorde → Conselheiro →
-Administrador`) vem de um "Documento Único de Especificação do Bot Oráculo" externo a este vault —
-**não** corresponde à escala de patente de `Institucional/XP.md` Art. 2º (Neófito→Omni, 17
-patamares) nem aos cargos institucionais de `Institucional/CARTA_INSTITUCIONAL.md` (Conselheiro do
-Conselho Régio, Tribuno, Rex, Dux Vecturium).
+Você está mexendo na hierarquia do bot. TD-007 foi **fechada**: o Clube TYTO decidiu unificar com
+`Institucional/XP.md`, e o código modela os eixos da Carta Art. VIII:
 
-Essa divergência está registrada como **TD-007** em `docs/03-analise/divida-tecnica.md` — aberta,
-aguardando decisão do Clube TYTO sobre unificar as duas hierarquias ou mantê-las como eixos
-deliberadamente independentes. Além disso, os limiares de XP (500/1.500/3.500) já são
-autodocumentados no arquivo como "premissa a validar com o Clube TYTO", não valores oficiais.
+- **Patente** — os 17 patamares de `XP.md` Art. 2º (Neófito→Omni), com os valores exatos de
+  `CLAN_TIERS` da plataforma TYTO.club. Vem **só** do XP e é irrevogável (Art. 1º §3º): não
+  adicione caminho que rebaixe patente nem que desconte XP (Art. 1º §1º) — por isso não existe
+  `/remover-xp`.
+- **Cargo institucional** — `Conselheiro` e `Administrador`, flags independentes da patente,
+  concedidos só por Administrador (`/cargo-institucional`), sempre auditados.
 
-Se a tarefa não é resolver TD-007 explicitamente, não renomeie cargos nem mude limiares aqui —
-sinalize a divergência se for relevante à tarefa, não a resolva de passagem.
+O mapa de privilégios em `permissions.py` (reunião Veterano+, evento/comunicado Oficial+,
+XP/auditoria/`@everyone` Conselheiro, sistema Administrador) foi aprovado pelo Clube TYTO — mudar
+um requisito é decisão do Clube, não ajuste de engenharia. Mudar um limiar de patente exige mudar
+também a plataforma, para as duas nunca discordarem.

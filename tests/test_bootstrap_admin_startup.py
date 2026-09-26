@@ -10,7 +10,9 @@ from sqlalchemy import select
 
 from oraculo.__main__ import _bootstrap_admin_se_configurado
 from oraculo.db.models import Membro
-from oraculo.domain.hierarchy import ADMINISTRADOR
+from oraculo.domain.hierarchy import CargoInstitucional
+
+ADMINISTRADOR = CargoInstitucional.ADMINISTRADOR
 
 
 async def test_sem_variavel_nao_faz_nada(session, settings):
@@ -28,7 +30,7 @@ async def test_promove_via_variavel_de_ambiente(session, settings):
 
     membro = await session.scalar(select(Membro).where(Membro.discord_id == 42))
     assert membro is not None
-    assert membro.cargo_slug == ADMINISTRADOR.slug
+    assert membro.administrador is True
 
 
 async def test_e_idempotente_se_ja_existe_administrador(session, settings, criar_membro):

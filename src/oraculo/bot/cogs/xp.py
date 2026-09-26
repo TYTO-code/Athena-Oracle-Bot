@@ -1,7 +1,9 @@
-"""`/conceder-xp`, `/remover-xp` e `/historico-xp` — UC-001 / RF-003 / US-203, US-205.
+"""`/conceder-xp` e `/historico-xp` — UC-001 / RF-003 / US-203, US-205.
 
 O motivo é parâmetro **obrigatório** dos comandos: a RN-005 é aplicada tanto na
 interface quanto no serviço, e a auditoria é gravada na mesma transação.
+
+Não existe `/remover-xp`: XP é irrevogável (`Institucional/XP.md` Art. 1º §1º).
 """
 
 from __future__ import annotations
@@ -14,7 +16,6 @@ from oraculo.bot import embeds
 from oraculo.bot.permissions import requer
 from oraculo.db.base import sessao
 from oraculo.db.models import OrigemAcao
-from oraculo.domain.hierarchy import cargo_por_slug
 from oraculo.domain.permissions import Acao
 from oraculo.repositories import membros as repo_membros
 from oraculo.services.notificacao_service import NotificacaoService
@@ -25,7 +26,7 @@ class XpCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    @app_commands.command(name="conceder-xp", description="Concede XP a um membro (Conselheiro+).")
+    @app_commands.command(name="conceder-xp", description="Concede XP a um membro (Conselheiro).")
     @app_commands.describe(
         membro="Membro que receberá o XP.",
         quantidade="Quantidade de XP (positiva).",
@@ -39,26 +40,10 @@ class XpCog(commands.Cog):
         quantidade: app_commands.Range[int, 1, 100_000],
         motivo: app_commands.Range[str, 3, 500],
     ) -> None:
-        await self._movimentar(interaction, membro, quantidade, motivo, conceder=True)
-
-    @app_commands.command(name="remover-xp", description="Remove XP de um membro (Conselheiro+).")
-    @app_commands.describe(
-        membro="Membro que perderá o XP.",
-        quantidade="Quantidade de XP (positiva).",
-        motivo="Justificativa registrada na auditoria (obrigatório — RN-005).",
-    )
-    @requer(Acao.REMOVER_XP)
-    async def remover_xp(
-        self,
-        interaction: discord.Interaction,
-        membro: discord.Member,
-        quantidade: app_commands.Range[int, 1, 100_000],
-        motivo: app_commands.Range[str, 3, 500],
-    ) -> None:
-        await self._movimentar(interaction, membro, quantidade, motivo, conceder=False)
+        await self._conceder(interaction, membro, quantidade, motivo)
 
     @app_commands.command(
-        name="historico-xp", description="Histórico auditável de XP de um membro (Conselheiro+)."
+        name="historico-xp", description="Histórico auditável de XP de um membro (Conselheiro)."
     )
     @app_commands.describe(membro="Membro a auditar.", limite="Quantidade de registros (1 a 25).")
     @requer(Acao.VER_HISTORICO_XP, efemero=True)
@@ -80,7 +65,7 @@ class XpCog(commands.Cog):
             movimentacoes = await self.bot.container.xp.historico(
                 session,
                 membro=alvo,
-                solicitante_cargo=cargo_por_slug(autor.cargo_slug),
+                solicitante=autor.perfil,
                 limite=limite,
             )
             nome = alvo.nome_exibicao
@@ -91,14 +76,12 @@ class XpCog(commands.Cog):
 
     # -- Interno -----------------------------------------------------------
 
-    async def _movimentar(
+    async def _conceder(
         self,
         interaction: discord.Interaction,
         membro: discord.Member,
         quantidade: int,
         motivo: str,
-        *,
-        conceder: bool,
     ) -> None:
         container = self.bot.container
 
@@ -113,8 +96,7 @@ class XpCog(commands.Cog):
                 discord_id=membro.id,
                 nome_exibicao=membro.display_name,
             )
-            operacao = container.xp.conceder if conceder else container.xp.remover
-            resultado: ResultadoXp = await operacao(
+            resultado: ResultadoXp = await container.xp.conceder(
                 session,
                 membro=alvo,
                 quantidade=quantidade,
@@ -145,9 +127,9 @@ class XpCog(commands.Cog):
             embed.add_field(
                 name="🏛️ Promoção",
                 value=(
-                    f"{resultado.promocao.cargo_anterior.nome} → "
-                    f"**{resultado.promocao.cargo_atual.nome}**"
-                    + ("" if resultado.promocao.sincronizado else " (cargo não sincronizado)")
+                    f"{resultado.promocao.patente_anterior.nome} → "
+                    f"**{resultado.promocao.patente_atual.nome}**"
+                    + ("" if resultado.promocao.sincronizado else " (papel não sincronizado)")
                 ),
                 inline=False,
             )
@@ -171,8 +153,8 @@ class XpCog(commands.Cog):
             await container.notificacoes.enviar(
                 NotificacaoService.promocao(
                     nome=resultado.membro.nome_exibicao,
-                    cargo_anterior=resultado.promocao.cargo_anterior.nome,
-                    cargo_novo=resultado.promocao.cargo_atual.nome,
+                    cargo_anterior=resultado.promocao.patente_anterior.nome,
+                    cargo_novo=resultado.promocao.patente_atual.nome,
                     xp=resultado.saldo_atual,
                     discord_id=membro.id,
                 )

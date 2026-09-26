@@ -17,7 +17,7 @@ from oraculo.db.models import (
 )
 from oraculo.repositories.membros import LinhaRanking
 from oraculo.services.notificacao_service import Notificacao, Severidade
-from oraculo.services.ranking_service import Perfil
+from oraculo.services.ranking_service import DadosPerfil
 
 COR = {
     Severidade.INFO: discord.Color.blurple(),
@@ -91,24 +91,34 @@ def lista_comunicados(comunicados: list[Comunicado]) -> discord.Embed:
     return embed
 
 
-def perfil(dados: Perfil) -> discord.Embed:
-    """RF-002 — cargo, XP atual, próximo cargo, XP necessário e posição."""
+def perfil(dados: DadosPerfil) -> discord.Embed:
+    """RF-002 — patente, cargos, XP atual, próxima patente, XP necessário e posição."""
     membro = dados.membro
     embed = discord.Embed(
         title=f"Perfil de {membro.nome_exibicao}",
         color=COR[Severidade.INFO],
         timestamp=datetime.now().astimezone(),
     )
-    embed.add_field(name="Cargo", value=dados.cargo.nome, inline=True)
+    embed.add_field(name="Patente", value=dados.patente.nome, inline=True)
     embed.add_field(name="XP", value=f"{membro.xp:,}".replace(",", "."), inline=True)
     embed.add_field(name="Ranking", value=f"#{dados.posicao} de {dados.total_membros}", inline=True)
 
+    cargos = dados.perfil.cargos_institucionais
+    if cargos:
+        embed.add_field(
+            name="Cargo institucional", value=", ".join(c.nome for c in cargos), inline=False
+        )
+
     if dados.no_topo:
-        embed.add_field(name="Progressão", value="Topo da progressão automática 🏛️", inline=False)
+        embed.add_field(
+            name="Progressão", value="Omni — topo da escala de patentes 🏛️", inline=False
+        )
     else:
         faltam = dados.xp_para_proximo or 0
-        embed.add_field(name="Próximo cargo", value=dados.proximo.nome, inline=True)
-        embed.add_field(name="XP necessário", value=f"{faltam} XP", inline=True)
+        embed.add_field(name="Próxima patente", value=dados.proxima.nome, inline=True)
+        embed.add_field(
+            name="XP necessário", value=f"{faltam:,} XP".replace(",", "."), inline=True
+        )
         embed.add_field(name="Progresso", value=_barra(membro.xp, dados), inline=False)
     return embed
 
@@ -186,10 +196,10 @@ def extrato_dracmas(movimentacoes: list[MovimentacaoDracmas], *, nome: str) -> d
     return embed
 
 
-def _barra(xp: int, dados: Perfil, largura: int = 20) -> str:
-    """Barra de progresso entre o cargo atual e o próximo."""
-    base = dados.cargo.xp_minimo or 0
-    alvo = dados.proximo.xp_minimo if dados.proximo else None
+def _barra(xp: int, dados: DadosPerfil, largura: int = 20) -> str:
+    """Barra de progresso entre a patente atual e a próxima."""
+    base = dados.patente.xp_minimo
+    alvo = dados.proxima.xp_minimo if dados.proxima else None
     if alvo is None or alvo <= base:
         return "—"
     fracao = min(1.0, max(0.0, (xp - base) / (alvo - base)))

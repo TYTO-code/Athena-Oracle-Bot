@@ -44,11 +44,11 @@ independente do estado da implementação).
 
 | Papel | Interesse |
 |-------|-----------|
-| Membros | Consultar perfil, ranking, presença em eventos |
-| Cavalaria+ | Criar e gerir reuniões |
-| Lordes+ | Criar e gerir eventos oficiais |
-| Conselheiros+ | Conceder/remover XP e auditar histórico |
-| Administradores | Segurança, logs, backup, conformidade hierárquica |
+| Membros (qualquer patente) | Consultar perfil, ranking, presença em eventos |
+| Patente Veterano+ | Criar e gerir reuniões |
+| Patente Oficial+ | Criar e gerir eventos oficiais e comunicados |
+| Conselheiros (cargo institucional) | Conceder XP, auditar histórico, `@everyone` |
+| Administradores (cargo institucional) | Segurança, logs, backup, cargos institucionais |
 
 ## Critérios de sucesso (alto nível)
 

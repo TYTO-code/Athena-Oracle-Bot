@@ -8,7 +8,7 @@ Formato textual estruturado (UML Use Case).
 
 | Campo | Valor |
 |-------|-------|
-| Ator primário | Conselheiro+ |
+| Ator primário | Conselheiro (cargo institucional) |
 | Pré-condições | Ator autenticado; permissão RN-004 |
 | Pós-condições | XP atualizado; auditoria gravada (RN-005); ranking atualizado; promoção avaliada (UC-003) |
 | RF | RF-003, RF-012, RF-004 |
@@ -72,7 +72,7 @@ Formato textual estruturado (UML Use Case).
 
 | Campo | Valor |
 |-------|-------|
-| Ator primário | Cavalaria+ |
+| Ator primário | Patente Veterano+ |
 | Pré-condições | Permissão RN-006; integração Google Agenda disponível (RN-009) |
 | Pós-condições | Reunião registrada; evento no Google Agenda; convites/notificações enviados |
 | RF | RF-007, RF-010, RF-011 |
@@ -80,7 +80,7 @@ Formato textual estruturado (UML Use Case).
 
 ### Fluxo principal
 
-1. Cavalaria+ cria reunião e define informações.
+1. Membro Veterano+ cria reunião e define informações.
 2. Bot valida permissão e dados.
 3. Bot registra a reunião e sincroniza no Google Agenda.
 4. Convites e notificações são enviados.
@@ -92,7 +92,7 @@ Formato textual estruturado (UML Use Case).
 
 | Campo | Valor |
 |-------|-------|
-| Ator primário | Lorde+ |
+| Ator primário | Patente Oficial+ |
 | Pré-condições | Permissão RN-007; integração Google Agenda disponível |
 | Pós-condições | Evento registrado; sync Agenda; convites/notificações |
 | RF | RF-008, RF-010, RF-011 |
@@ -100,7 +100,7 @@ Formato textual estruturado (UML Use Case).
 
 ### Fluxo principal
 
-1. Lorde+ cria evento oficial e define informações.
+1. Membro Oficial+ cria evento oficial e define informações.
 2. Bot valida permissão e dados.
 3. Bot registra, sincroniza no Google Agenda e notifica.
 

@@ -39,7 +39,7 @@ Ciclo: **4 sprints × 15 dias**. Itens derivados do documento de origem, com IDs
 | US-202 | Comando `/ranking` com filtros (geral/período) | Feature | RF-004, UC-002 |
 | US-203 | Auditoria completa de XP + `/historico-xp` | Feature / débito | TD-006, RN-005, RF-003, RF-012 |
 | US-204 | Decorators de permissão por cargo TYTO | Feature | RN-008 |
-| US-205 | `/conceder-xp` e `/remover-xp` com motivo obrigatório | Feature | RF-003, UC-001, RN-004 |
+| US-205 | `/conceder-xp` e `/remover-xp` com motivo obrigatório (`/remover-xp` retirado ao fechar TD-007: XP é irrevogável) | Feature | RF-003, UC-001, RN-004 |
 
 **Critério de saída:** TD-006 fechado; fluxo UC-001 e UC-002 operacionais no Discord.
 
@@ -53,8 +53,8 @@ Ciclo: **4 sprints × 15 dias**. Itens derivados do documento de origem, com IDs
 |----|------|------|------|
 | US-301 | RSVP com botões interativos no Discord | Feature | RF-009, UC-006 |
 | US-302 | Notificações em embeds no Discord | Feature | RF-010 |
-| US-303 | Gestão de reuniões (Cavalaria+) | Feature | RF-007, UC-004, RN-006 |
-| US-304 | Gestão de eventos (Lorde+) | Feature | RF-008, UC-005, RN-007 |
+| US-303 | Gestão de reuniões (Cavalaria+; Veterano+ desde TD-007) | Feature | RF-007, UC-004, RN-006 |
+| US-304 | Gestão de eventos (Lorde+; Oficial+ desde TD-007) | Feature | RF-008, UC-005, RN-007 |
 | US-305 | Integração bidirecional Google Agenda via OAuth2 | Feature | RF-011, RN-009 |
 
 **Critério de saída:** UC-004, UC-005 e UC-006 cobertos; sync Agenda ativo.

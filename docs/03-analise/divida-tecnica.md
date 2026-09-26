@@ -26,12 +26,13 @@ rastreamento por ID.
 
 | ID | Problema | Situação / risco | Correção exigida | Viola | Severidade | Sprint alvo |
 |----|----------|------------------|------------------|-------|------------|-------------|
-| TD-007 | Hierarquia de cargos não reflete `Institucional/XP.md` | `hierarchy.py` define `Membro/Cavalaria/Lorde/Conselheiro/Administrador` (5 cargos, limiares 0/500/1.500/3.500/manual), derivados de um "Documento Único" externo a este repositório. O vault `Institucional/` define uma hierarquia diferente e vigente: `CARTA_INSTITUCIONAL.md` Art. VIII descreve três eixos independentes — patente por XP (`XP.md` Art. 2º, 17 patamares, Neófito→Omni), cargo institucional eletivo (Conselheiro do Conselho Régio, Tribuno, Rex) e função operacional por concessão (Dux Vecturium, Guarda Pretoriana) — nenhum dos quais existe neste código. O próprio `hierarchy.py` já assume os limiares atuais como placeholder ("premissa a validar com o Clube TYTO"). | Decisão do Clube TYTO, não da engenharia sozinha: unificar as duas hierarquias (ex.: "Membro" deste bot passa a corresponder à filiação ao Clube — `Institucional/COMUNIDADE_E_CLUBE.md` Art. 1º §3º —, com a progressão de patente rodando em paralelo à de cargo operacional) ou mantê-las deliberadamente como eixos independentes, com a relação entre elas documentada explicitamente em vez de implícita | `Institucional/XP.md` Art. 2º, `CARTA_INSTITUCIONAL.md` Art. VIII | Alta | Antes de F2-007/F2-008 ([fase-2.md](../05-roadmap/fase-2.md)) |
+| TD-007 | Hierarquia de cargos não reflete `Institucional/XP.md` | **Fechada (2026-09-26).** Decisão do Clube TYTO: **unificar** com `XP.md`. `hierarchy.py` agora modela os eixos da Carta Art. VIII: patente por XP (17 patamares Neófito→Omni, irrevogável — `XP.md` Art. 1º §3º) e cargos institucionais independentes (`Conselheiro`, `Administrador`) como flags em `Membro`. "Membro" deixou de ser degrau: é a filiação ao Clube (`COMUNIDADE_E_CLUBE.md` Art. 1º §3º). Privilégios aprovados pelo Clube: reunião Veterano+, evento/comunicado Oficial+, XP/auditoria/`@everyone` cargo Conselheiro, sistema Administrador. `/remover-xp` removido (XP irrevogável, `XP.md` Art. 1º §1º). Migração `c3d4e5f6a7b8`. | — | `Institucional/XP.md` Art. 1º–2º, `CARTA_INSTITUCIONAL.md` Art. VIII | Alta | Fechada |
 
 ### Política (pós-baseline)
 
-4. TD-007 não bloqueia as Sprints 1–4 nem os itens F2-001 a F2-006 — bloqueia especificamente
-   F2-007 (camadas Comunidade/Clube) e F2-008 (Crédito de Mérito), que dependem de saber a que,
-   na Carta, "Membro" deste bot corresponde.
-5. TD-007 fica **aberta** até decisão explícita do Clube TYTO — nenhuma correção de código deve
-   assumir uma reconciliação de hierarquia sem essa decisão documentada primeiro.
+4. TD-007 bloqueava F2-007 (camadas Comunidade/Clube) e F2-008 (Crédito de Mérito), que dependiam
+   de saber a que, na Carta, "Membro" deste bot corresponde — com a unificação, `Membro` é a
+   filiação ao Clube, e os dois itens estão desbloqueados.
+5. Os limiares de patente seguem `XP.md` Art. 2º (patamares 1–8 e 16–17 provisórios até
+   ratificação do Dominatium) e os valores exatos de `CLAN_TIERS` da plataforma, para que bot e
+   plataforma nunca discordem da patente de um mesmo XP.

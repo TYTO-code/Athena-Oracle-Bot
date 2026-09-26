@@ -19,7 +19,7 @@ from oraculo.domain.errors import (
     ConflitoDeVinculoError,
     VinculoJaSolicitadoError,
 )
-from oraculo.domain.hierarchy import ADMINISTRADOR, CAVALARIA, MEMBRO
+from oraculo.domain.hierarchy import NEOFITO, VETERANO
 from oraculo.services.vinculo_service import (
     confirmar_vinculo,
     reconciliar_manualmente,
@@ -216,7 +216,7 @@ async def test_confirma_recusa_mesclar_mesmo_registro_zerado(session):
     então nem esse caso "inofensivo" mescla automaticamente."""
     membro = await _plataforma(session)
     session.add(
-        Membro(discord_id=555, nome_exibicao="Perseu (Discord)", cargo_slug=MEMBRO.slug, xp=0)
+        Membro(discord_id=555, nome_exibicao="Perseu (Discord)", patente_slug=NEOFITO.slug, xp=0)
     )
     await session.flush()
 
@@ -232,7 +232,9 @@ async def test_confirma_recusa_mesclar_registro_com_atividade_real(session):
     """XP ganho de verdade no bot nunca pode ser apagado por um vínculo automático."""
     membro = await _plataforma(session)
     session.add(
-        Membro(discord_id=555, nome_exibicao="Perseu (Discord)", cargo_slug=CAVALARIA.slug, xp=600)
+        Membro(
+            discord_id=555, nome_exibicao="Perseu (Discord)", patente_slug=VETERANO.slug, xp=2_000
+        )
     )
     await session.flush()
 
@@ -243,7 +245,7 @@ async def test_confirma_recusa_mesclar_registro_com_atividade_real(session):
 
     # Nada mudou nos dois registros.
     intacto = await session.scalar(select(Membro).where(Membro.discord_id == 555))
-    assert intacto.xp == 600
+    assert intacto.xp == 2_000
     assert (await session.get(Membro, membro.id)).discord_id is None
 
 
@@ -264,9 +266,10 @@ async def test_confirmado_fica_registrado_na_auditoria(session):
 
 
 async def test_reconcilia_absorvendo_registro_orfao(session):
-    """O registro do Discord sobrevive (mantém cargo/histórico); só herda id_externo/email."""
+    """O registro do Discord sobrevive (patente, cargos, histórico); só herda id_externo/email."""
     sobrevivente = Membro(
-        discord_id=555, nome_exibicao="D-San", cargo_slug=ADMINISTRADOR.slug, xp=0
+        discord_id=555, nome_exibicao="D-San", patente_slug=NEOFITO.slug, xp=0,
+        administrador=True,
     )
     session.add(sobrevivente)
     origem = await _plataforma(session, id_externo="u1", email="dsan@tyto.example")
@@ -276,7 +279,7 @@ async def test_reconcilia_absorvendo_registro_orfao(session):
     )
 
     assert resultado.id == sobrevivente.id
-    assert resultado.cargo_slug == ADMINISTRADOR.slug, "cargo do sobrevivente não muda aqui"
+    assert resultado.administrador is True, "cargo do sobrevivente não muda aqui"
     assert resultado.id_externo == "u1"
     assert resultado.email == "dsan@tyto.example"
 

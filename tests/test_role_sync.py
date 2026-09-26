@@ -1,4 +1,4 @@
-"""Sincronização de cargos no Discord — RF-006 / RN-001 / RN-003 / TD-005.
+"""Sincronização de papéis no Discord — RF-006 / RN-001 / RN-003 / TD-005 / TD-007.
 
 Este é o teste que fecha o defeito do legado: o bot antigo atribuía o novo cargo
 sem remover os anteriores. Os dublês abaixo imitam apenas a superfície da API do
@@ -13,7 +13,7 @@ import pytest
 
 from oraculo.bot.role_sync import SincronizadorDiscord, cargos_faltantes
 from oraculo.domain.errors import IntegracaoIndisponivelError
-from oraculo.domain.hierarchy import CAVALARIA, LORDE
+from oraculo.domain.hierarchy import OFICIAL, PATENTES, VETERANO, CargoInstitucional
 
 
 @dataclass
@@ -59,66 +59,77 @@ class BotFalso:
 
 
 def montar_guild(papeis_do_membro: list[str]) -> tuple[GuildFalsa, MembroFalso]:
-    catalogo = {
-        nome: PapelFalso(id=indice + 1, name=nome)
-        for indice, nome in enumerate(
-            ["Membro", "Cavalaria", "Lorde", "Conselheiro", "Administrador", "Veterano"]
-        )
-    }
+    nomes = [p.nome for p in PATENTES] + ["Conselheiro", "Administrador", "Designer"]
+    catalogo = {nome: PapelFalso(id=indice + 1, name=nome) for indice, nome in enumerate(nomes)}
     membro = MembroFalso(id=999, roles=[catalogo[nome] for nome in papeis_do_membro])
     guild = GuildFalsa(id=1, name="Clube TYTO", roles=list(catalogo.values()))
     guild.membros[membro.id] = membro
     return guild, membro
 
 
-async def test_remove_todos_os_cargos_tyto_antes_de_atribuir():
-    """TD-005 — o acúmulo de cargos do legado não pode se repetir."""
-    guild, membro = montar_guild(["Membro", "Cavalaria"])
+async def test_remove_todas_as_patentes_antes_de_atribuir():
+    """TD-005 — o acúmulo de papéis do legado não pode se repetir."""
+    guild, membro = montar_guild(["Neófito", "Veterano"])
     sincronizador = SincronizadorDiscord(BotFalso([guild]))
 
-    await sincronizador.sincronizar(discord_id=999, cargo=LORDE, guild_id=1)
+    await sincronizador.sincronizar(discord_id=999, patente=OFICIAL, guild_id=1)
 
-    assert sorted(membro.removidos) == ["Cavalaria", "Membro"]
-    assert membro.adicionados == ["Lorde"]
-    assert [p.name for p in membro.roles] == ["Lorde"]
+    assert sorted(membro.removidos) == ["Neófito", "Veterano"]
+    assert membro.adicionados == ["Oficial"]
+    assert [p.name for p in membro.roles] == ["Oficial"]
 
 
-async def test_preserva_cargos_que_nao_sao_da_hierarquia():
-    """Cargos decorativos do servidor não são gerenciados pelo bot."""
-    guild, membro = montar_guild(["Cavalaria", "Veterano"])
+async def test_preserva_papeis_que_nao_sao_patente():
+    """Papéis decorativos e cargos institucionais não são tocados pela patente."""
+    guild, membro = montar_guild(["Veterano", "Designer", "Conselheiro"])
     sincronizador = SincronizadorDiscord(BotFalso([guild]))
 
-    await sincronizador.sincronizar(discord_id=999, cargo=LORDE, guild_id=1)
+    await sincronizador.sincronizar(discord_id=999, patente=OFICIAL, guild_id=1)
 
-    assert "Veterano" not in membro.removidos
-    assert sorted(p.name for p in membro.roles) == ["Lorde", "Veterano"]
+    assert membro.removidos == ["Veterano"]
+    assert sorted(p.name for p in membro.roles) == ["Conselheiro", "Designer", "Oficial"]
 
 
 async def test_operacao_e_idempotente():
-    guild, membro = montar_guild(["Cavalaria"])
+    guild, membro = montar_guild(["Veterano"])
     sincronizador = SincronizadorDiscord(BotFalso([guild]))
 
-    await sincronizador.sincronizar(discord_id=999, cargo=CAVALARIA, guild_id=1)
+    await sincronizador.sincronizar(discord_id=999, patente=VETERANO, guild_id=1)
 
     assert membro.removidos == []
     assert membro.adicionados == []
-    assert [p.name for p in membro.roles] == ["Cavalaria"]
+    assert [p.name for p in membro.roles] == ["Veterano"]
 
 
-async def test_erro_claro_quando_o_cargo_nao_existe_no_servidor():
-    guild = GuildFalsa(id=1, name="Clube TYTO", roles=[PapelFalso(1, "Membro")])
+async def test_cargo_institucional_e_adicionado_e_removido_sem_tocar_na_patente():
+    guild, membro = montar_guild(["Oficial"])
+    sincronizador = SincronizadorDiscord(BotFalso([guild]))
+
+    await sincronizador.definir_cargo_institucional(
+        discord_id=999, cargo=CargoInstitucional.CONSELHEIRO, ativo=True, guild_id=1
+    )
+    assert sorted(p.name for p in membro.roles) == ["Conselheiro", "Oficial"]
+
+    await sincronizador.definir_cargo_institucional(
+        discord_id=999, cargo=CargoInstitucional.CONSELHEIRO, ativo=False, guild_id=1
+    )
+    assert [p.name for p in membro.roles] == ["Oficial"]
+
+
+async def test_erro_claro_quando_o_papel_nao_existe_no_servidor():
+    guild = GuildFalsa(id=1, name="Clube TYTO", roles=[PapelFalso(1, "Neófito")])
     guild.membros[999] = MembroFalso(id=999, roles=[])
     sincronizador = SincronizadorDiscord(BotFalso([guild]))
 
-    with pytest.raises(IntegracaoIndisponivelError, match="Lorde"):
-        await sincronizador.sincronizar(discord_id=999, cargo=LORDE, guild_id=1)
+    with pytest.raises(IntegracaoIndisponivelError, match="Oficial"):
+        await sincronizador.sincronizar(discord_id=999, patente=OFICIAL, guild_id=1)
 
 
-async def test_diagnostico_lista_cargos_ausentes():
-    guild = GuildFalsa(id=1, name="Clube TYTO", roles=[PapelFalso(1, "Membro")])
-    assert await cargos_faltantes(guild) == [
-        "Administrador",
-        "Cavalaria",
-        "Conselheiro",
-        "Lorde",
-    ]
+async def test_diagnostico_lista_papeis_ausentes():
+    presentes = [p.nome for p in PATENTES if p.nome != "Omni"]
+    guild = GuildFalsa(
+        id=1,
+        name="Clube TYTO",
+        roles=[PapelFalso(i, nome) for i, nome in enumerate([*presentes, "Conselheiro"])],
+    )
+    assert await cargos_faltantes(guild) == ["Administrador", "Omni"]

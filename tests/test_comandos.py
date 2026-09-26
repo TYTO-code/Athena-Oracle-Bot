@@ -9,10 +9,13 @@ from __future__ import annotations
 import pytest
 
 from oraculo.bot.client import COGS, OraculoBot
-from oraculo.bot.cogs.ajuda import agrupar_por_cargo
+from oraculo.bot.cogs.ajuda import agrupar_por_requisito
 from oraculo.bot.permissions import acao_requerida
-from oraculo.domain.hierarchy import CAVALARIA, CONSELHEIRO, LORDE, MEMBRO, pelo_menos
-from oraculo.domain.permissions import cargo_minimo
+from oraculo.domain.hierarchy import NEOFITO, OFICIAL, VETERANO, CargoInstitucional, Perfil
+from oraculo.domain.permissions import requisito_minimo, satisfaz
+
+CONSELHEIRO = CargoInstitucional.CONSELHEIRO
+ADMINISTRADOR = CargoInstitucional.ADMINISTRADOR
 
 COMANDOS_SEM_CARGO = frozenset(
     {"saldo", "extrato-dracmas", "doar-dracmas", "vincular-conta", "confirmar-vinculo"}
@@ -57,59 +60,65 @@ async def test_comandos_esperados_estao_registrados(bot):
         "agenda",
         "hierarquia",
         "conceder-xp",
-        "remover-xp",
         "historico-xp",
         "criar-reuniao",
         "criar-evento",
         "cancelar-agendamento",
         "auditoria",
-        "definir-cargo",
+        "cargo-institucional",
+        "confirmar-patente",
+        "sincronizar-papeis",
         "verificar-cargos",
         "comunicar",
         "agendar-comunicado",
         "comunicados",
         "cancelar-comunicado",
     } <= nomes
+    assert "remover-xp" not in nomes, "XP é irrevogável (XP.md Art. 1º §1º)"
+    assert "definir-cargo" not in nomes, "patente só vem do XP (TD-007)"
 
 
 @pytest.mark.parametrize(
-    ("comando", "cargo_esperado"),
+    ("comando", "requisito"),
     [
-        ("perfil", MEMBRO),
-        ("ranking", MEMBRO),
-        ("ajuda", MEMBRO),
-        ("criar-reuniao", CAVALARIA),
-        ("criar-evento", LORDE),
+        ("perfil", NEOFITO),
+        ("ranking", NEOFITO),
+        ("ajuda", NEOFITO),
+        ("criar-reuniao", VETERANO),
+        ("criar-evento", OFICIAL),
         ("conceder-xp", CONSELHEIRO),
         ("historico-xp", CONSELHEIRO),
-        ("comunicar", LORDE),
-        ("agendar-comunicado", LORDE),
-        ("cancelar-comunicado", LORDE),
+        ("comunicar", OFICIAL),
+        ("agendar-comunicado", OFICIAL),
+        ("cancelar-comunicado", OFICIAL),
+        ("cargo-institucional", ADMINISTRADOR),
+        ("confirmar-patente", ADMINISTRADOR),
+        ("sincronizar-papeis", ADMINISTRADOR),
     ],
 )
-async def test_cargo_minimo_de_cada_comando(bot, comando, cargo_esperado):
+async def test_requisito_de_cada_comando(bot, comando, requisito):
     alvo = next(c for c in bot.tree.walk_commands() if c.qualified_name == comando)
-    assert cargo_minimo(acao_requerida(alvo)) is cargo_esperado
+    assert requisito_minimo(acao_requerida(alvo)) == requisito
 
 
-async def test_ajuda_agrupa_todos_os_comandos_por_cargo(bot):
+async def test_ajuda_agrupa_todos_os_comandos_por_requisito(bot):
     todos = list(bot.tree.walk_commands())
-    grupos = agrupar_por_cargo(todos)
+    grupos = agrupar_por_requisito(todos)
 
     com_cargo = [c for c in todos if c.qualified_name not in COMANDOS_SEM_CARGO]
     total_agrupado = sum(len(lista) for lista in grupos.values())
     assert total_agrupado == len(com_cargo)
 
-    nomes_membro = {c.qualified_name for c in grupos[MEMBRO]}
+    nomes_membro = {c.qualified_name for c in grupos[NEOFITO]}
     assert {"perfil", "ranking", "ajuda"} <= nomes_membro
     assert "conceder-xp" not in nomes_membro
 
 
-async def test_membro_ve_apenas_a_secao_liberada(bot):
-    """Um Membro tem acesso ao grupo de Membro e a nenhum acima."""
-    grupos = agrupar_por_cargo(list(bot.tree.walk_commands()))
-    liberados = [cargo for cargo in grupos if pelo_menos(MEMBRO, cargo)]
-    assert liberados == [MEMBRO]
+async def test_neofito_ve_apenas_a_secao_liberada(bot):
+    """Um Neófito sem cargo tem acesso só ao grupo de todos os membros."""
+    grupos = agrupar_por_requisito(list(bot.tree.walk_commands()))
+    liberados = [req for req in grupos if satisfaz(Perfil(NEOFITO), req)]
+    assert liberados == [NEOFITO]
 
 
 async def test_comandos_descrevem_o_que_fazem(bot):

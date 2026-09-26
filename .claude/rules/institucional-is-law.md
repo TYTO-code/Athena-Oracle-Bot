@@ -8,8 +8,7 @@ e `Institucional/XP.md`. Onde a documentação (`docs/*`) ou o código deste rep
 daqueles Regulamentos, o Regulamento vence — ele é a lei institucional vigente, independente do
 que este bot já implementa ou não (ver `[[institutional_docs_are_binding]]`).
 
-Isso não significa reescrever a hierarquia de cargos deste bot (`Membro/Cavalaria/Lorde/
-Conselheiro/Administrador`) para bater com a escala de patente institucional — essa divergência é
-conhecida e registrada em **TD-007**
-(`docs/03-analise/divida-tecnica.md#dívida-técnica-pós-baseline-não-é-do-legado-bot-xp-discord`), e
-a reconciliação é decisão do Clube TYTO, não algo a "corrigir" silenciosamente durante outra tarefa.
+A hierarquia deste bot já segue a lei: TD-007 foi fechada com a unificação decidida pelo Clube
+TYTO — patente pela escala de `XP.md` Art. 2º (irrevogável) e cargos institucionais independentes
+(Carta Art. VIII). Uma regra nova do Regulamento que o bot ainda não cobre é pendência de
+implementação, não opção.
