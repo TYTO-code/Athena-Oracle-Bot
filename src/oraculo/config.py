@@ -67,6 +67,10 @@ class Settings(BaseSettings):
     # --- API / Webhooks (TD-003 / RNF-003) -----------------------------------
     api_host: str = "0.0.0.0"  # noqa: S104 — exposto pelo container, não pelo host
     api_port: int = 8000
+    #: Painel de métricas (`/metrics` Prometheus e `/painel` HTML). Sem token os
+    #: dois endpoints nem existem (404): a API é pública, e contagem de membros
+    #: e cargos não é informação para qualquer um.
+    metricas_token: str | None = None
     clickup_webhook_secret: str | None = None
     webhook_max_skew_seconds: int = 300
 
@@ -75,6 +79,9 @@ class Settings(BaseSettings):
     google_calendar_id: str = "primary"
     google_credentials_file: Path | None = None
     google_timezone: str = "America/Sao_Paulo"
+    #: US-305 (Google → bot) — de quanto em quanto tempo buscar no calendário o
+    #: que foi alterado ou apagado direto no Google. 0 desliga esse sentido.
+    google_sync_intervalo_minutos: float = 15.0
 
     # --- Plataforma de membros (Firebase) ------------------------------------
     #: Sem `project_id` a integração fica inerte — nada é consultado.
@@ -135,6 +142,17 @@ class Settings(BaseSettings):
     backup_dir: Path = Path("./backups")
     backup_hour_utc: int = 6
     backup_retention_days: int = 14
+    #: Cópia fora do disco local (object storage compatível com S3: AWS S3,
+    #: Cloudflare R2, Backblaze B2, MinIO, buckets do Railway). Sem bucket, só
+    #: o backup local existe. Credenciais pelas variáveis padrão da AWS
+    #: (`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`), nunca no código (TD-001).
+    backup_s3_bucket: str | None = None
+    backup_s3_prefixo: str = "oraculo/backups/"
+    backup_s3_endpoint_url: str | None = None
+    backup_s3_regiao: str | None = None
+    #: Retenção remota, independente da local — o remoto existe justamente para
+    #: guardar mais tempo do que o disco do container.
+    backup_s3_retencao_dias: int = 90
 
     @model_validator(mode="before")
     @classmethod

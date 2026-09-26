@@ -37,7 +37,7 @@ Fecha a cadeia `Visão → RN/RF/RNF → Casos de Uso → Dívida Técnica → A
 | RF-007 / RF-008 Reuniões e eventos | `/criar-reuniao`, `/criar-evento`, `/cancelar-agendamento` ([cogs/agenda.py](../../src/oraculo/bot/cogs/agenda.py)) |
 | RF-009 RSVP | `BotaoRsvp` / `PainelRsvp` + `AgendaService.responder_rsvp` |
 | RF-010 Notificações | [notificacao_service.py](../../src/oraculo/services/notificacao_service.py), canais Discord e e-mail |
-| RF-011 Google Agenda | `GoogleAgenda.criar/atualizar/cancelar` |
+| RF-011 Google Agenda | `GoogleAgenda.criar/atualizar/cancelar` (bot → Google) e `alteracoes_desde` + `loop_agenda_google` (Google → bot: edições e cancelamentos feitos no calendário) |
 | RF-012 Logs | Tabela `audit_log` ([repositories/auditoria.py](../../src/oraculo/repositories/auditoria.py)) + `/auditoria` |
 | RF-013 Saldo/extrato de Dracmas | `/saldo`, `/extrato-dracmas` ([cogs/comunidade.py](../../src/oraculo/bot/cogs/comunidade.py)) |
 | RF-014 Doação de Dracmas | `/doar-dracmas`, `DracmasService.doar` |
@@ -70,8 +70,8 @@ Fecha a cadeia `Visão → RN/RF/RNF → Casos de Uso → Dívida Técnica → A
 |--------|--------------------------|----------|
 | 1 | US-101 a US-105 | — |
 | 2 | US-201 a US-205 | — |
-| 3 | US-301 a US-304; US-305 no sentido bot → Google | Sincronização **bidirecional** (Google → bot) |
-| 4 | US-401 a US-405 | Painel de métricas; retenção de backup fora do disco local |
+| 3 | US-301 a US-305 (bidirecional: `tasks/agenda_google.py` + `AgendaService.aplicar_alteracoes_externas`) | — |
+| 4 | US-401 a US-405; painel de métricas (`/metrics`, `/painel` — [metricas_service.py](../../src/oraculo/services/metricas_service.py)); backup com cópia e retenção remotas ([armazenamento_backup.py](../../src/oraculo/integrations/armazenamento_backup.py)) | — |
 
 ## Decisões tomadas na implementação
 
