@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from oraculo.db.base import agora
 from oraculo.db.models import Membro, MovimentacaoXp
 from oraculo.domain.errors import RecursoNaoEncontradoError
-from oraculo.domain.hierarchy import CARGO_INICIAL
+from oraculo.domain.hierarchy import PATENTE_INICIAL
 
 
 class LinhaRanking(NamedTuple):
@@ -21,7 +21,7 @@ class LinhaRanking(NamedTuple):
     membro_id: int
     nome_exibicao: str
     discord_id: int | None
-    cargo_slug: str
+    patente_slug: str
     xp: int
 
 
@@ -53,8 +53,8 @@ async def obter_ou_criar_por_discord(
 ) -> Membro:
     """RF-001 — registra o usuário no primeiro contato (auto-onboarding).
 
-    O nome de exibição é mantido sincronizado com o Discord; XP e cargo de um
-    membro já existente jamais são reinicializados aqui.
+    O nome de exibição é mantido sincronizado com o Discord; XP, patente e
+    cargos de um membro já existente jamais são reinicializados aqui.
     """
     membro = await buscar_por_discord_id(session, discord_id)
     if membro is not None:
@@ -68,7 +68,7 @@ async def obter_ou_criar_por_discord(
         discord_id=discord_id,
         nome_exibicao=nome_exibicao or str(discord_id),
         email=email,
-        cargo_slug=CARGO_INICIAL.slug,
+        patente_slug=PATENTE_INICIAL.slug,
         xp=0,
     )
     session.add(membro)
@@ -111,7 +111,7 @@ async def ranking(
                 Membro.id,
                 Membro.nome_exibicao,
                 Membro.discord_id,
-                Membro.cargo_slug,
+                Membro.patente_slug,
                 Membro.xp,
             )
             .where(Membro.ativo.is_(True))
@@ -129,12 +129,12 @@ async def ranking(
                 Membro.id,
                 Membro.nome_exibicao,
                 Membro.discord_id,
-                Membro.cargo_slug,
+                Membro.patente_slug,
                 total_periodo,
             )
             .join(MovimentacaoXp, MovimentacaoXp.membro_id == Membro.id)
             .where(Membro.ativo.is_(True), *filtros)
-            .group_by(Membro.id, Membro.nome_exibicao, Membro.discord_id, Membro.cargo_slug)
+            .group_by(Membro.id, Membro.nome_exibicao, Membro.discord_id, Membro.patente_slug)
             .order_by(total_periodo.desc(), Membro.nome_exibicao.asc())
             .limit(limite)
             .offset(offset)
@@ -147,7 +147,7 @@ async def ranking(
             membro_id=linha[0],
             nome_exibicao=linha[1],
             discord_id=linha[2],
-            cargo_slug=linha[3],
+            patente_slug=linha[3],
             xp=int(linha[4]),
         )
         for indice, linha in enumerate(linhas, start=1)

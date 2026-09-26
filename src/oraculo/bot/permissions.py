@@ -1,8 +1,9 @@
 """Decorators de permissão para slash commands — RN-008 / US-204.
 
-A checagem consulta o **cargo persistido** do membro, não os papéis do Discord:
-o banco é a fonte de verdade da hierarquia (RN-001) e continua correto mesmo
-que alguém edite papéis manualmente no servidor.
+A checagem consulta o **perfil persistido** do membro (patente + cargos
+institucionais), não os papéis do Discord: o banco é a fonte de verdade da
+hierarquia (RN-001) e continua correto mesmo que alguém edite papéis
+manualmente no servidor.
 """
 
 from __future__ import annotations
@@ -15,8 +16,13 @@ from discord import app_commands
 
 from oraculo.db.base import sessao
 from oraculo.db.models import Membro
-from oraculo.domain.hierarchy import Cargo, cargo_por_slug
-from oraculo.domain.permissions import Acao, cargo_minimo, pode_executar
+from oraculo.domain.hierarchy import Perfil
+from oraculo.domain.permissions import (
+    Acao,
+    descrever_requisito,
+    pode_executar,
+    requisito_minimo,
+)
 from oraculo.repositories import membros as repo_membros
 
 T = TypeVar("T")
@@ -25,13 +31,13 @@ T = TypeVar("T")
 class PermissaoInsuficiente(app_commands.CheckFailure):
     """Erro traduzido para mensagem amigável pelo handler global."""
 
-    def __init__(self, acao: Acao, cargo_atual: Cargo) -> None:
+    def __init__(self, acao: Acao, perfil: Perfil) -> None:
         self.acao = acao
-        self.cargo_atual = cargo_atual
-        self.cargo_minimo = cargo_minimo(acao)
+        self.perfil = perfil
+        self.requisito = requisito_minimo(acao)
         super().__init__(
-            f"Requer **{self.cargo_minimo.nome}** ou superior. "
-            f"Seu cargo: **{cargo_atual.nome}**."
+            f"Requer **{descrever_requisito(self.requisito)}**. "
+            f"Você: **{perfil.descricao()}**."
         )
 
 
@@ -45,9 +51,9 @@ async def obter_autor(interaction: discord.Interaction) -> Membro:
         )
 
 
-async def cargo_do_autor(interaction: discord.Interaction) -> Cargo:
+async def perfil_do_autor(interaction: discord.Interaction) -> Perfil:
     membro = await obter_autor(interaction)
-    return cargo_por_slug(membro.cargo_slug)
+    return membro.perfil
 
 
 ATRIBUTO_ACAO = "__oraculo_acao__"
@@ -67,7 +73,7 @@ def requer(acao: Acao, *, efemero: bool = False) -> Callable[[T], T]:
     `defer` que ela é decidida.
 
     Além de validar, registra a ação exigida no próprio comando: é assim que
-    `/ajuda` descobre o cargo mínimo sem manter uma segunda lista.
+    `/ajuda` descobre o requisito sem manter uma segunda lista.
 
     Uso::
 
@@ -79,9 +85,9 @@ def requer(acao: Acao, *, efemero: bool = False) -> Callable[[T], T]:
     async def predicado(interaction: discord.Interaction) -> bool:
         if not interaction.response.is_done():
             await interaction.response.defer(ephemeral=efemero)
-        cargo = await cargo_do_autor(interaction)
-        if not pode_executar(cargo, acao):
-            raise PermissaoInsuficiente(acao, cargo)
+        perfil = await perfil_do_autor(interaction)
+        if not pode_executar(perfil, acao):
+            raise PermissaoInsuficiente(acao, perfil)
         return True
 
     def decorador(alvo: T) -> T:

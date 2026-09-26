@@ -97,6 +97,7 @@ async def rodar_api(cfg: Settings) -> None:
 
 
 async def rodar_tudo(cfg: Settings) -> None:
+    from oraculo.tasks.agenda_google import loop_agenda_google
     from oraculo.tasks.backup import loop_backup
     from oraculo.tasks.sincronizacao import loop_sincronizacao
 
@@ -107,6 +108,8 @@ async def rodar_tudo(cfg: Settings) -> None:
         tarefas.append(asyncio.create_task(rodar_api(cfg), name="api"))
     if cfg.backup_enabled:
         tarefas.append(asyncio.create_task(loop_backup(cfg), name="backup"))
+    if cfg.google_enabled and cfg.google_sync_intervalo_minutos > 0:
+        tarefas.append(asyncio.create_task(loop_agenda_google(cfg), name="agenda_google"))
     if cfg.plataforma_habilitada and cfg.importacao_ao_iniciar or cfg.sincronizacao_periodica:
         tarefas.append(asyncio.create_task(loop_sincronizacao(cfg), name="sincronizacao"))
 
@@ -214,10 +217,9 @@ async def comando_promover_admin(cfg: Settings, *, discord_id: int, nome: str | 
     await encerrar_engine()
     print(f"{nome_final} (discord_id={discord_id}) agora é Administrador no banco do bot.")
     print(
-        "O cargo do Discord não foi sincronizado por este comando (não há bot conectado "
-        "aqui). Rode /definir-cargo em você mesmo, com o mesmo cargo, dentro do Discord — "
-        "agora que você já é Administrador no banco, o comando vai passar e sincronizar "
-        "o cargo no servidor."
+        "O papel do Discord não foi sincronizado por este comando (não há bot conectado "
+        "aqui). Rode /sincronizar-papeis em você mesmo dentro do Discord — agora que você "
+        "já é Administrador no banco, o comando vai passar e aplicar os papéis no servidor."
     )
 
 

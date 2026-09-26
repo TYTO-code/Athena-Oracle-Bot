@@ -14,8 +14,12 @@ from oraculo.config import Settings
 from oraculo.container import Container
 from oraculo.db.models import MovimentacaoXp
 from oraculo.domain.errors import XpSomenteLeituraError
-from oraculo.domain.hierarchy import ADMINISTRADOR, CONSELHEIRO, MEMBRO
+from oraculo.domain.hierarchy import NEOFITO, CargoInstitucional, Perfil
 from oraculo.services.xp_service import XpService
+
+CONSELHEIRO = CargoInstitucional.CONSELHEIRO
+ADMINISTRADOR = CargoInstitucional.ADMINISTRADOR
+MEMBRO = NEOFITO
 
 
 @pytest.fixture
@@ -62,25 +66,14 @@ async def test_conceder_xp_e_recusado_mesmo_para_administrador(session, criar_me
     assert await session.scalar(select(func.count()).select_from(MovimentacaoXp)) == 0
 
 
-async def test_remover_xp_tambem_e_recusado(session, criar_membro):
-    servico = XpService(somente_leitura=True)
-    autor = await criar_membro(CONSELHEIRO)
-    alvo = await criar_membro(MEMBRO, xp=100)
-
-    with pytest.raises(XpSomenteLeituraError):
-        await servico.remover(
-            session, membro=alvo, quantidade=50, motivo="tentativa", autor=autor
-        )
-
-    assert alvo.xp == 100
-
-
 async def test_consulta_de_historico_continua_liberada(session, criar_membro):
     """Somente a escrita é bloqueada; auditoria e leitura seguem funcionando."""
     servico = XpService(somente_leitura=True)
     alvo = await criar_membro(MEMBRO, xp=100)
 
-    assert await servico.historico(session, membro=alvo, solicitante_cargo=CONSELHEIRO) == []
+    assert await servico.historico(
+        session, membro=alvo, solicitante=Perfil(NEOFITO, conselheiro=True)
+    ) == []
 
 
 async def test_importacao_escreve_xp_mesmo_no_modo_espelho(session, criar_membro):

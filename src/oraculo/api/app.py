@@ -1,8 +1,9 @@
 """Aplicação FastAPI — ADR-001 / US-403.
 
-Expõe apenas health check e webhooks assinados. Não há endpoint público de
-leitura ou escrita de XP: toda operação de domínio passa pelo bot, onde a
-política de permissões (RN-008) é aplicada com identidade conhecida.
+Expõe apenas health check, webhooks assinados e o painel de métricas agregadas
+(protegido por token). Não há endpoint público de leitura ou escrita de XP:
+toda operação de domínio passa pelo bot, onde a política de permissões (RN-008)
+é aplicada com identidade conhecida.
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from oraculo import __version__
-from oraculo.api.routers import health, webhooks
+from oraculo.api.routers import health, metricas, webhooks
 from oraculo.config import Settings, get_settings
 from oraculo.db.base import criar_schema, encerrar_engine
 from oraculo.logging_config import get_logger, setup_logging
@@ -61,6 +62,7 @@ def criar_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = cfg
     app.include_router(health.router)
     app.include_router(webhooks.router)
+    app.include_router(metricas.router)
     return app
 
 

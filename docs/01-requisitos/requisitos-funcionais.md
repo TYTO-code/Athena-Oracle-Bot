@@ -8,8 +8,8 @@
 | RF-004 | Ranking | Rankings geral, por servidor e por período. | Alta | — | UC-002 |
 | RF-005 | Promoções | Atribuição automática de cargos com base no XP. | Crítica | RN-002, RN-003 | UC-003 |
 | RF-006 | Sincronização de cargos | Remoção/atribuição de cargos sincronizada com o Discord; cargo único. | Crítica | RN-001, RN-003 | UC-003 |
-| RF-007 | Reuniões | Criar, editar, cancelar e convidar participantes (Cavalaria+). | Alta | RN-006, RN-009 | UC-004 |
-| RF-008 | Eventos | Criar, editar, cancelar e convidar participantes em eventos oficiais (Lorde+). | Alta | RN-007, RN-009 | UC-005 |
+| RF-007 | Reuniões | Criar, editar, cancelar e convidar participantes (Veterano+). | Alta | RN-006, RN-009 | UC-004 |
+| RF-008 | Eventos | Criar, editar, cancelar e convidar participantes em eventos oficiais (Oficial+). | Alta | RN-007, RN-009 | UC-005 |
 | RF-009 | Presença (RSVP) | Confirmar, recusar ou marcar presença como pendente. | Alta | — | UC-006 |
 | RF-010 | Notificações | Avisos de promoção, XP, convites e agendas via Discord e e-mail. | Média | RN-003 | UC-001, UC-003, UC-004, UC-005 |
 | RF-011 | Integração Google Agenda | Sincronização automática e lembretes. | Alta | RN-009 | UC-004, UC-005 |
@@ -24,10 +24,9 @@
 |---------|----|------------------|
 | `/perfil` | RF-002 | Membro |
 | `/ranking` | RF-004 | Membro |
-| `/historico-xp` | RF-003, RF-012 | Conselheiro+ (ou conforme política) |
-| `/conceder-xp` | RF-003 | Conselheiro+ |
-| `/remover-xp` | RF-003 | Conselheiro+ |
-| Comandos de reunião | RF-007 | Cavalaria+ |
-| Comandos de evento | RF-008 | Lorde+ |
-| `/comunicar`, `/agendar-comunicado`, `/comunicados`, `/cancelar-comunicado` | RF-015 | Lorde+ para publicar; Conselheiro+ para `@here`/`@everyone` (RN-018) |
+| `/historico-xp` | RF-003, RF-012 | Cargo Conselheiro |
+| `/conceder-xp` | RF-003 | Cargo Conselheiro (não existe remoção: XP é irrevogável, `XP.md` Art. 1º §1º) |
+| Comandos de reunião | RF-007 | Veterano+ |
+| Comandos de evento | RF-008 | Oficial+ |
+| `/comunicar`, `/agendar-comunicado`, `/comunicados`, `/cancelar-comunicado` | RF-015 | Oficial+ para publicar; cargo Conselheiro para `@here`/`@everyone` (RN-018) |
 | `/saldo`, `/extrato-dracmas`, `/doar-dracmas` | RF-013, RF-014 | Nenhuma — aberto a qualquer pessoa registrada no Atena, camada Comunidade não usa cargo de hierarquia (ver `regras-de-negocio.md` RN-011) |

@@ -1,7 +1,8 @@
 """Reuniões, eventos oficiais e RSVP — UC-004, UC-005, UC-006.
 
 Permissões (RN-006 / RN-007) são resolvidas pela política central em
-`domain.permissions`: reunião exige Cavalaria+, evento oficial exige Lorde+.
+`domain.permissions`: reunião exige a patente Veterano+, evento oficial exige
+Oficial+ (TD-007).
 
 Cancelamento é sempre lógico (RN-010): a linha permanece com `status` e
 `motivo_cancelamento`, e o espelho no Google Agenda é removido.
@@ -13,9 +14,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from oraculo.db.base import agora
+from oraculo.db.base import agora, como_utc
 from oraculo.db.models import (
     Agendamento,
     Membro,
@@ -26,11 +28,11 @@ from oraculo.db.models import (
     TipoAgendamento,
 )
 from oraculo.domain.errors import BusinessRuleError
-from oraculo.domain.hierarchy import cargo_por_slug
 from oraculo.domain.permissions import Acao, exigir
 from oraculo.integrations.google_calendar import (
     AgendaDesabilitada,
     AgendaExterna,
+    AlteracaoExterna,
     EventoExterno,
 )
 from oraculo.logging_config import get_logger
@@ -69,6 +71,15 @@ class ResultadoAgendamento:
     erro_google: str | None = None
 
 
+@dataclass(slots=True)
+class ResumoSincronizacaoExterna:
+    """Resultado de aplicar as alterações vindas do Google Agenda (US-305)."""
+
+    atualizados: int = 0
+    cancelados: int = 0
+    ignorados: int = 0
+
+
 class AgendaService:
     def __init__(self, agenda_externa: AgendaExterna | None = None) -> None:
         self._externa = agenda_externa or AgendaDesabilitada()
@@ -91,7 +102,7 @@ class AgendaService:
         origem: OrigemAcao = OrigemAcao.DISCORD,
     ) -> ResultadoAgendamento:
         """UC-004 / UC-005 — cria, convida e sincroniza com o Google Agenda."""
-        exigir(cargo_por_slug(organizador.cargo_slug), ACAO_CRIAR[tipo])
+        exigir(organizador.perfil, ACAO_CRIAR[tipo])
         self._validar_datas(inicio_em, fim_em)
 
         agendamento = await repo_agenda.criar(
@@ -188,6 +199,107 @@ class AgendaService:
         )
         return agendamento
 
+    # -- Google Agenda → bot (US-305, sentido Google → bot) ------------------
+
+    async def aplicar_alteracoes_externas(
+        self, session: AsyncSession, alteracoes: Iterable[AlteracaoExterna]
+    ) -> ResumoSincronizacaoExterna:
+        """Traz para o bot o que mudou direto no Google Agenda.
+
+        * evento apagado no Google → agendamento cancelado (lógico, RN-010), sem
+          tentar apagar de novo no Google;
+        * título, descrição, local ou horário alterados → copiados para o bot.
+
+        Só mexe em agendamentos ainda `AGENDADO` e ligados a um evento do
+        Google; eventos que o bot não criou são ignorados. Idempotente: aplicar
+        a mesma alteração duas vezes não muda nada na segunda.
+        """
+        resumo = ResumoSincronizacaoExterna()
+        for alteracao in alteracoes:
+            agendamento = await session.scalar(
+                select(Agendamento).where(Agendamento.google_event_id == alteracao.evento_id)
+            )
+            if agendamento is None or agendamento.status != StatusAgendamento.AGENDADO:
+                resumo.ignorados += 1
+                continue
+
+            if alteracao.cancelado:
+                await self._cancelar_por_fora(session, agendamento)
+                resumo.cancelados += 1
+            elif await self._atualizar_por_fora(session, agendamento, alteracao):
+                resumo.atualizados += 1
+            else:
+                resumo.ignorados += 1
+        return resumo
+
+    async def _cancelar_por_fora(self, session: AsyncSession, agendamento: Agendamento) -> None:
+        agendamento.status = StatusAgendamento.CANCELADO
+        agendamento.cancelado_em = agora()
+        agendamento.motivo_cancelamento = "Cancelado no Google Agenda"
+        agendamento.google_sincronizado_em = agora()
+        await auditoria.registrar(
+            session,
+            acao=f"{TipoAgendamento(agendamento.tipo).value}.cancelado",
+            resumo=f"'{agendamento.titulo}' cancelado no Google Agenda",
+            ator_descricao="Google Agenda",
+            alvo_tipo="agendamento",
+            alvo_id=agendamento.id,
+            dados={"motivo": agendamento.motivo_cancelamento, "origem_externa": "google"},
+            origem=OrigemAcao.SISTEMA,
+            guild_id=agendamento.guild_id,
+        )
+
+    async def _atualizar_por_fora(
+        self, session: AsyncSession, agendamento: Agendamento, alteracao: AlteracaoExterna
+    ) -> bool:
+        novos = {
+            "titulo": (alteracao.titulo or "").strip()[:160] or agendamento.titulo,
+            "descricao": alteracao.descricao or None,
+            "local": (alteracao.local or "").strip()[:200] or None,
+            "inicio_em": alteracao.inicio_em or como_utc(agendamento.inicio_em),
+            "fim_em": alteracao.fim_em,
+        }
+        atuais = {
+            "titulo": agendamento.titulo,
+            "descricao": agendamento.descricao or None,
+            "local": agendamento.local or None,
+            "inicio_em": como_utc(agendamento.inicio_em),
+            "fim_em": como_utc(agendamento.fim_em) if agendamento.fim_em else None,
+        }
+        # O bot espelha evento sem fim com fim == início; não é uma mudança real.
+        if novos["fim_em"] == novos["inicio_em"] and atuais["fim_em"] is None:
+            novos["fim_em"] = None
+
+        mudancas = {campo: valor for campo, valor in novos.items() if valor != atuais[campo]}
+        if not mudancas:
+            return False
+        if novos["fim_em"] is not None and novos["fim_em"] < novos["inicio_em"]:
+            log.warning(
+                "Alteração do Google ignorada: fim antes do início (agendamento=%s).",
+                agendamento.id,
+            )
+            return False
+
+        for campo, valor in mudancas.items():
+            setattr(agendamento, campo, valor)
+        agendamento.google_sincronizado_em = agora()
+
+        await auditoria.registrar(
+            session,
+            acao=f"{TipoAgendamento(agendamento.tipo).value}.atualizado_externamente",
+            resumo=f"'{agendamento.titulo}' alterado no Google Agenda: {', '.join(mudancas)}",
+            ator_descricao="Google Agenda",
+            alvo_tipo="agendamento",
+            alvo_id=agendamento.id,
+            dados={
+                campo: valor.isoformat() if isinstance(valor, datetime) else valor
+                for campo, valor in mudancas.items()
+            },
+            origem=OrigemAcao.SISTEMA,
+            guild_id=agendamento.guild_id,
+        )
+        return True
+
     # -- RSVP --------------------------------------------------------------
 
     async def responder_rsvp(
@@ -233,11 +345,11 @@ class AgendaService:
     # -- Interno -----------------------------------------------------------
 
     def _exigir_gestao(self, agendamento: Agendamento, solicitante: Membro) -> None:
-        """Organizador gere o próprio agendamento; demais precisam do cargo."""
+        """Organizador gere o próprio agendamento; demais precisam da permissão."""
         if agendamento.organizador_id == solicitante.id:
             return
         exigir(
-            cargo_por_slug(solicitante.cargo_slug),
+            solicitante.perfil,
             ACAO_GERIR[TipoAgendamento(agendamento.tipo)],
         )
 

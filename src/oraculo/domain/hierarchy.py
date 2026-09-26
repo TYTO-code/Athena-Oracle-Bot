@@ -1,162 +1,199 @@
-"""Catálogo da hierarquia real do Clube TYTO.
+"""Hierarquia do Clube TYTO — TD-007, resolvida pela unificação com `Institucional/XP.md`.
 
-TD-004 — substitui os níveis arbitrários do legado ("Novice", etc.) pela
-estrutura oficial `Membro → Cavalaria → Lorde → Conselheiro → Administrador`.
+A Carta Institucional (Art. VIII) separa a posição de um membro em eixos
+**independentes**, e este módulo modela exatamente isso:
 
-RN-001 — um membro possui **apenas um** cargo de hierarquia ativo. A ordem
-(`ordem`) é a única fonte de verdade para comparações do tipo "Cavalaria+".
+1. **Patente** (`Institucional/XP.md` Art. 2º) — 17 patamares, de Neófito a
+   Omni, determinados **exclusivamente** pelo XP acumulado (RN-002). É
+   irrevogável: nada rebaixa uma patente (XP.md Art. 1º §3º).
+2. **Cargo institucional** — `Conselheiro` (eleito, Carta Art. III/IV), e a
+   função técnica de `Administrador` deste bot. Nunca vêm do XP: são
+   concedidos e revogados por ato auditado de um Administrador.
 
-RN-002 — a progressão é derivada do XP acumulado por `cargo_para_xp`.
+"Membro" deixou de ser um degrau da escala: é a filiação ao Clube — quem tem
+um registro `Membro` é membro; quem é só da Comunidade é `Aldeao` (RN-011).
 
-> **Premissa a validar com o Clube TYTO:** os limiares de XP abaixo não constam
-> do Documento Único. São valores iniciais coerentes com a progressão descrita
-> e podem ser ajustados sem tocar em nenhuma outra camada — apenas esta tabela.
-> `Administrador` é intencionalmente inalcançável por XP (atribuição manual).
+RN-001 — cargo único vale para a **patente**: um membro tem exatamente uma
+patente ativa, e no Discord só o papel dela. Cargos institucionais são papéis
+à parte, acumuláveis com qualquer patente.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-
-XP_INALCANCAVEL = None
-"""Marcador de cargo que não é obtido por progressão automática (RN-002)."""
+from enum import StrEnum
 
 
 @dataclass(frozen=True, slots=True)
-class Cargo:
-    """Um cargo da hierarquia TYTO."""
+class Patente:
+    """Um patamar da escala oficial de patentes (XP.md Art. 2º)."""
 
     slug: str
     """Identificador estável usado no banco e nas permissões."""
 
     nome: str
-    """Nome exibido ao usuário e esperado como nome do cargo no Discord."""
+    """Nome exibido ao usuário e esperado como nome do papel no Discord."""
 
     ordem: int
-    """Posição na hierarquia; maior valor = mais autoridade (RN-008)."""
+    """Posição na escala, de 1 (Neófito) a 17 (Omni)."""
 
-    xp_minimo: int | None
-    """XP necessário para alcançar o cargo, ou `None` se não for automático."""
+    xp_minimo: int
+    """Limiar de XP do patamar (XP.md Art. 2º)."""
 
-    descricao: str = ""
+    def __ge__(self, outra: Patente) -> bool:
+        return self.ordem >= outra.ordem
 
-    @property
-    def automatico(self) -> bool:
-        """True quando o cargo pode ser concedido por progressão de XP."""
-        return self.xp_minimo is not None
+    def __gt__(self, outra: Patente) -> bool:
+        return self.ordem > outra.ordem
 
-    def __ge__(self, outro: Cargo) -> bool:
-        return self.ordem >= outro.ordem
+    def __le__(self, outra: Patente) -> bool:
+        return self.ordem <= outra.ordem
 
-    def __gt__(self, outro: Cargo) -> bool:
-        return self.ordem > outro.ordem
-
-    def __le__(self, outro: Cargo) -> bool:
-        return self.ordem <= outro.ordem
-
-    def __lt__(self, outro: Cargo) -> bool:
-        return self.ordem < outro.ordem
+    def __lt__(self, outra: Patente) -> bool:
+        return self.ordem < outra.ordem
 
     def __str__(self) -> str:  # pragma: no cover - representação trivial
         return self.nome
 
 
-MEMBRO = Cargo(
-    slug="membro",
-    nome="Membro",
-    ordem=0,
-    xp_minimo=0,
-    descricao="Cargo de entrada; consulta perfil, ranking e responde RSVP.",
-)
-CAVALARIA = Cargo(
-    slug="cavalaria",
-    nome="Cavalaria",
-    ordem=1,
-    xp_minimo=500,
-    descricao="Pode criar e gerir reuniões (RN-006).",
-)
-LORDE = Cargo(
-    slug="lorde",
-    nome="Lorde",
-    ordem=2,
-    xp_minimo=1_500,
-    descricao="Pode criar e gerir eventos oficiais (RN-007).",
-)
-CONSELHEIRO = Cargo(
-    slug="conselheiro",
-    nome="Conselheiro",
-    ordem=3,
-    xp_minimo=3_500,
-    descricao="Pode conceder/remover XP e auditar histórico (RN-004).",
-)
-ADMINISTRADOR = Cargo(
-    slug="administrador",
-    nome="Administrador",
-    ordem=4,
-    xp_minimo=XP_INALCANCAVEL,
-    descricao="Segurança, logs, backup e conformidade; atribuição manual.",
-)
+# XP.md Art. 2º. §3º: patamares 1–8 e 16–17 são provisórios até ratificação do
+# Dominatium; 9–15 já são oficiais. A tabela do regulamento arredonda (ex.:
+# "1,7M+"); os valores exatos abaixo são os mesmos de `CLAN_TIERS` na plataforma
+# (TYTO.club/src/constants/tiers.ts), para que bot e plataforma nunca discordem
+# da patente de um mesmo XP. Revisar um limiar vale só dali em diante — nunca
+# rebaixa quem já alcançou o patamar (Art. 1º §3º).
+NEOFITO = Patente("neofito", "Neófito", 1, 0)
+ESCUDEIRO = Patente("escudeiro", "Escudeiro", 2, 104)
+ARMEIRO = Patente("armeiro", "Armeiro", 3, 415)
+VETERANO = Patente("veterano", "Veterano", 4, 1_660)
+MESTRE_DE_ARMAS = Patente("mestre-de-armas", "Mestre de Armas", 5, 6_600)
+DESAFIANTE_LEGIONARIO = Patente("desafiante-legionario", "Desafiante Legionário", 6, 26_500)
+OFICIAL = Patente("oficial", "Oficial", 7, 106_000)
+CENTURIAO = Patente("centuriao", "Centurião", 8, 425_000)
+COMANDANTE = Patente("comandante", "Comandante", 9, 1_702_400)
+DOM = Patente("dom", "Dom", 10, 6_809_600)
+LORDE = Patente("lorde", "Lorde", 11, 27_238_400)
+SENHOR_DA_GUERRA = Patente("senhor-da-guerra", "Senhor da Guerra", 12, 108_973_600)
+SUSERANO = Patente("suserano", "Suserano", 13, 435_814_400)
+MONARCA = Patente("monarca", "Monarca", 14, 1_743_257_600)
+DOMINADOR = Patente("dominador", "Dominador", 15, 12_202_803_200)
+RENOVEK = Patente("renovek", "Renovek", 16, 60_000_000_000)
+OMNI = Patente("omni", "Omni", 17, 300_000_000_000)
 
-HIERARQUIA: tuple[Cargo, ...] = (MEMBRO, CAVALARIA, LORDE, CONSELHEIRO, ADMINISTRADOR)
-"""Hierarquia completa, sempre ordenada do menor para o maior (RN-001)."""
+PATENTES: tuple[Patente, ...] = (
+    NEOFITO,
+    ESCUDEIRO,
+    ARMEIRO,
+    VETERANO,
+    MESTRE_DE_ARMAS,
+    DESAFIANTE_LEGIONARIO,
+    OFICIAL,
+    CENTURIAO,
+    COMANDANTE,
+    DOM,
+    LORDE,
+    SENHOR_DA_GUERRA,
+    SUSERANO,
+    MONARCA,
+    DOMINADOR,
+    RENOVEK,
+    OMNI,
+)
+"""Escala completa, sempre ordenada do menor para o maior patamar."""
 
-CARGO_INICIAL: Cargo = MEMBRO
+PATENTE_INICIAL: Patente = NEOFITO
 
-_POR_SLUG: dict[str, Cargo] = {c.slug: c for c in HIERARQUIA}
-_POR_NOME: dict[str, Cargo] = {c.nome.casefold(): c for c in HIERARQUIA}
+_POR_SLUG: dict[str, Patente] = {p.slug: p for p in PATENTES}
+_POR_NOME: dict[str, Patente] = {p.nome.casefold(): p for p in PATENTES}
 
 
-def cargo_por_slug(slug: str) -> Cargo:
-    """Resolve um cargo pelo slug (ou pelo nome exibido, por conveniência)."""
+def patente_por_slug(slug: str) -> Patente:
+    """Resolve uma patente pelo slug (ou pelo nome exibido, por conveniência)."""
     chave = slug.strip().casefold()
-    cargo = _POR_SLUG.get(chave) or _POR_NOME.get(chave)
-    if cargo is None:
-        validos = ", ".join(c.slug for c in HIERARQUIA)
-        raise KeyError(f"Cargo desconhecido: {slug!r}. Válidos: {validos}.")
-    return cargo
+    patente = _POR_SLUG.get(chave) or _POR_NOME.get(chave)
+    if patente is None:
+        validos = ", ".join(p.slug for p in PATENTES)
+        raise KeyError(f"Patente desconhecida: {slug!r}. Válidas: {validos}.")
+    return patente
 
 
-def cargo_para_xp(xp: int) -> Cargo:
-    """RN-002 — maior cargo automático alcançado com `xp` acumulado.
-
-    Cargos não automáticos (Administrador) nunca são retornados aqui: eles não
-    fazem parte da progressão e devem ser atribuídos manualmente.
-    """
-    if xp < 0:
-        return CARGO_INICIAL
-    alcancado = CARGO_INICIAL
-    for cargo in HIERARQUIA:
-        if cargo.xp_minimo is not None and xp >= cargo.xp_minimo:
-            alcancado = cargo
-    return alcancado
+def patente_para_xp(xp: int) -> Patente:
+    """RN-002 — maior patente alcançada com `xp` acumulado (XP.md Art. 1º §3º)."""
+    alcancada = PATENTE_INICIAL
+    for patente in PATENTES:
+        if xp >= patente.xp_minimo:
+            alcancada = patente
+    return alcancada
 
 
-def proximo_cargo(cargo: Cargo) -> Cargo | None:
-    """Próximo cargo automático acima de `cargo`, ou `None` no topo (RF-002)."""
-    for candidato in HIERARQUIA:
-        if candidato.ordem > cargo.ordem and candidato.automatico:
-            return candidato
-    return None
+def proxima_patente(patente: Patente) -> Patente | None:
+    """Próximo patamar acima de `patente`, ou `None` em Omni (RF-002)."""
+    return PATENTES[patente.ordem] if patente.ordem < len(PATENTES) else None
 
 
-def xp_faltante(xp_atual: int, cargo_atual: Cargo | None = None) -> int | None:
-    """XP restante até a próxima promoção, ou `None` se já está no topo (RF-002)."""
-    atual = cargo_atual or cargo_para_xp(xp_atual)
-    seguinte = proximo_cargo(atual)
-    if seguinte is None or seguinte.xp_minimo is None:
+def xp_faltante(xp_atual: int, patente_atual: Patente | None = None) -> int | None:
+    """XP restante até o próximo patamar, ou `None` se já está no topo (RF-002)."""
+    seguinte = proxima_patente(patente_atual or patente_para_xp(xp_atual))
+    if seguinte is None:
         return None
     return max(0, seguinte.xp_minimo - xp_atual)
 
 
-def nomes_de_cargos_discord() -> frozenset[str]:
-    """Nomes de cargos TYTO gerenciados pelo bot no Discord.
+def nomes_de_patentes_discord() -> frozenset[str]:
+    """Papéis de patente gerenciados pelo bot no Discord.
 
     RN-001 / RN-003 / TD-005 — a sincronização remove **todos** estes nomes do
-    membro antes de atribuir o novo cargo, evitando acúmulo.
+    membro antes de atribuir a patente nova, evitando acúmulo.
     """
-    return frozenset(c.nome for c in HIERARQUIA)
+    return frozenset(p.nome for p in PATENTES)
 
 
-def pelo_menos(cargo: Cargo, minimo: Cargo) -> bool:
-    """Comparação canônica do tipo "Cavalaria+" (RN-008)."""
-    return cargo.ordem >= minimo.ordem
+class CargoInstitucional(StrEnum):
+    """Cargos fora da escala de XP — acumuláveis com qualquer patente.
+
+    Não há rebaixamento por XP nem promoção automática: concessão e revogação
+    são sempre ato auditado de um Administrador (`/cargo-institucional`).
+    """
+
+    CONSELHEIRO = "conselheiro"
+    """Conselheiro do Conselho Régio (Carta Art. III/IV) — eleito."""
+
+    ADMINISTRADOR = "administrador"
+    """Função técnica do bot: segurança, logs, backup e conformidade."""
+
+    @property
+    def nome(self) -> str:
+        """Nome exibido e esperado como nome do papel no Discord."""
+        return self.value.capitalize()
+
+
+def nomes_de_cargos_institucionais_discord() -> frozenset[str]:
+    """Papéis institucionais gerenciados pelo bot no Discord (um por cargo)."""
+    return frozenset(c.nome for c in CargoInstitucional)
+
+
+@dataclass(frozen=True, slots=True)
+class Perfil:
+    """Posição completa de um membro nos eixos da Carta Art. VIII."""
+
+    patente: Patente
+    conselheiro: bool = False
+    administrador: bool = False
+
+    def possui(self, cargo: CargoInstitucional) -> bool:
+        if cargo is CargoInstitucional.CONSELHEIRO:
+            return self.conselheiro
+        return self.administrador
+
+    @property
+    def cargos_institucionais(self) -> tuple[CargoInstitucional, ...]:
+        return tuple(c for c in CargoInstitucional if self.possui(c))
+
+    def descricao(self) -> str:
+        """Ex.: "Oficial" ou "Comandante · Conselheiro"."""
+        return " · ".join([self.patente.nome, *(c.nome for c in self.cargos_institucionais)])
+
+
+def pelo_menos(patente: Patente, minima: Patente) -> bool:
+    """Comparação canônica do tipo "Oficial+" (RN-008)."""
+    return patente.ordem >= minima.ordem

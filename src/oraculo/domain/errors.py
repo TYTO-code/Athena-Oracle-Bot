@@ -18,7 +18,7 @@ class BusinessRuleError(OraculoError):
 
 
 class PermissaoNegadaError(BusinessRuleError):
-    """RN-008 — o cargo do autor não autoriza a ação solicitada."""
+    """RN-008 — a patente/cargo do autor não autoriza a ação solicitada."""
 
     regra = "RN-008"
 
@@ -26,18 +26,16 @@ class PermissaoNegadaError(BusinessRuleError):
         self.acao = acao
         self.cargo_atual = cargo_atual
         self.cargo_minimo = cargo_minimo
-        super().__init__(
-            f"Ação '{acao}' exige cargo mínimo '{cargo_minimo}'; autor possui '{cargo_atual}'."
-        )
+        super().__init__(f"Ação '{acao}' exige {cargo_minimo}; autor possui '{cargo_atual}'.")
 
 
 class MotivoObrigatorioError(BusinessRuleError):
-    """RN-005 — toda movimentação de XP exige motivo registrável."""
+    """RN-005 — toda movimentação de XP (ou de cargo institucional) exige motivo registrável."""
 
     regra = "RN-005"
 
-    def __init__(self) -> None:
-        super().__init__("O motivo é obrigatório em qualquer movimentação de XP (RN-005).")
+    def __init__(self, contexto: str = "movimentação de XP") -> None:
+        super().__init__(f"O motivo é obrigatório em qualquer {contexto} (RN-005).")
 
 
 class QuantidadeInvalidaError(BusinessRuleError):
@@ -51,7 +49,7 @@ class QuantidadeInvalidaError(BusinessRuleError):
 
 
 class SaldoInalteradoError(BusinessRuleError):
-    """A operação não alteraria o saldo (ex.: remover XP de quem tem zero)."""
+    """A operação não alteraria o saldo."""
 
     regra = "RF-003"
 
@@ -83,6 +81,27 @@ class XpSomenteLeituraError(BusinessRuleError):
         )
 
 
+class CargoInstitucionalInalteradoError(BusinessRuleError):
+    """TD-007 — concessão a quem já tem o cargo, ou revogação de quem não tem."""
+
+    regra = "RN-008"
+
+    def __init__(self, nome: str, cargo: str, ativo: bool) -> None:
+        estado = "já é" if ativo else "não é"
+        super().__init__(f"{nome} {estado} {cargo}; nada a alterar.")
+
+
+class UltimoAdministradorError(BusinessRuleError):
+    """Revogar o último Administrador ativo trancaria a governança do bot."""
+
+    regra = "RN-008"
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Não é possível revogar o último Administrador ativo — nomeie outro antes."
+        )
+
+
 class SaldoDracmasInsuficienteError(BusinessRuleError):
     """`Institucional/COMUNIDADE_E_CLUBE.md` Art. 3º §1º / Art. 4º §1º —
     sem saldo para o ingresso/débito."""
@@ -109,6 +128,23 @@ class ContaDracmasSuspensaError(BusinessRuleError):
         super().__init__(
             f"Conta de Dracmas de {discord_id} está suspensa (saldo negativo) — reversão "
             "é sempre manual, mediante decisão administrativa (DRACMAS.md §4)."
+        )
+
+
+class ContaComunidadeMigradaError(BusinessRuleError):
+    """COMUNIDADE_E_CLUBE.md Art. 4º §1º-A — a conta de Aldeão já migrou para o Clube.
+
+    Os Dracmas de quem é do Clube vivem na plataforma; creditar aqui prenderia o
+    valor numa conta que ninguém mais movimenta.
+    """
+
+    regra = "COMUNIDADE_E_CLUBE.md Art. 4º §1º-A"
+
+    def __init__(self, discord_id: int) -> None:
+        self.discord_id = discord_id
+        super().__init__(
+            f"A conta de Comunidade de {discord_id} já foi migrada para o Clube — os Dracmas "
+            "dessa pessoa agora ficam na plataforma."
         )
 
 
