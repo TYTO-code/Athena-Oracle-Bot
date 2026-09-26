@@ -5,13 +5,13 @@ from __future__ import annotations
 from sqlalchemy import func, select
 
 from oraculo.db.models import Membro, RegistroAuditoria
-from oraculo.domain.hierarchy import CAVALARIA, CONSELHEIRO, LORDE, MEMBRO
+from oraculo.domain.hierarchy import ARMEIRO, NEOFITO, OFICIAL, VETERANO
 from oraculo.integrations.plataforma import FonteEmMemoria, normalizar
 from oraculo.services.importacao_service import ImportacaoService, PoliticaImportacao
 
 DOCS = [
     {"id": "u1", "nome": "Perseu", "discordId": "1001", "email": "perseu@tyto.example", "xp": 700},
-    {"id": "u2", "nome": "Medeia", "discordId": 1002, "cargo": "conselheiro", "xp": 4000},
+    {"id": "u2", "nome": "Medeia", "discordId": 1002, "tier": "Centurião", "xp": 4000},
     {"id": "u3", "nome": "Só na plataforma", "xp": 10},
 ]
 
@@ -54,6 +54,17 @@ def test_mapa_de_campos_configuravel():
         55,
         900,
     )
+
+
+def test_patente_vem_do_campo_tier_da_plataforma():
+    externo = normalizar({"id": "x", "tier": "Centurião"})
+    assert externo.patente == "Centurião"
+
+
+def test_chave_legada_cargo_continua_aceita_no_mapa():
+    """Configurações anteriores a TD-007 mapeavam `cargo`; vira sinônimo de `patente`."""
+    externo = normalizar({"id": "x", "posto": "Oficial"}, mapa={"cargo": "posto"})
+    assert externo.patente == "Oficial"
 
 
 def test_documento_sem_identidade_e_descartado():
@@ -123,13 +134,13 @@ async def test_importacao_e_idempotente(session):
     assert await session.scalar(select(func.count()).select_from(Membro)) == 3
 
 
-async def test_politica_padrao_nao_toca_em_xp_nem_cargo(session):
+async def test_politica_padrao_nao_toca_em_xp_nem_patente(session):
     """Padrão `cadastro`: a plataforma manda no cadastro, o bot no XP (RN-002)."""
     await servico().importar(session)
 
     medeia = await session.scalar(select(Membro).where(Membro.id_externo == "u2"))
     assert medeia.xp == 0
-    assert medeia.cargo_slug == MEMBRO.slug
+    assert medeia.patente_slug == NEOFITO.slug
 
 
 async def test_espelho_preserva_membros_ausentes(session):
@@ -142,13 +153,13 @@ async def test_espelho_preserva_membros_ausentes(session):
     assert medeia.ativo is True
 
 
-async def test_carga_inicial_traz_xp_mas_capa_cargo_declarado_acima_do_teto(session):
-    """XP vem da plataforma; cargo declarado acima do teto vira pendência, não promoção."""
+async def test_carga_inicial_traz_xp_mas_retem_patente_declarada_acima_do_teto(session):
+    """XP vem da plataforma; patente declarada acima do teto vira pendência, não promoção."""
     relatorio = await servico(politica=PoliticaImportacao.CARGA_INICIAL).importar(session)
 
     medeia = await session.scalar(select(Membro).where(Membro.id_externo == "u2"))
     assert medeia.xp == 4000
-    assert medeia.cargo_slug == MEMBRO.slug, "conselheiro está acima do teto automático (Lorde)"
+    assert medeia.patente_slug == NEOFITO.slug, "Centurião está acima do teto automático (Oficial)"
     assert relatorio.pendentes_confirmacao == 1
 
     # Segunda rodada com XP diferente não pode sobrescrever o que o bot registrou.
@@ -163,122 +174,135 @@ async def test_espelho_traz_o_xp_da_plataforma(session):
 
     perseu = await session.scalar(select(Membro).where(Membro.id_externo == "u1"))
     assert perseu.xp == 700
+    assert perseu.patente_slug == ARMEIRO.slug
 
-    # A mudança de cargo passa pelo fluxo normal e entra no histórico (RN-003).
+    # A mudança de patente passa pelo fluxo normal e entra no histórico (RN-003).
     registro = await session.scalar(
         select(RegistroAuditoria).where(RegistroAuditoria.acao == "promocao.aplicada")
     )
     assert registro is not None
 
 
-async def test_espelho_atualiza_xp_a_cada_sincronizacao(session):
+async def test_espelho_sobe_xp_a_cada_sincronizacao(session):
     await servico(politica=PoliticaImportacao.ESPELHO).importar(session)
 
-    await servico([{**DOCS[0], "xp": 1600}], politica=PoliticaImportacao.ESPELHO).importar(
+    await servico([{**DOCS[0], "xp": 2_000}], politica=PoliticaImportacao.ESPELHO).importar(
         session
     )
 
     perseu = await session.scalar(select(Membro).where(Membro.id_externo == "u1"))
-    assert perseu.xp == 1600
-    assert perseu.cargo_slug == LORDE.slug, "o cargo acompanha o XP (RN-002)"
+    assert perseu.xp == 2_000
+    assert perseu.patente_slug == VETERANO.slug, "a patente acompanha o XP (RN-002)"
 
 
-async def test_espelho_deriva_cargo_do_xp_quando_a_plataforma_nao_informa(session):
-    """Sem campo `cargo` no Firestore, a hierarquia decide — RN-002 (dentro do teto)."""
-    documentos = [{"id": "u7", "nome": "Sem cargo", "discordId": 7, "xp": 1600}]
+async def test_espelho_nunca_diminui_xp(session):
+    """XP é irrevogável (XP.md Art. 1º §1º): XP menor na plataforma vai para a auditoria."""
+    await servico([{**DOCS[0], "xp": 2_000}], politica=PoliticaImportacao.ESPELHO).importar(
+        session
+    )
+    await servico([{**DOCS[0], "xp": 50}], politica=PoliticaImportacao.ESPELHO).importar(session)
+
+    perseu = await session.scalar(select(Membro).where(Membro.id_externo == "u1"))
+    assert perseu.xp == 2_000
+    assert perseu.patente_slug == VETERANO.slug
+    registro = await session.scalar(
+        select(RegistroAuditoria).where(RegistroAuditoria.acao == "importacao.xp_menor_ignorado")
+    )
+    assert registro.dados == {"xp_bot": 2_000, "xp_plataforma": 50}
+
+
+async def test_espelho_deriva_patente_do_xp_quando_a_plataforma_nao_informa(session):
+    """Sem campo de patente no Firestore, a escala decide — RN-002 (dentro do teto)."""
+    documentos = [{"id": "u7", "nome": "Sem tier", "discordId": 7, "xp": 2_000}]
 
     await servico(documentos, politica=PoliticaImportacao.ESPELHO).importar(session)
 
     membro = await session.scalar(select(Membro).where(Membro.id_externo == "u7"))
-    assert membro.cargo_slug == LORDE.slug
+    assert membro.patente_slug == VETERANO.slug
 
 
-async def test_campo_cargo_ausente_nunca_rebaixa(session):
-    """A armadilha do espelho: campo faltando não pode zerar a hierarquia."""
+async def test_patente_ausente_ou_menor_nunca_rebaixa(session):
+    """XP.md Art. 1º §3º — nem campo faltando nem patente menor rebaixam ninguém."""
     session.add(
-        Membro(discord_id=8, nome_exibicao="Veterano", cargo_slug=CONSELHEIRO.slug, xp=4000)
+        Membro(discord_id=8, nome_exibicao="Veterana", patente_slug=OFICIAL.slug, xp=106_000)
     )
     await session.flush()
 
-    documentos = [{"id": "u8", "nome": "Veterano", "discordId": 8, "xp": 4000}]
-    await servico(documentos, politica=PoliticaImportacao.ESPELHO).importar(session)
-
-    membro = await session.scalar(select(Membro).where(Membro.discord_id == 8))
-    assert membro.cargo_slug == CONSELHEIRO.slug
-
-    # Segunda leitura, ainda sem campo de cargo: o cargo tem de se manter.
-    await servico(documentos, politica=PoliticaImportacao.ESPELHO).importar(session)
-    assert membro.cargo_slug == CONSELHEIRO.slug
+    for documento in (
+        {"id": "u8", "nome": "Veterana", "discordId": 8, "xp": 106_000},
+        {"id": "u8", "nome": "Veterana", "discordId": 8, "tier": "Neófito", "xp": 106_000},
+    ):
+        await servico([documento], politica=PoliticaImportacao.ESPELHO).importar(session)
+        membro = await session.scalar(select(Membro).where(Membro.discord_id == 8))
+        assert membro.patente_slug == OFICIAL.slug
 
 
 # --- Teto de segurança da importação (mitigação: Firestore não é fonte de --
 # --- verdade de privilégio — ver RN-008) -------------------------------------
 
 
-async def test_cargo_declarado_acima_do_teto_nao_e_aplicado_automaticamente(session):
-    """Campo `cargo` da plataforma não pode, sozinho, promover a Conselheiro+."""
-    documentos = [
-        {"id": "u10", "nome": "Suspeito", "discordId": 10, "cargo": "administrador", "xp": 0}
-    ]
+async def test_patente_declarada_acima_do_teto_nao_e_aplicada_automaticamente(session):
+    """Campo `tier` da plataforma não pode, sozinho, subir acima de Oficial."""
+    documentos = [{"id": "u10", "nome": "Suspeito", "discordId": 10, "tier": "Omni", "xp": 0}]
 
     relatorio = await servico(documentos, politica=PoliticaImportacao.CARGA_INICIAL).importar(
         session
     )
 
     membro = await session.scalar(select(Membro).where(Membro.id_externo == "u10"))
-    assert membro.cargo_slug == MEMBRO.slug
+    assert membro.patente_slug == NEOFITO.slug
     assert relatorio.pendentes_confirmacao == 1
 
     pendencia = await session.scalar(
         select(RegistroAuditoria).where(
-            RegistroAuditoria.acao == "importacao.cargo_pendente_confirmacao"
+            RegistroAuditoria.acao == "importacao.patente_pendente_confirmacao"
         )
     )
     assert pendencia is not None
-    assert pendencia.dados["cargo_sugerido"] == "administrador"
-    assert pendencia.dados["origem_dado"] == "cargo"
+    assert pendencia.dados["patente_sugerida"] == "omni"
+    assert pendencia.dados["origem_dado"] == "patente"
 
 
 async def test_xp_espelhado_alto_nao_promove_sozinho_acima_do_teto(session):
-    """Mesmo em ESPELHO, XP espelhado não escala sozinho até Conselheiro+."""
-    documentos = [{"id": "u11", "nome": "XP alto", "discordId": 11, "xp": 3500}]
+    """Mesmo em ESPELHO, XP espelhado não escala sozinho acima de Oficial."""
+    documentos = [{"id": "u11", "nome": "XP alto", "discordId": 11, "xp": 500_000}]
 
     relatorio = await servico(documentos, politica=PoliticaImportacao.ESPELHO).importar(session)
 
     membro = await session.scalar(select(Membro).where(Membro.id_externo == "u11"))
-    assert membro.xp == 3500, "o XP em si continua espelhado; só o cargo fica pendente"
-    assert membro.cargo_slug == MEMBRO.slug
+    assert membro.xp == 500_000, "o XP em si continua espelhado; só a patente fica pendente"
+    assert membro.patente_slug == NEOFITO.slug
     assert relatorio.pendentes_confirmacao == 1
 
 
-async def test_cargo_no_teto_ainda_e_aplicado_automaticamente(session):
-    """O teto é em Lorde: até ali (inclusive), a importação segue automática."""
-    documentos = [{"id": "u12", "nome": "No teto", "discordId": 12, "cargo": "lorde", "xp": 0}]
+async def test_patente_no_teto_ainda_e_aplicada_automaticamente(session):
+    """O teto é em Oficial: até ali (inclusive), a importação segue automática."""
+    documentos = [{"id": "u12", "nome": "No teto", "discordId": 12, "tier": "Oficial", "xp": 0}]
 
     await servico(documentos, politica=PoliticaImportacao.CARGA_INICIAL).importar(session)
 
     membro = await session.scalar(select(Membro).where(Membro.id_externo == "u12"))
-    assert membro.cargo_slug == LORDE.slug
+    assert membro.patente_slug == OFICIAL.slug
 
 
-async def test_cargo_declarado_pode_rebaixar_mesmo_com_teto(session):
-    """O teto trava escalada acima do limiar, não um rebaixamento explícito."""
-    session.add(Membro(discord_id=13, nome_exibicao="Ex-lorde", cargo_slug=LORDE.slug, xp=1600))
-    await session.flush()
-
+async def test_importacao_nunca_concede_cargo_institucional(session):
+    """Conselheiro/Administrador só por `/cargo-institucional` (TD-007)."""
     documentos = [
-        {"id": "u13", "nome": "Ex-lorde", "discordId": 13, "cargo": "membro", "xp": 1600}
+        {"id": "u14", "nome": "Diz ser admin", "discordId": 14, "tier": "administrador",
+         "conselheiro": True, "admin": True, "xp": 0}
     ]
+
     await servico(documentos, politica=PoliticaImportacao.ESPELHO).importar(session)
 
-    membro = await session.scalar(select(Membro).where(Membro.discord_id == 13))
-    assert membro.cargo_slug == MEMBRO.slug
+    membro = await session.scalar(select(Membro).where(Membro.id_externo == "u14"))
+    assert membro.conselheiro is False
+    assert membro.administrador is False
 
 
 async def test_vincula_membro_ja_existente_pelo_discord_id(session):
     """Quem já usava o bot não vira duplicata ao ser importado."""
     session.add(
-        Membro(discord_id=1001, nome_exibicao="Perseu", cargo_slug=CAVALARIA.slug, xp=600)
+        Membro(discord_id=1001, nome_exibicao="Perseu", patente_slug=VETERANO.slug, xp=2_000)
     )
     await session.flush()
 
@@ -287,8 +311,8 @@ async def test_vincula_membro_ja_existente_pelo_discord_id(session):
     assert relatorio.criados == 2
     perseu = await session.scalar(select(Membro).where(Membro.discord_id == 1001))
     assert perseu.id_externo == "u1"
-    assert perseu.xp == 600, "o XP acumulado no bot não pode ser perdido"
-    assert perseu.cargo_slug == CAVALARIA.slug
+    assert perseu.xp == 2_000, "o XP acumulado no bot não pode ser perdido"
+    assert perseu.patente_slug == VETERANO.slug
 
 
 async def test_ensaio_nao_grava_nada(session):
@@ -333,13 +357,16 @@ async def test_documento_invalido_nao_aborta_a_carga(session):
     assert relatorio.erros == []
 
 
-async def test_cargo_desconhecido_cai_no_inicial(session):
-    documentos = [{"id": "u9", "nome": "Estranho", "discordId": 9, "cargo": "novice", "xp": 10}]
+async def test_patente_desconhecida_deixa_o_xp_decidir(session):
+    """Inclusive nomes da hierarquia anterior a TD-007, como "cavalaria"."""
+    documentos = [
+        {"id": "u9", "nome": "Estranho", "discordId": 9, "tier": "cavalaria", "xp": 500}
+    ]
 
     await servico(documentos, politica=PoliticaImportacao.CARGA_INICIAL).importar(session)
 
     membro = await session.scalar(select(Membro).where(Membro.id_externo == "u9"))
-    assert membro.cargo_slug == MEMBRO.slug
+    assert membro.patente_slug == ARMEIRO.slug
 
 
 async def test_dados_do_cadastro_sao_atualizados(session):

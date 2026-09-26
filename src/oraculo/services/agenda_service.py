@@ -1,7 +1,8 @@
 """Reuniões, eventos oficiais e RSVP — UC-004, UC-005, UC-006.
 
 Permissões (RN-006 / RN-007) são resolvidas pela política central em
-`domain.permissions`: reunião exige Cavalaria+, evento oficial exige Lorde+.
+`domain.permissions`: reunião exige a patente Veterano+, evento oficial exige
+Oficial+ (TD-007).
 
 Cancelamento é sempre lógico (RN-010): a linha permanece com `status` e
 `motivo_cancelamento`, e o espelho no Google Agenda é removido.
@@ -26,7 +27,6 @@ from oraculo.db.models import (
     TipoAgendamento,
 )
 from oraculo.domain.errors import BusinessRuleError
-from oraculo.domain.hierarchy import cargo_por_slug
 from oraculo.domain.permissions import Acao, exigir
 from oraculo.integrations.google_calendar import (
     AgendaDesabilitada,
@@ -91,7 +91,7 @@ class AgendaService:
         origem: OrigemAcao = OrigemAcao.DISCORD,
     ) -> ResultadoAgendamento:
         """UC-004 / UC-005 — cria, convida e sincroniza com o Google Agenda."""
-        exigir(cargo_por_slug(organizador.cargo_slug), ACAO_CRIAR[tipo])
+        exigir(organizador.perfil, ACAO_CRIAR[tipo])
         self._validar_datas(inicio_em, fim_em)
 
         agendamento = await repo_agenda.criar(
@@ -233,11 +233,11 @@ class AgendaService:
     # -- Interno -----------------------------------------------------------
 
     def _exigir_gestao(self, agendamento: Agendamento, solicitante: Membro) -> None:
-        """Organizador gere o próprio agendamento; demais precisam do cargo."""
+        """Organizador gere o próprio agendamento; demais precisam da permissão."""
         if agendamento.organizador_id == solicitante.id:
             return
         exigir(
-            cargo_por_slug(solicitante.cargo_slug),
+            solicitante.perfil,
             ACAO_GERIR[TipoAgendamento(agendamento.tipo)],
         )
 

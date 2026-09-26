@@ -16,10 +16,12 @@ from oraculo.domain.errors import (
     MotivoObrigatorioError,
     PermissaoNegadaError,
     QuantidadeInvalidaError,
-    SaldoInalteradoError,
 )
-from oraculo.domain.hierarchy import CAVALARIA, CONSELHEIRO, LORDE, MEMBRO
+from oraculo.domain.hierarchy import NEOFITO, OFICIAL, OMNI, VETERANO, CargoInstitucional
 from oraculo.services.xp_service import XpService
+
+CONSELHEIRO = CargoInstitucional.CONSELHEIRO
+MEMBRO = NEOFITO
 
 
 @pytest.fixture
@@ -58,34 +60,14 @@ async def test_conceder_xp_atualiza_saldo_e_grava_auditoria(session, criar_membr
     assert movimentacao.criado_em is not None
 
 
-async def test_remover_xp_registra_quantidade_negativa(session, criar_membro, servico):
-    autor = await criar_membro(CONSELHEIRO)
-    alvo = await criar_membro(MEMBRO, xp=200)
-
-    resultado = await servico.remover(
-        session, membro=alvo, quantidade=80, motivo="Ausência injustificada", autor=autor
-    )
-
-    assert resultado.saldo_atual == 120
-    assert resultado.movimentacao.quantidade == -80
-    assert resultado.movimentacao.tipo is TipoMovimentacaoXp.REMOCAO
+def test_nao_existe_remocao_de_xp(servico):
+    """XP é irrevogável (XP.md Art. 1º §1º) — o serviço não oferece como descontar."""
+    assert not hasattr(servico, "remover")
 
 
-async def test_saldo_nunca_fica_negativo(session, criar_membro, servico):
-    autor = await criar_membro(CONSELHEIRO)
-    alvo = await criar_membro(MEMBRO, xp=30)
-
-    resultado = await servico.remover(
-        session, membro=alvo, quantidade=500, motivo="Correção de lançamento", autor=autor
-    )
-
-    assert resultado.saldo_atual == 0
-    assert resultado.movimentacao.quantidade == -30
-
-
-@pytest.mark.parametrize("cargo", [MEMBRO, CAVALARIA, LORDE])
+@pytest.mark.parametrize("cargo", [MEMBRO, VETERANO, OFICIAL, OMNI])
 async def test_sem_permissao_nao_altera_nada(session, criar_membro, servico, cargo):
-    """RN-004 — abaixo de Conselheiro a operação é rejeitada e nada é gravado."""
+    """RN-004 — sem o cargo Conselheiro a operação é rejeitada, qualquer que seja a patente."""
     autor = await criar_membro(cargo)
     alvo = await criar_membro(MEMBRO, xp=100)
 
@@ -122,16 +104,6 @@ async def test_quantidade_invalida(session, criar_membro, servico, quantidade):
         )
 
 
-async def test_operacao_sem_efeito_e_rejeitada(session, criar_membro, servico):
-    autor = await criar_membro(CONSELHEIRO)
-    alvo = await criar_membro(MEMBRO, xp=0)
-
-    with pytest.raises(SaldoInalteradoError):
-        await servico.remover(
-            session, membro=alvo, quantidade=10, motivo="Nada a remover", autor=autor
-        )
-
-
 async def test_automacao_do_sistema_dispensa_autor(session, criar_membro, servico):
     alvo = await criar_membro(MEMBRO, xp=0)
 
@@ -152,7 +124,7 @@ async def test_historico_exige_permissao(session, criar_membro, servico):
     alvo = await criar_membro(MEMBRO, xp=10)
 
     with pytest.raises(PermissaoNegadaError):
-        await servico.historico(session, membro=alvo, solicitante_cargo=MEMBRO)
+        await servico.historico(session, membro=alvo, solicitante=alvo.perfil)
 
 
 async def test_trilha_reconstroi_o_saldo(session, criar_membro, servico):
@@ -164,10 +136,9 @@ async def test_trilha_reconstroi_o_saldo(session, criar_membro, servico):
         await servico.conceder(
             session, membro=alvo, quantidade=quantidade, motivo="Missão cumprida", autor=autor
         )
-    await servico.remover(session, membro=alvo, quantidade=25, motivo="Ajuste", autor=autor)
 
     saldo, soma_da_trilha = await servico.conciliar(session, membro=alvo)
-    assert saldo == soma_da_trilha == 400
+    assert saldo == soma_da_trilha == 425
 
 
 async def test_movimentacao_gera_registro_de_auditoria_na_promocao(session, criar_membro, servico):
@@ -176,7 +147,7 @@ async def test_movimentacao_gera_registro_de_auditoria_na_promocao(session, cria
     alvo = await criar_membro(MEMBRO, xp=0)
 
     await servico.conceder(
-        session, membro=alvo, quantidade=600, motivo="Torneio de verão", autor=autor
+        session, membro=alvo, quantidade=2_000, motivo="Torneio de verão", autor=autor
     )
 
     assert await session.scalar(select(func.count()).select_from(Promocao)) == 1
@@ -184,4 +155,4 @@ async def test_movimentacao_gera_registro_de_auditoria_na_promocao(session, cria
         select(RegistroAuditoria).where(RegistroAuditoria.acao == "promocao.aplicada")
     )
     assert registro is not None
-    assert registro.dados["cargo_novo"] == "cavalaria"
+    assert registro.dados["patente_nova"] == "veterano"

@@ -32,7 +32,7 @@ MAPA_PADRAO_FIREBASE: dict[str, str] = {
     "nome": "nome",
     "discord_id": "discordId",
     "email": "email",
-    "cargo": "cargo",
+    "patente": "tier",
     "xp": "xp",
     "ativo": "ativo",
     "projetos": "projetos",
@@ -40,7 +40,19 @@ MAPA_PADRAO_FIREBASE: dict[str, str] = {
 """Nomes assumidos por padrão. Sobrescreva com `ORACULO_FIREBASE_CAMPOS`, ex.:
 
     ORACULO_FIREBASE_CAMPOS={"nome":"displayName","discord_id":"discord","xp":"pontos"}
+
+`patente` lê o campo `tier` da plataforma TYTO.club, que guarda o nome da
+patente (XP.md Art. 2º). A chave antiga `cargo` continua aceita como sinônimo
+de `patente` em configurações anteriores a TD-007.
 """
+
+
+def mapa_efetivo(mapa: Mapping[str, str] | None) -> dict[str, str]:
+    """Padrão + sobrescritas, aceitando a chave legada `cargo` como `patente`."""
+    sobrescritas = dict(mapa or {})
+    if "cargo" in sobrescritas:
+        sobrescritas.setdefault("patente", sobrescritas.pop("cargo"))
+    return {**MAPA_PADRAO_FIREBASE, **sobrescritas}
 
 
 @dataclass(slots=True)
@@ -51,7 +63,9 @@ class MembroExterno:
     nome: str
     discord_id: int | None = None
     email: str | None = None
-    cargo: str | None = None
+    #: Patente declarada pela plataforma (nome ou slug). Só serve para
+    #: **subir** a patente — nunca rebaixa (XP.md Art. 1º §3º).
+    patente: str | None = None
     xp: int | None = None
     ativo: bool = True
     #: RN-017 — IDs dos projetos em que o membro participa. É a **única** fonte
@@ -181,7 +195,7 @@ def normalizar(
     Devolve `None` para documentos sem identidade utilizável — é melhor pular e
     reportar do que gravar um membro fantasma no banco.
     """
-    campos = {**MAPA_PADRAO_FIREBASE, **(mapa or {})}
+    campos = mapa_efetivo(mapa)
 
     id_externo = _buscar(documento, campos["id_externo"]) or id_documento
     if id_externo is None:
@@ -195,7 +209,7 @@ def normalizar(
         nome=str(nome).strip() if nome else f"Membro {id_externo}",
         discord_id=discord_id,
         email=(lambda e: str(e).strip() or None)(_buscar(documento, campos["email"]) or ""),
-        cargo=(lambda c: str(c).strip() or None)(_buscar(documento, campos["cargo"]) or ""),
+        patente=(lambda c: str(c).strip() or None)(_buscar(documento, campos["patente"]) or ""),
         xp=_para_int(_buscar(documento, campos["xp"])),
         ativo=_para_bool(_buscar(documento, campos["ativo"])),
         projetos=_para_lista_de_ids(_buscar(documento, campos["projetos"])),
@@ -277,7 +291,7 @@ class FirestoreMembros:
         (`photoUrl`), o que faz cada um pesar centenas de KB. Sem projeção, uma
         sincronização baixaria dezenas de MB inúteis a cada ciclo.
         """
-        mapa = {**MAPA_PADRAO_FIREBASE, **(self._cfg.firebase_campos or {})}
+        mapa = mapa_efetivo(self._cfg.firebase_campos)
         # `select` aceita caminho aninhado ("discord.id"); o id do documento vem
         # de graça em `documento.id` e não precisa ser projetado.
         return sorted({caminho for chave, caminho in mapa.items() if chave != "id_externo"})
@@ -337,7 +351,7 @@ class FirestoreMembros:
 
         cliente = self._conectar()
         colecao = cliente.collection(self._cfg.firebase_colecao)
-        mapa = {**MAPA_PADRAO_FIREBASE, **(self._cfg.firebase_campos or {})}
+        mapa = mapa_efetivo(self._cfg.firebase_campos)
 
         nome_projetos = mapa["projetos"]
         documento = colecao.document(id_externo)

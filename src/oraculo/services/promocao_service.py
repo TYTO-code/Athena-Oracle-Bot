@@ -1,10 +1,16 @@
-"""Promoção automática e cargo único — UC-003 / RN-001, RN-002, RN-003.
+"""Promoção de patente e patente única — UC-003 / RN-001, RN-002, RN-003.
+
+A patente é determinada **exclusivamente** pelo XP (`Institucional/XP.md`
+Art. 1º §3º) e é irrevogável: este serviço só sobe patente, nunca desce. Não
+existe definição manual de patente — o máximo que um humano faz é
+**confirmar** a patente que o XP já determina, quando a importação a reteve
+(`importacao_service.PATENTE_MAXIMA_AUTOMATICA`).
 
 O legado acumulava cargos porque atribuía o novo sem remover os anteriores
 (TD-005). Aqui a ordem é invariável e explícita:
 
-1. remover **todos** os cargos TYTO do membro no Discord;
-2. atribuir o novo cargo;
+1. remover **todos** os papéis de patente do membro no Discord;
+2. atribuir o papel da nova patente;
 3. registrar a promoção no histórico imutável;
 4. notificar.
 
@@ -21,27 +27,32 @@ from typing import Protocol, runtime_checkable
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from oraculo.db.models import Membro, OrigemAcao, Promocao
-from oraculo.domain.hierarchy import Cargo, cargo_para_xp, cargo_por_slug
+from oraculo.domain.hierarchy import CargoInstitucional, Patente, patente_para_xp, patente_por_slug
 from oraculo.logging_config import get_logger
 from oraculo.repositories import auditoria
 
 log = get_logger(__name__)
 
-#: Rebaixar automaticamente quando o XP cai abaixo do limiar do cargo atual.
-#: O Documento Único descreve apenas a promoção (RN-002/RN-003); manter em
-#: `False` evita perda de cargo por correção de lançamento. Alterar aqui caso o
-#: Clube TYTO decida que a progressão é simétrica.
-REBAIXAMENTO_AUTOMATICO = False
-
 
 @runtime_checkable
 class SincronizadorCargos(Protocol):
-    """Porta de sincronização de cargos com o Discord (RF-006)."""
+    """Porta de sincronização de papéis com o Discord (RF-006)."""
 
     async def sincronizar(
-        self, *, discord_id: int, cargo: Cargo, guild_id: int | None = None
+        self, *, discord_id: int, patente: Patente, guild_id: int | None = None
     ) -> None:
-        """Remove todos os cargos TYTO do membro e atribui apenas `cargo`."""
+        """Remove todos os papéis de patente do membro e atribui apenas `patente`."""
+        ...
+
+    async def definir_cargo_institucional(
+        self,
+        *,
+        discord_id: int,
+        cargo: CargoInstitucional,
+        ativo: bool,
+        guild_id: int | None = None,
+    ) -> None:
+        """Adiciona (`ativo=True`) ou remove o papel de um cargo institucional."""
         ...
 
 
@@ -50,18 +61,22 @@ class ResultadoPromocao:
     """Resultado da avaliação de progressão após uma mudança de XP."""
 
     promovido: bool
-    cargo_anterior: Cargo
-    cargo_atual: Cargo
+    patente_anterior: Patente
+    patente_atual: Patente
     registro: Promocao | None = None
     sincronizado: bool = False
     erro_sincronizacao: str | None = None
 
 
 class PromocaoService:
-    """Avalia e aplica mudanças de cargo decorrentes do XP."""
+    """Avalia e aplica promoções de patente decorrentes do XP."""
 
     def __init__(self, sincronizador: SincronizadorCargos | None = None) -> None:
         self._sincronizador = sincronizador
+
+    @property
+    def sincronizador(self) -> SincronizadorCargos | None:
+        return self._sincronizador
 
     async def avaliar(
         self,
@@ -72,17 +87,18 @@ class PromocaoService:
         origem: OrigemAcao = OrigemAcao.SISTEMA,
         guild_id: int | None = None,
     ) -> ResultadoPromocao:
-        """RN-002 — verifica se o XP atual muda o cargo e aplica a mudança."""
-        cargo_atual = cargo_por_slug(membro.cargo_slug)
-        cargo_alvo = cargo_para_xp(membro.xp)
+        """RN-002 — verifica se o XP atual eleva a patente e aplica a promoção."""
+        atual = patente_por_slug(membro.patente_slug)
+        alvo = patente_para_xp(membro.xp)
 
-        if not self._deve_mudar(cargo_atual, cargo_alvo):
-            return ResultadoPromocao(False, cargo_atual, cargo_atual)
+        # Só sobe: patente é irrevogável (XP.md Art. 1º §3º).
+        if alvo <= atual:
+            return ResultadoPromocao(False, atual, atual)
 
         return await self.aplicar(
             session,
             membro,
-            cargo_novo=cargo_alvo,
+            patente_nova=alvo,
             automatica=True,
             autor_descricao=autor_descricao,
             motivo="Progressão automática por XP (RN-002)",
@@ -95,23 +111,32 @@ class PromocaoService:
         session: AsyncSession,
         membro: Membro,
         *,
-        cargo_novo: Cargo,
+        patente_nova: Patente,
         automatica: bool,
         autor_descricao: str,
         motivo: str,
         origem: OrigemAcao = OrigemAcao.SISTEMA,
         guild_id: int | None = None,
     ) -> ResultadoPromocao:
-        """RN-001 / RN-003 — troca o cargo único, registra e sincroniza."""
-        cargo_anterior = cargo_por_slug(membro.cargo_slug)
+        """RN-001 / RN-003 — troca a patente única, registra e sincroniza.
 
-        # RN-001: uma única coluna de cargo — não há como acumular (TD-005).
-        membro.cargo_slug = cargo_novo.slug
+        Recusa qualquer patente que não seja superior à atual: não há caminho
+        de código que rebaixe um membro.
+        """
+        anterior = patente_por_slug(membro.patente_slug)
+        if patente_nova <= anterior:
+            raise ValueError(
+                f"Patente {patente_nova.nome} não é superior a {anterior.nome}; "
+                "patente é irrevogável (XP.md Art. 1º §3º)."
+            )
+
+        # RN-001: uma única coluna de patente — não há como acumular (TD-005).
+        membro.patente_slug = patente_nova.slug
 
         registro = Promocao(
             membro_id=membro.id,
-            cargo_anterior=cargo_anterior.slug,
-            cargo_novo=cargo_novo.slug,
+            cargo_anterior=anterior.slug,
+            cargo_novo=patente_nova.slug,
             xp_no_momento=membro.xp,
             automatica=automatica,
             autor_descricao=autor_descricao,
@@ -120,23 +145,23 @@ class PromocaoService:
         session.add(registro)
         await session.flush()
 
-        sincronizado, erro = await self._sincronizar(membro, cargo_novo, guild_id)
+        sincronizado, erro = await self._sincronizar(membro, patente_nova, guild_id)
         registro.sincronizado_discord = sincronizado
         registro.erro_sincronizacao = erro
 
         await auditoria.registrar(
             session,
-            acao="promocao.aplicada" if cargo_novo > cargo_anterior else "cargo.rebaixado",
+            acao="promocao.aplicada",
             resumo=(
-                f"{membro.nome_exibicao}: {cargo_anterior.nome} → {cargo_novo.nome} "
+                f"{membro.nome_exibicao}: {anterior.nome} → {patente_nova.nome} "
                 f"({membro.xp} XP)"
             ),
             ator_descricao=autor_descricao,
             alvo_tipo="membro",
             alvo_id=membro.id,
             dados={
-                "cargo_anterior": cargo_anterior.slug,
-                "cargo_novo": cargo_novo.slug,
+                "patente_anterior": anterior.slug,
+                "patente_nova": patente_nova.slug,
                 "xp": membro.xp,
                 "automatica": automatica,
                 "sincronizado_discord": sincronizado,
@@ -146,42 +171,62 @@ class PromocaoService:
         )
 
         log.info(
-            "Cargo alterado: membro=%s %s → %s (xp=%d, sync=%s)",
+            "Patente alterada: membro=%s %s → %s (xp=%d, sync=%s)",
             membro.id,
-            cargo_anterior.slug,
-            cargo_novo.slug,
+            anterior.slug,
+            patente_nova.slug,
             membro.xp,
             sincronizado,
         )
         return ResultadoPromocao(
             promovido=True,
-            cargo_anterior=cargo_anterior,
-            cargo_atual=cargo_novo,
+            patente_anterior=anterior,
+            patente_atual=patente_nova,
             registro=registro,
             sincronizado=sincronizado,
             erro_sincronizacao=erro,
         )
 
-    @staticmethod
-    def _deve_mudar(cargo_atual: Cargo, cargo_alvo: Cargo) -> bool:
-        if cargo_alvo.ordem > cargo_atual.ordem:
-            return True
-        if cargo_alvo.ordem < cargo_atual.ordem:
-            # Cargos não automáticos (Administrador) nunca são perdidos por XP.
-            return REBAIXAMENTO_AUTOMATICO and cargo_atual.automatico
-        return False
+    async def confirmar(
+        self,
+        session: AsyncSession,
+        membro: Membro,
+        *,
+        autor_descricao: str,
+        origem: OrigemAcao = OrigemAcao.DISCORD,
+        guild_id: int | None = None,
+    ) -> ResultadoPromocao:
+        """Aplica a patente que o XP já determina, retida pela importação.
+
+        Um Administrador nunca escolhe a patente — só libera a que o XP
+        registrado manda (XP.md Art. 1º §3º). Sem nada a liberar, não muda nada.
+        """
+        atual = patente_por_slug(membro.patente_slug)
+        alvo = patente_para_xp(membro.xp)
+        if alvo <= atual:
+            return ResultadoPromocao(False, atual, atual)
+        return await self.aplicar(
+            session,
+            membro,
+            patente_nova=alvo,
+            automatica=False,
+            autor_descricao=autor_descricao,
+            motivo="Patente retida pela importação confirmada por Administrador",
+            origem=origem,
+            guild_id=guild_id,
+        )
 
     async def _sincronizar(
-        self, membro: Membro, cargo: Cargo, guild_id: int | None
+        self, membro: Membro, patente: Patente, guild_id: int | None
     ) -> tuple[bool, str | None]:
-        """Aplica o cargo no Discord; falha de integração não anula a promoção."""
+        """Aplica o papel no Discord; falha de integração não anula a promoção."""
         if self._sincronizador is None or membro.discord_id is None:
             return False, None if self._sincronizador is None else "membro sem discord_id"
         try:
             await self._sincronizador.sincronizar(
-                discord_id=membro.discord_id, cargo=cargo, guild_id=guild_id
+                discord_id=membro.discord_id, patente=patente, guild_id=guild_id
             )
         except Exception as exc:  # noqa: BLE001 — registrado para reprocessamento
-            log.exception("Falha ao sincronizar cargo no Discord (membro=%s)", membro.id)
+            log.exception("Falha ao sincronizar patente no Discord (membro=%s)", membro.id)
             return False, f"{type(exc).__name__}: {exc}"[:500]
         return True, None

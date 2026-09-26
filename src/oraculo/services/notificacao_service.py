@@ -70,13 +70,13 @@ class NotificacaoService:
     def promocao(
         *, nome: str, cargo_anterior: str, cargo_novo: str, xp: int, discord_id: int | None
     ) -> Notificacao:
-        """UC-003 — aviso de promoção."""
+        """UC-003 — aviso de promoção de patente."""
         return Notificacao(
             titulo="🏛️ Promoção no Clube TYTO",
             corpo=f"**{nome}** avançou de **{cargo_anterior}** para **{cargo_novo}**!",
             severidade=Severidade.SUCESSO,
             destinatario_discord_id=discord_id,
-            campos={"XP acumulado": str(xp), "Novo cargo": cargo_novo},
+            campos={"XP acumulado": str(xp), "Nova patente": cargo_novo},
         )
 
     @staticmethod

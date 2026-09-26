@@ -20,6 +20,7 @@ from oraculo.integrations.projetos_db import BaseDeProjetos, criar_base_de_proje
 from oraculo.integrations.regras_corpus import carregar_corpus
 from oraculo.logging_config import get_logger
 from oraculo.services.agenda_service import AgendaService
+from oraculo.services.cargo_institucional_service import CargoInstitucionalService
 from oraculo.services.comunicado_service import ComunicadoService
 from oraculo.services.dracmas_service import DracmasService
 from oraculo.services.notificacao_service import NotificacaoService
@@ -40,6 +41,8 @@ class Container:
     agenda_externa: AgendaExterna
     notificacoes: NotificacaoService
     promocoes: PromocaoService
+    #: TD-007 — Conselheiro/Administrador, fora da escala de patentes.
+    cargos: CargoInstitucionalService
     xp: XpService
     ranking: RankingService
     agenda: AgendaService
@@ -95,6 +98,7 @@ class Container:
             agenda_externa=agenda_externa,
             notificacoes=notificacoes,
             promocoes=promocoes,
+            cargos=CargoInstitucionalService(sincronizador=sincronizador_cargos),
             xp=XpService(promocoes=promocoes, somente_leitura=cfg.xp_somente_leitura),
             ranking=RankingService(cache=cache, settings=cfg),
             agenda=AgendaService(agenda_externa=agenda_externa),

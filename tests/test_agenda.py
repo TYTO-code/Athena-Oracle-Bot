@@ -15,7 +15,7 @@ from oraculo.db.models import (
     TipoAgendamento,
 )
 from oraculo.domain.errors import PermissaoNegadaError
-from oraculo.domain.hierarchy import CAVALARIA, LORDE, MEMBRO
+from oraculo.domain.hierarchy import NEOFITO, OFICIAL, VETERANO
 from oraculo.integrations.google_calendar import EventoExterno
 from oraculo.services.agenda_service import (
     AgendamentoEncerradoError,
@@ -60,11 +60,11 @@ def amanha():
     return agora() + timedelta(days=1)
 
 
-async def test_cavalaria_cria_reuniao_e_sincroniza_agenda(
+async def test_veterano_cria_reuniao_e_sincroniza_agenda(
     session, criar_membro, servico, externa, amanha
 ):
     """UC-004 / RN-006 / RN-009."""
-    organizador = await criar_membro(CAVALARIA, nome="Sir Tyto")
+    organizador = await criar_membro(VETERANO, nome="Sir Tyto")
 
     resultado = await servico.criar(
         session,
@@ -85,8 +85,8 @@ async def test_cavalaria_cria_reuniao_e_sincroniza_agenda(
 
 
 async def test_membro_comum_nao_cria_reuniao(session, criar_membro, servico, amanha):
-    """RN-006 — abaixo de Cavalaria a criação é bloqueada e nada é gravado."""
-    organizador = await criar_membro(MEMBRO)
+    """RN-006 — abaixo de Veterano a criação é bloqueada e nada é gravado."""
+    organizador = await criar_membro(NEOFITO)
 
     with pytest.raises(PermissaoNegadaError):
         await servico.criar(
@@ -100,9 +100,9 @@ async def test_membro_comum_nao_cria_reuniao(session, criar_membro, servico, ama
     assert await session.scalar(select(func.count()).select_from(Agendamento)) == 0
 
 
-async def test_cavalaria_nao_cria_evento_oficial(session, criar_membro, servico, amanha):
-    """RN-007 — evento oficial exige Lorde+."""
-    organizador = await criar_membro(CAVALARIA)
+async def test_veterano_nao_cria_evento_oficial(session, criar_membro, servico, amanha):
+    """RN-007 — evento oficial exige Oficial+."""
+    organizador = await criar_membro(VETERANO)
 
     with pytest.raises(PermissaoNegadaError):
         await servico.criar(
@@ -114,8 +114,8 @@ async def test_cavalaria_nao_cria_evento_oficial(session, criar_membro, servico,
         )
 
 
-async def test_lorde_cria_evento_oficial(session, criar_membro, servico, amanha):
-    organizador = await criar_membro(LORDE)
+async def test_oficial_cria_evento_oficial(session, criar_membro, servico, amanha):
+    organizador = await criar_membro(OFICIAL)
 
     resultado = await servico.criar(
         session,
@@ -129,7 +129,7 @@ async def test_lorde_cria_evento_oficial(session, criar_membro, servico, amanha)
 
 
 async def test_data_no_passado_e_rejeitada(session, criar_membro, servico):
-    organizador = await criar_membro(CAVALARIA)
+    organizador = await criar_membro(VETERANO)
 
     with pytest.raises(DataInvalidaError):
         await servico.criar(
@@ -144,7 +144,7 @@ async def test_data_no_passado_e_rejeitada(session, criar_membro, servico):
 async def test_falha_no_google_nao_impede_o_registro(session, criar_membro, amanha):
     """RN-009 degrada com aviso: a reunião local continua válida."""
     servico = AgendaService(agenda_externa=AgendaExternaFalsa(falhar=True))
-    organizador = await criar_membro(CAVALARIA)
+    organizador = await criar_membro(VETERANO)
 
     resultado = await servico.criar(
         session,
@@ -161,7 +161,7 @@ async def test_falha_no_google_nao_impede_o_registro(session, criar_membro, aman
 
 async def test_cancelamento_e_logico(session, criar_membro, servico, externa, amanha):
     """RN-010 — a linha permanece no banco com motivo e autor do cancelamento."""
-    organizador = await criar_membro(CAVALARIA)
+    organizador = await criar_membro(VETERANO)
     criado = await servico.criar(
         session,
         tipo=TipoAgendamento.REUNIAO,
@@ -187,8 +187,8 @@ async def test_cancelamento_e_logico(session, criar_membro, servico, externa, am
 async def test_membro_comum_nao_cancela_reuniao_de_outro(
     session, criar_membro, servico, amanha
 ):
-    organizador = await criar_membro(CAVALARIA)
-    intruso = await criar_membro(MEMBRO)
+    organizador = await criar_membro(VETERANO)
+    intruso = await criar_membro(NEOFITO)
     criado = await servico.criar(
         session,
         tipo=TipoAgendamento.REUNIAO,
@@ -207,8 +207,8 @@ async def test_membro_comum_nao_cancela_reuniao_de_outro(
 
 async def test_rsvp_registra_e_contabiliza(session, criar_membro, servico, amanha):
     """UC-006 — confirmar, recusar e voltar a pendente."""
-    organizador = await criar_membro(CAVALARIA)
-    convidado = await criar_membro(MEMBRO)
+    organizador = await criar_membro(VETERANO)
+    convidado = await criar_membro(NEOFITO)
     criado = await servico.criar(
         session,
         tipo=TipoAgendamento.REUNIAO,
@@ -243,8 +243,8 @@ async def test_rsvp_registra_e_contabiliza(session, criar_membro, servico, amanh
 async def test_rsvp_em_agendamento_cancelado_e_bloqueado(
     session, criar_membro, servico, amanha
 ):
-    organizador = await criar_membro(CAVALARIA)
-    convidado = await criar_membro(MEMBRO)
+    organizador = await criar_membro(VETERANO)
+    convidado = await criar_membro(NEOFITO)
     criado = await servico.criar(
         session,
         tipo=TipoAgendamento.REUNIAO,

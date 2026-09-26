@@ -1,5 +1,9 @@
 """Gestão de XP — UC-001 / RF-003, RN-004, RN-005, RN-010.
 
+Só existe concessão: XP é irrevogável (`Institucional/XP.md` Art. 1º §1º) —
+nenhuma penalidade, disputa ou decisão administrativa desconta XP já
+concedido. Por isso não há `remover`.
+
 Cada operação é uma transação única que faz, nesta ordem:
 
 1. valida permissão do autor (RN-004/RN-008) e o motivo (RN-005);
@@ -27,7 +31,7 @@ from oraculo.domain.errors import (
     SaldoInalteradoError,
     XpSomenteLeituraError,
 )
-from oraculo.domain.hierarchy import Cargo, cargo_por_slug
+from oraculo.domain.hierarchy import Perfil
 from oraculo.domain.permissions import Acao, exigir
 from oraculo.logging_config import get_logger
 from oraculo.repositories import xp as repo_xp
@@ -55,7 +59,7 @@ class ResultadoXp:
 
 
 class XpService:
-    """Casos de uso de concessão, remoção e consulta de XP.
+    """Casos de uso de concessão e consulta de XP.
 
     Com `somente_leitura=True` (modo espelho da plataforma) as escritas são
     recusadas: quem manda no XP é a origem externa, e aceitar a operação aqui
@@ -95,31 +99,6 @@ class XpService:
             guild_id=guild_id,
         )
 
-    async def remover(
-        self,
-        session: AsyncSession,
-        *,
-        membro: Membro,
-        quantidade: int,
-        motivo: str,
-        autor: Membro | None,
-        autor_descricao: str | None = None,
-        origem: OrigemAcao = OrigemAcao.DISCORD,
-        guild_id: int | None = None,
-    ) -> ResultadoXp:
-        """RF-003 — remove XP do membro. O saldo nunca fica negativo."""
-        return await self._movimentar(
-            session,
-            membro=membro,
-            delta=-self._validar_quantidade(quantidade),
-            motivo=motivo,
-            autor=autor,
-            autor_descricao=autor_descricao,
-            acao=Acao.REMOVER_XP,
-            origem=origem,
-            guild_id=guild_id,
-        )
-
     # -- Consultas ---------------------------------------------------------
 
     async def historico(
@@ -127,17 +106,17 @@ class XpService:
         session: AsyncSession,
         *,
         membro: Membro,
-        solicitante_cargo: Cargo | None = None,
+        solicitante: Perfil | None = None,
         limite: int = 20,
         desde: datetime | None = None,
     ) -> list[MovimentacaoXp]:
         """`/historico-xp` — RF-003 / RF-012.
 
-        `solicitante_cargo` é opcional apenas para consultas internas do próprio
+        `solicitante` é opcional apenas para consultas internas do próprio
         sistema; qualquer chamada vinda de usuário deve informá-lo (RN-008).
         """
-        if solicitante_cargo is not None:
-            exigir(solicitante_cargo, Acao.VER_HISTORICO_XP)
+        if solicitante is not None:
+            exigir(solicitante, Acao.VER_HISTORICO_XP)
         return await repo_xp.historico(
             session, membro_id=membro.id, limite=limite, desde=desde
         )
@@ -173,7 +152,7 @@ class XpService:
 
         # RN-004 / RN-008 — permissão antes de qualquer escrita.
         if autor is not None:
-            exigir(cargo_por_slug(autor.cargo_slug), acao)
+            exigir(autor.perfil, acao)
         elif origem is not OrigemAcao.SISTEMA:
             # Ação sem autor identificado só é aceita como automação do sistema.
             raise AutorNaoIdentificadoError(acao.value)
@@ -181,11 +160,12 @@ class XpService:
         membro = await self._bloquear(session, membro)
 
         saldo_anterior = membro.xp
-        saldo_posterior = max(0, saldo_anterior + delta)
+        saldo_posterior = saldo_anterior + delta
         delta_efetivo = saldo_posterior - saldo_anterior
 
-        if delta_efetivo == 0:
-            # Remover XP de quem já está zerado não gera linha de auditoria vazia.
+        if delta_efetivo <= 0:
+            # Defesa em profundidade: `delta` já vem validado como positivo, e
+            # nenhum caminho pode descontar XP (XP.md Art. 1º §1º).
             raise SaldoInalteradoError(membro.nome_exibicao, saldo_anterior)
 
         membro.xp = saldo_posterior

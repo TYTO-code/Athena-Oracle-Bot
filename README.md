@@ -66,45 +66,50 @@ Todos os segredos vêm de variáveis de ambiente com o prefixo `ORACULO_` — **
 
 ### Antes do primeiro uso no servidor Discord
 
-1. Crie os cargos com **exatamente** estes nomes: `Membro`, `Cavalaria`, `Lorde`, `Conselheiro`, `Administrador`.
-2. Posicione o cargo do bot **acima** deles na lista de cargos (senão o Discord recusa a atribuição).
+1. Crie os papéis com **exatamente** estes nomes: as 17 patentes de `XP.md` (`Neófito`, `Escudeiro`,
+   `Armeiro`, `Veterano`, `Mestre de Armas`, `Desafiante Legionário`, `Oficial`, `Centurião`,
+   `Comandante`, `Dom`, `Lorde`, `Senhor da Guerra`, `Suserano`, `Monarca`, `Dominador`, `Renovek`,
+   `Omni`) e os cargos institucionais `Conselheiro` e `Administrador`.
+2. Posicione o papel do bot **acima** deles na lista de cargos (senão o Discord recusa a atribuição).
 3. Habilite o intent **Server Members** no portal do desenvolvedor.
 4. Rode `/verificar-cargos` no servidor para confirmar.
-5. `/definir-cargo` exige Administrador — e ninguém começa com esse cargo. Quebre o ciclo uma vez, por
+5. `/cargo-institucional` exige Administrador — e ninguém começa com esse cargo. Quebre o ciclo uma vez, por
    qualquer um destes dois caminhos (recusam sozinhos se já existir um Administrador ativo):
    - com acesso a rodar comandos no servidor: `python -m oraculo promover-admin --discord-id <seu id>`;
    - só com acesso ao painel de variáveis do deploy (ex.: Railway, sem CLI/espaço local): defina
      `ORACULO_BOOTSTRAP_ADMIN_DISCORD_ID=<seu id>` e reinicie o serviço — o bot se autopromove sozinho
      no próximo start.
 
-   Depois, use `/definir-cargo` normalmente no Discord — inclusive para sincronizar o cargo desse
-   primeiro Administrador no servidor.
+   Depois, rode `/sincronizar-papeis` em você mesmo para aplicar o papel no servidor, e use
+   `/cargo-institucional` normalmente para nomear Conselheiros e outros Administradores.
 
 ## Comandos do bot
 
-| Comando | Função | Cargo mínimo |
+| Comando | Função | Quem pode |
 |---------|--------|--------------|
-| `/ajuda` | Lista os comandos e o que seu cargo libera | Membro |
-| `/perguntar` | Pergunta sobre o regulamento TYTO e sobre **seus** projetos (RN-017) | Membro |
-| `/perfil` | Cargo, XP, próximo cargo e posição (RF-002) | Membro |
-| `/ranking` | Ranking geral ou por período (RF-004) | Membro |
+| `/ajuda` | Lista os comandos e o que sua patente/cargo libera | Qualquer membro |
+| `/perguntar` | Pergunta sobre o regulamento TYTO e sobre **seus** projetos (RN-017) | Qualquer membro |
+| `/perfil` | Patente, cargos, XP, próxima patente e posição (RF-002) | Qualquer membro |
+| `/ranking` | Ranking geral ou por período (RF-004) | Qualquer membro |
 | `/saldo` | Saldo de Dracmas na Comunidade (RF-013) | Nenhuma — Aldeão não usa cargo |
 | `/extrato-dracmas` | Histórico de movimentações de Dracmas (RF-013) | Nenhuma — Aldeão não usa cargo |
 | `/doar-dracmas` | Doa Dracmas do próprio saldo a outra pessoa (RF-014) | Nenhuma — Aldeão não usa cargo |
-| `/agenda` | Próximas reuniões e eventos | Membro |
-| `/hierarquia` | Cargos e limiares de XP | Membro |
-| `/criar-reuniao` | Cria reunião e sincroniza agenda (RF-007) | Cavalaria |
-| `/cancelar-agendamento` | Cancelamento lógico (RN-010) | Cavalaria / organizador |
-| `/criar-evento` | Cria evento oficial (RF-008) | Lorde |
-| `/comunicar` | Publica um comunicado oficial num canal (RF-015) | Lorde |
-| `/agendar-comunicado` | Programa um comunicado para depois (RF-015) | Lorde |
-| `/comunicados` | Fila de comunicados: programados, publicados, falhados | Lorde |
-| `/cancelar-comunicado` | Cancela um comunicado ainda não publicado (RN-010) | Lorde / autor |
-| `/conceder-xp`, `/remover-xp` | Movimenta XP com motivo obrigatório (RF-003) | Conselheiro |
+| `/agenda` | Próximas reuniões e eventos | Qualquer membro |
+| `/hierarquia` | Escala de patentes e cargos institucionais | Qualquer membro |
+| `/criar-reuniao` | Cria reunião e sincroniza agenda (RF-007) | Veterano+ |
+| `/cancelar-agendamento` | Cancelamento lógico (RN-010) | Veterano+ / organizador |
+| `/criar-evento` | Cria evento oficial (RF-008) | Oficial+ |
+| `/comunicar` | Publica um comunicado oficial num canal (RF-015) | Oficial+ |
+| `/agendar-comunicado` | Programa um comunicado para depois (RF-015) | Oficial+ |
+| `/comunicados` | Fila de comunicados: programados, publicados, falhados | Oficial+ |
+| `/cancelar-comunicado` | Cancela um comunicado ainda não publicado (RN-010) | Oficial+ / autor |
+| `/conceder-xp` | Concede XP com motivo obrigatório (RF-003) — XP nunca é removido (`XP.md` Art. 1º) | Conselheiro |
 | `/historico-xp` | Trilha auditável de um membro (RF-012) | Conselheiro |
 | `/auditoria` | Últimos registros do log | Conselheiro |
-| `/definir-cargo` | Atribuição manual de cargo | Administrador |
-| `/verificar-cargos` | Diagnóstico dos cargos do servidor | Administrador |
+| `/cargo-institucional` | Concede ou revoga Conselheiro/Administrador | Administrador |
+| `/confirmar-patente` | Libera a patente que o XP determina, retida pela importação | Administrador |
+| `/sincronizar-papeis` | Reaplica no Discord a patente e os cargos do banco | Administrador |
+| `/verificar-cargos` | Diagnóstico dos papéis do servidor | Administrador |
 
 RSVP (UC-006) é feito pelos botões do anúncio — eles continuam funcionando após reiniciar o bot.
 
@@ -146,8 +151,8 @@ fila; `/cancelar-comunicado` desmarca o que ainda não saiu.
 
 ### O que está protegido aqui
 
-- **Publicar é Lorde+; `@here`/`@everyone` é Conselheiro+.** Escrever no canal atinge
-  quem for ler; um ping atinge o celular de cada membro — é um degrau a mais de cargo.
+- **Publicar é Oficial+; `@here`/`@everyone` é do cargo Conselheiro.** Escrever no canal
+  atinge quem for ler; um ping atinge o celular de cada membro — é um degrau a mais.
 - **O texto do aviso não consegue forçar um ping.** O corpo vai no *embed*, e menção
   dentro de embed não notifica ninguém: escrever `@everyone` no texto produz as letras
   `@everyone`, nada mais. Quem notifica é o parâmetro `mencao`, que passou pela política
@@ -245,9 +250,12 @@ ORACULO_FIREBASE_CAMPOS={"nome":"displayName","discord_id":"discord.id","xp":"po
 ```
 
 **Modo `espelho`** (XP vem da plataforma): o bot passa a apenas exibir o XP.
-`/conceder-xp` e `/remover-xp` são recusados com mensagem explicativa, porque a
-próxima sincronização sobrescreveria o saldo. O cargo é derivado do XP pelas
-regras da hierarquia (RN-002) — um campo `cargo` ausente nunca rebaixa ninguém.
+`/conceder-xp` é recusado com mensagem explicativa, porque a próxima
+sincronização sobrescreveria o saldo. A patente é derivada do XP (RN-002) e lida
+do campo `tier` da plataforma; XP menor na plataforma não é espelhado (XP é
+irrevogável — vai para a auditoria) e nada rebaixa uma patente. Acima de
+Oficial, a importação só registra a sugestão; um Administrador libera com
+`/confirmar-patente`. Cargos institucionais nunca vêm da importação.
 
 Quem sai da plataforma **não** é desativado por padrão; use
 `--desativar-ausentes` (soft-delete, RN-010) se quiser esse comportamento.
@@ -263,7 +271,7 @@ src/oraculo/
 ├── repositories/      Acesso a dados
 ├── services/          Casos de uso (XP, promoção, ranking, agenda, notificações)
 ├── integrations/      Cache, Google Agenda, e-mail, Firestore
-├── bot/               Cliente Discord, cogs, sincronização de cargos (TD-005)
+├── bot/               Cliente Discord, cogs, sincronização de papéis (TD-005)
 ├── api/               FastAPI: health e webhooks (TD-003)
 └── tasks/             Backup diário (RNF-005) e sincronização com a plataforma
 ```
@@ -273,16 +281,11 @@ O domínio não conhece Discord nem HTTP: as regras valem igualmente para comand
 ## Testes
 
 ```bash
-make test        # 146 testes + 13 novos de Dracmas (test_dracmas_service.py) — ver nota abaixo
+make test        # 315 testes
 make check       # lint + testes
 ```
 
-> `test_dracmas_service.py` (13 testes) não foi executado nesta máquina — sem `.venv` local (ver
-> TD-007/README "Estado" do harness `.claude/`, mesma limitação de ambiente). Sintaxe validada com
-> `python3 -m py_compile`; a suíte completa roda de verdade no CI
-> (`.github/workflows/ci.yml`) no próximo push/PR.
-
-A suíte cobre as regras críticas: cargo único e não acúmulo de cargos (RN-001/TD-005), motivo obrigatório e trilha de XP (RN-005/TD-006), permissões por cargo (RN-004/006/007/008), promoção automática (RN-002/003), cancelamento lógico (RN-010) e rejeição de webhook sem assinatura válida (TD-003).
+A suíte cobre as regras críticas: patente única e não acúmulo de papéis (RN-001/TD-005), patente e XP irrevogáveis (`XP.md` Art. 1º), cargos institucionais independentes da patente (TD-007), motivo obrigatório e trilha de XP (RN-005/TD-006), permissões por patente ou cargo (RN-004/006/007/008), promoção automática (RN-002/003), cancelamento lógico (RN-010) e rejeição de webhook sem assinatura válida (TD-003).
 
 ## Documentação
 

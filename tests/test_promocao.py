@@ -1,4 +1,4 @@
-"""Promoção automática e cargo único — UC-003 / RN-001, RN-002, RN-003, TD-005."""
+"""Promoção de patente e patente única — UC-003 / RN-001, RN-002, RN-003, TD-005, TD-007."""
 
 from __future__ import annotations
 
@@ -9,12 +9,14 @@ from sqlalchemy import select
 
 from oraculo.db.models import Promocao
 from oraculo.domain.hierarchy import (
-    ADMINISTRADOR,
-    CAVALARIA,
-    CONSELHEIRO,
-    LORDE,
-    MEMBRO,
-    Cargo,
+    ARMEIRO,
+    ESCUDEIRO,
+    MESTRE_DE_ARMAS,
+    NEOFITO,
+    OFICIAL,
+    VETERANO,
+    CargoInstitucional,
+    Patente,
 )
 from oraculo.services.promocao_service import PromocaoService
 from oraculo.services.xp_service import XpService
@@ -25,70 +27,81 @@ class SincronizadorEspiao:
     """Registra as chamadas de sincronização em vez de falar com o Discord."""
 
     chamadas: list[tuple[int, str]] = field(default_factory=list)
+    institucionais: list[tuple[int, str, bool]] = field(default_factory=list)
     falhar: bool = False
 
-    async def sincronizar(self, *, discord_id: int, cargo: Cargo, guild_id: int | None = None):
+    async def sincronizar(self, *, discord_id: int, patente: Patente, guild_id: int | None = None):
         if self.falhar:
             raise RuntimeError("Discord fora do ar")
-        self.chamadas.append((discord_id, cargo.slug))
+        self.chamadas.append((discord_id, patente.slug))
+
+    async def definir_cargo_institucional(
+        self, *, discord_id: int, cargo: CargoInstitucional, ativo: bool, guild_id=None
+    ):
+        if self.falhar:
+            raise RuntimeError("Discord fora do ar")
+        self.institucionais.append((discord_id, cargo.value, ativo))
+
+
+CONSELHEIRO = CargoInstitucional.CONSELHEIRO
 
 
 async def test_promocao_automatica_ao_cruzar_o_limiar(session, criar_membro):
-    """RN-002 / RN-003 — cargo trocado, promoção registrada e Discord sincronizado."""
+    """RN-002 / RN-003 — patente trocada, promoção registrada e Discord sincronizado."""
     espiao = SincronizadorEspiao()
     xp_service = XpService(promocoes=PromocaoService(sincronizador=espiao))
     autor = await criar_membro(CONSELHEIRO)
-    alvo = await criar_membro(MEMBRO, xp=450)
+    alvo = await criar_membro(NEOFITO, xp=90)
 
     resultado = await xp_service.conceder(
-        session, membro=alvo, quantidade=100, motivo="Vitória em torneio", autor=autor
+        session, membro=alvo, quantidade=20, motivo="Vitória em torneio", autor=autor
     )
 
     assert resultado.promovido
-    assert resultado.promocao.cargo_anterior is MEMBRO
-    assert resultado.promocao.cargo_atual is CAVALARIA
-    assert alvo.cargo_slug == "cavalaria"
-    assert espiao.chamadas == [(alvo.discord_id, "cavalaria")]
+    assert resultado.promocao.patente_anterior == NEOFITO
+    assert resultado.promocao.patente_atual == ESCUDEIRO
+    assert alvo.patente_slug == "escudeiro"
+    assert espiao.chamadas == [(alvo.discord_id, "escudeiro")]
 
     registro = await session.scalar(select(Promocao))
-    assert registro.cargo_anterior == "membro"
-    assert registro.cargo_novo == "cavalaria"
-    assert registro.xp_no_momento == 550
+    assert registro.cargo_anterior == "neofito"
+    assert registro.cargo_novo == "escudeiro"
+    assert registro.xp_no_momento == 110
     assert registro.automatica is True
     assert registro.sincronizado_discord is True
 
 
-async def test_membro_possui_um_unico_cargo_apos_multiplas_promocoes(session, criar_membro):
-    """RN-001 — o cargo é uma coluna única: não há como acumular (TD-005)."""
+async def test_membro_possui_uma_unica_patente_apos_multiplas_promocoes(session, criar_membro):
+    """RN-001 — a patente é uma coluna única: não há como acumular (TD-005)."""
     espiao = SincronizadorEspiao()
     xp_service = XpService(promocoes=PromocaoService(sincronizador=espiao))
     autor = await criar_membro(CONSELHEIRO)
-    alvo = await criar_membro(MEMBRO, xp=0)
+    alvo = await criar_membro(NEOFITO, xp=0)
 
-    await xp_service.conceder(session, membro=alvo, quantidade=600, motivo="Etapa 1", autor=autor)
-    await xp_service.conceder(session, membro=alvo, quantidade=1000, motivo="Etapa 2", autor=autor)
+    await xp_service.conceder(session, membro=alvo, quantidade=200, motivo="Etapa 1", autor=autor)
+    await xp_service.conceder(session, membro=alvo, quantidade=300, motivo="Etapa 2", autor=autor)
 
-    assert alvo.cargo_slug == LORDE.slug
+    assert alvo.patente_slug == ARMEIRO.slug
     promocoes = list((await session.execute(select(Promocao))).scalars())
     assert [(p.cargo_anterior, p.cargo_novo) for p in promocoes] == [
-        ("membro", "cavalaria"),
-        ("cavalaria", "lorde"),
+        ("neofito", "escudeiro"),
+        ("escudeiro", "armeiro"),
     ]
-    assert [slug for _, slug in espiao.chamadas] == ["cavalaria", "lorde"]
+    assert [slug for _, slug in espiao.chamadas] == ["escudeiro", "armeiro"]
 
 
-async def test_promocao_pula_niveis_quando_o_xp_salta(session, criar_membro):
+async def test_promocao_pula_patamares_quando_o_xp_salta(session, criar_membro):
     espiao = SincronizadorEspiao()
     xp_service = XpService(promocoes=PromocaoService(sincronizador=espiao))
     autor = await criar_membro(CONSELHEIRO)
-    alvo = await criar_membro(MEMBRO, xp=0)
+    alvo = await criar_membro(NEOFITO, xp=0)
 
     resultado = await xp_service.conceder(
-        session, membro=alvo, quantidade=4_000, motivo="Campanha anual", autor=autor
+        session, membro=alvo, quantidade=7_000, motivo="Campanha anual", autor=autor
     )
 
-    assert resultado.promocao.cargo_atual is CONSELHEIRO
-    assert alvo.cargo_slug == "conselheiro"
+    assert resultado.promocao.patente_atual == MESTRE_DE_ARMAS
+    assert alvo.patente_slug == "mestre-de-armas"
 
 
 async def test_falha_no_discord_nao_desfaz_a_promocao(session, criar_membro):
@@ -96,73 +109,73 @@ async def test_falha_no_discord_nao_desfaz_a_promocao(session, criar_membro):
     espiao = SincronizadorEspiao(falhar=True)
     xp_service = XpService(promocoes=PromocaoService(sincronizador=espiao))
     autor = await criar_membro(CONSELHEIRO)
-    alvo = await criar_membro(MEMBRO, xp=490)
+    alvo = await criar_membro(NEOFITO, xp=100)
 
     resultado = await xp_service.conceder(
         session, membro=alvo, quantidade=20, motivo="Missão especial", autor=autor
     )
 
     assert resultado.promovido
-    assert alvo.cargo_slug == "cavalaria"
+    assert alvo.patente_slug == "escudeiro"
     assert resultado.promocao.sincronizado is False
     registro = await session.scalar(select(Promocao))
     assert registro.sincronizado_discord is False
     assert "Discord fora do ar" in registro.erro_sincronizacao
 
 
-async def test_remocao_de_xp_nao_rebaixa_por_padrao(session, criar_membro):
-    """Decisão documentada em `REBAIXAMENTO_AUTOMATICO`: XP removido não perde cargo."""
-    xp_service = XpService(promocoes=PromocaoService(sincronizador=SincronizadorEspiao()))
-    autor = await criar_membro(CONSELHEIRO)
-    alvo = await criar_membro(CAVALARIA, xp=600)
-
-    resultado = await xp_service.remover(
-        session, membro=alvo, quantidade=300, motivo="Estorno de lançamento", autor=autor
-    )
-
-    assert resultado.promovido is False
-    assert alvo.cargo_slug == "cavalaria"
-
-
-async def test_administrador_nao_e_rebaixado_pela_progressao(session, criar_membro):
+async def test_patente_nunca_e_rebaixada(session, criar_membro):
+    """XP.md Art. 1º §3º — patente alcançada é permanente, mesmo com XP abaixo do limiar."""
     servico = PromocaoService(sincronizador=SincronizadorEspiao())
-    admin = await criar_membro(ADMINISTRADOR, xp=0)
+    membro = await criar_membro(VETERANO, xp=0)
 
-    resultado = await servico.avaliar(session, admin)
+    resultado = await servico.avaliar(session, membro)
 
     assert resultado.promovido is False
-    assert admin.cargo_slug == "administrador"
+    assert membro.patente_slug == "veterano"
 
 
-async def test_atribuicao_manual_registra_promocao_nao_automatica(session, criar_membro):
+async def test_aplicar_recusa_patente_igual_ou_inferior(session, criar_membro):
+    servico = PromocaoService(sincronizador=SincronizadorEspiao())
+    membro = await criar_membro(OFICIAL, xp=106_000)
+
+    with pytest.raises(ValueError, match="irrevogável"):
+        await servico.aplicar(
+            session,
+            membro,
+            patente_nova=VETERANO,
+            automatica=False,
+            autor_descricao="alguém",
+            motivo="tentativa de rebaixar",
+        )
+    assert membro.patente_slug == "oficial"
+
+
+async def test_confirmar_aplica_so_a_patente_que_o_xp_determina(session, criar_membro):
+    """`/confirmar-patente` — o Administrador libera, não escolhe a patente."""
     espiao = SincronizadorEspiao()
     servico = PromocaoService(sincronizador=espiao)
-    alvo = await criar_membro(MEMBRO, xp=0)
+    membro = await criar_membro(NEOFITO, xp=500_000)
 
-    resultado = await servico.aplicar(
-        session,
-        alvo,
-        cargo_novo=ADMINISTRADOR,
-        automatica=False,
-        autor_descricao="Fundador",
-        motivo="Nomeação do conselho",
-    )
+    resultado = await servico.confirmar(session, membro, autor_descricao="Admin")
 
-    assert resultado.cargo_atual is ADMINISTRADOR
+    assert resultado.promovido
+    assert membro.patente_slug == "centuriao"
     registro = await session.scalar(select(Promocao))
     assert registro.automatica is False
-    assert registro.autor_descricao == "Fundador"
-    assert registro.motivo == "Nomeação do conselho"
+    assert registro.autor_descricao == "Admin"
+
+    de_novo = await servico.confirmar(session, membro, autor_descricao="Admin")
+    assert de_novo.promovido is False
 
 
 @pytest.mark.parametrize(
-    ("xp", "cargo_esperado"),
-    [(0, MEMBRO), (500, CAVALARIA), (1_500, LORDE), (3_500, CONSELHEIRO)],
+    ("xp", "patente"),
+    [(0, NEOFITO), (104, ESCUDEIRO), (1_660, VETERANO), (106_000, OFICIAL)],
 )
-async def test_avaliar_e_idempotente(session, criar_membro, xp, cargo_esperado):
+async def test_avaliar_e_idempotente(session, criar_membro, xp, patente):
     """Reavaliar sem mudança de XP não gera promoção duplicada."""
     servico = PromocaoService(sincronizador=SincronizadorEspiao())
-    membro = await criar_membro(cargo_esperado, xp=xp)
+    membro = await criar_membro(patente, xp=xp)
 
     resultado = await servico.avaliar(session, membro)
 

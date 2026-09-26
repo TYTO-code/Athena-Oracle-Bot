@@ -214,10 +214,9 @@ async def comando_promover_admin(cfg: Settings, *, discord_id: int, nome: str | 
     await encerrar_engine()
     print(f"{nome_final} (discord_id={discord_id}) agora é Administrador no banco do bot.")
     print(
-        "O cargo do Discord não foi sincronizado por este comando (não há bot conectado "
-        "aqui). Rode /definir-cargo em você mesmo, com o mesmo cargo, dentro do Discord — "
-        "agora que você já é Administrador no banco, o comando vai passar e sincronizar "
-        "o cargo no servidor."
+        "O papel do Discord não foi sincronizado por este comando (não há bot conectado "
+        "aqui). Rode /sincronizar-papeis em você mesmo dentro do Discord — agora que você "
+        "já é Administrador no banco, o comando vai passar e aplicar os papéis no servidor."
     )
 
 

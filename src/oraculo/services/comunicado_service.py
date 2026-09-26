@@ -3,9 +3,9 @@
 Três garantias que o serviço existe para sustentar:
 
 1. **Quem pode falar pelo clube é decidido pela política central** (RN-008):
-   publicar exige Lorde+, e notificar o servidor inteiro (`@everyone`/`@here`)
-   exige Conselheiro+ — um degrau acima, porque o custo de errar é o servidor
-   inteiro recebendo um ping.
+   publicar exige a patente Oficial+, e notificar o servidor inteiro
+   (`@everyone`/`@here`) exige o cargo Conselheiro — um degrau acima, porque o
+   custo de errar é o servidor inteiro recebendo um ping.
 2. **Um comunicado programado publica uma vez, ou não publica** — nunca duas.
    A reserva (AGENDADO → PUBLICANDO, com commit antes de falar com o Discord) é
    o que sustenta isso mesmo se o processo morrer no meio do envio.
@@ -31,7 +31,6 @@ from oraculo.db.models import (
     TipoMencao,
 )
 from oraculo.domain.errors import BusinessRuleError
-from oraculo.domain.hierarchy import cargo_por_slug
 from oraculo.domain.permissions import Acao, exigir
 from oraculo.logging_config import get_logger
 from oraculo.repositories import auditoria
@@ -133,10 +132,10 @@ class ComunicadoService:
         origem: OrigemAcao = OrigemAcao.DISCORD,
     ) -> Comunicado:
         """Registra um comunicado para publicação futura (RN-018)."""
-        cargo = cargo_por_slug(autor.cargo_slug)
-        exigir(cargo, Acao.PUBLICAR_COMUNICADO)
+        perfil = autor.perfil
+        exigir(perfil, Acao.PUBLICAR_COMUNICADO)
         if mencao is not TipoMencao.NENHUMA:
-            exigir(cargo, Acao.MENCIONAR_TODOS)
+            exigir(perfil, Acao.MENCIONAR_TODOS)
 
         destino = canal_id or canal_padrao
         if destino is None:
@@ -232,7 +231,7 @@ class ComunicadoService:
     ) -> Comunicado:
         """RN-010 — cancelamento lógico de um comunicado ainda não publicado."""
         if comunicado.autor_id != solicitante.id:
-            exigir(cargo_por_slug(solicitante.cargo_slug), Acao.GERIR_COMUNICADO)
+            exigir(solicitante.perfil, Acao.GERIR_COMUNICADO)
 
         if comunicado.status is not StatusComunicado.AGENDADO:
             raise ComunicadoEncerradoError(
