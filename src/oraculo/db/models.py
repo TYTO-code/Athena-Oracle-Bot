@@ -128,6 +128,9 @@ class TipoMovimentacaoDracmas(StrEnum):
     INGRESSO_CLUBE = "ingresso_clube"  # COMUNIDADE_E_CLUBE.md Art. 4º §1º — 70.000
     PREMIO_TORNEIO = "premio_torneio"  # DRACMAS.md §2 "Prêmio de torneio (pódio)"
     BONUS_VENDA_MERCADOR = "bonus_venda_mercador"  # MERCADOR.md Art. 4º §13º–§14º
+    #: COMUNIDADE_E_CLUBE.md Art. 4º §1º-A — saldo inteiro sai da Comunidade para o Clube
+    #: (conta de Membro na plataforma) na filiação.
+    MIGRACAO_CLUBE = "migracao_clube"
     OUTRA = "outra"  # fallback para movimentações ainda sem tipo próprio catalogado
 
 

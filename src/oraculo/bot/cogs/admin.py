@@ -227,6 +227,38 @@ class AdminCog(commands.Cog):
         )
 
     @app_commands.command(
+        name="migrar-para-clube",
+        description="Na filiação, leva o saldo da Comunidade para o Clube (Admin).",
+    )
+    @app_commands.describe(membro="Novo membro do Clube, já vinculado à plataforma.")
+    @requer(Acao.MIGRAR_SALDO_COMUNIDADE, efemero=True)
+    async def migrar_para_clube(
+        self, interaction: discord.Interaction, membro: discord.Member
+    ) -> None:
+        async with sessao() as session:
+            autor = await repo_membros.obter_ou_criar_por_discord(
+                session,
+                discord_id=interaction.user.id,
+                nome_exibicao=interaction.user.display_name,
+            )
+            alvo = await repo_membros.obter_ou_criar_por_discord(
+                session, discord_id=membro.id, nome_exibicao=membro.display_name
+            )
+            resultado = await self.bot.container.filiacao.migrar_saldo_para_clube(
+                session,
+                membro=alvo,
+                autor=autor,
+                origem=OrigemAcao.DISCORD,
+                guild_id=interaction.guild_id,
+            )
+
+        await interaction.followup.send(
+            f"Saldo da Comunidade de **{membro.display_name}** migrado para o Clube: "
+            f"**{resultado.valor:,} Dracmas** na plataforma.".replace(",", "."),
+            ephemeral=True,
+        )
+
+    @app_commands.command(
         name="verificar-cargos", description="Verifica se os papéis TYTO existem no servidor."
     )
     @requer(Acao.ADMINISTRAR_SISTEMA, efemero=True)
