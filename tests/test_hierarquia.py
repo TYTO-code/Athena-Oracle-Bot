@@ -19,6 +19,8 @@ from oraculo.domain.hierarchy import (
     Perfil,
     nomes_de_cargos_institucionais_discord,
     nomes_de_patentes_discord,
+    normalizar_nome_papel,
+    patente_do_papel,
     patente_para_xp,
     patente_por_slug,
     pelo_menos,
@@ -115,3 +117,33 @@ def test_perfil_descreve_patente_e_cargos():
     assert perfil.descricao() == "Comandante · Conselheiro"
     assert perfil.possui(CargoInstitucional.CONSELHEIRO)
     assert not perfil.possui(CargoInstitucional.ADMINISTRADOR)
+
+
+@pytest.mark.parametrize(
+    ("nome_no_discord", "esperado"),
+    [
+        ("Escudeiro", "escudeiro"),
+        ("🛡️ Escudeiro", "escudeiro"),
+        ("⚔️│Mestre de Armas", "mestre de armas"),
+        ("【Neófito】", "neofito"),
+        ("Omni ⭐", "omni"),
+        ("★ DOMINADOR ★", "dominador"),
+        ("𝐎𝐦𝐧𝐢", "omni"),
+        ("  Senhor   da\tGuerra 👑 ", "senhor da guerra"),
+        ("Neofito", "neofito"),
+    ],
+)
+def test_normaliza_nome_de_papel_do_discord(nome_no_discord, esperado):
+    assert normalizar_nome_papel(nome_no_discord) == esperado
+
+
+def test_toda_patente_e_reconhecida_com_emoji_e_enfeites():
+    for patente in PATENTES:
+        assert patente_do_papel(patente.nome) is patente
+        assert patente_do_papel(f"🔥 {patente.nome.upper()} ✨") is patente
+        assert patente_do_papel(f"【{patente.nome}】") is patente
+
+
+def test_papel_que_nao_e_patente_nao_e_reconhecido():
+    assert patente_do_papel("🎨 Designer") is None
+    assert patente_do_papel("Escudeiro Mirim") is None

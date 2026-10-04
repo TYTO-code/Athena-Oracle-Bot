@@ -66,7 +66,8 @@ Todos os segredos vêm de variáveis de ambiente com o prefixo `ORACULO_` — **
 
 ### Antes do primeiro uso no servidor Discord
 
-1. Crie os papéis com **exatamente** estes nomes: as 17 patentes de `XP.md` (`Neófito`, `Escudeiro`,
+1. Crie os papéis com estes nomes (emojis e enfeites no nome são aceitos — `🛡️ Escudeiro`, `【Neófito】`,
+   `Omni ⭐` —, o bot ignora emojis, símbolos, acentos e maiúsculas ao reconhecer o papel): as 17 patentes de `XP.md` (`Neófito`, `Escudeiro`,
    `Armeiro`, `Veterano`, `Mestre de Armas`, `Desafiante Legionário`, `Oficial`, `Centurião`,
    `Comandante`, `Dom`, `Lorde`, `Senhor da Guerra`, `Suserano`, `Monarca`, `Dominador`, `Renovek`,
    `Omni`) e os cargos institucionais `Conselheiro` e `Administrador`.

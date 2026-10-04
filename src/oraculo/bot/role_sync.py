@@ -7,6 +7,10 @@ Dois tipos de papel, tratados de forma diferente de propósito:
   correção direta do legado, que acumulava cargos.
 * **Cargo institucional** (Conselheiro, Administrador) — papel independente,
   adicionado ou removido sozinho, sem tocar no papel de patente.
+
+Os papéis do servidor podem ter emojis e enfeites no nome (``🛡️ Escudeiro``).
+Toda comparação com o nome canônico passa por `normalizar_nome_papel`, então o
+bot reconhece, atribui e remove esses papéis sem exigir que o servidor os renomeie.
 """
 
 from __future__ import annotations
@@ -19,6 +23,7 @@ from oraculo.domain.hierarchy import (
     Patente,
     nomes_de_cargos_institucionais_discord,
     nomes_de_patentes_discord,
+    normalizar_nome_papel,
 )
 from oraculo.logging_config import get_logger
 
@@ -38,11 +43,11 @@ class SincronizadorDiscord:
             destino = self._papel(guild, patente.nome)
 
             # RN-001 / RN-003 — remover TODOS os papéis de patente antes de atribuir.
-            gerenciados = nomes_de_patentes_discord()
+            gerenciados = {normalizar_nome_papel(n) for n in nomes_de_patentes_discord()}
             a_remover = [
                 papel
                 for papel in membro.roles
-                if papel.name in gerenciados and papel.id != destino.id
+                if normalizar_nome_papel(papel.name) in gerenciados and papel.id != destino.id
             ]
             if a_remover:
                 await membro.remove_roles(*a_remover, reason="Patente única TYTO (RN-001)")
@@ -93,7 +98,20 @@ class SincronizadorDiscord:
 
     @staticmethod
     def _papel(guild: discord.Guild, nome: str) -> discord.Role:
+        # 1) nome idêntico; 2) mesmo nome sem emojis/enfeites/acentos/caixa.
         papel = discord.utils.get(guild.roles, name=nome)
+        if papel is None:
+            chave = normalizar_nome_papel(nome)
+            candidatos = [p for p in guild.roles if normalizar_nome_papel(p.name) == chave]
+            if len(candidatos) > 1:
+                log.warning(
+                    "Mais de um papel corresponde a '%s' em %s: %s; usando '%s'.",
+                    nome,
+                    guild.name,
+                    [p.name for p in candidatos],
+                    candidatos[0].name,
+                )
+            papel = candidatos[0] if candidatos else None
         if papel is None:
             raise IntegracaoIndisponivelError(
                 "Discord",
@@ -111,6 +129,6 @@ class SincronizadorDiscord:
 
 async def cargos_faltantes(guild: discord.Guild) -> list[str]:
     """Papéis TYTO (patentes + cargos institucionais) ausentes no servidor."""
-    existentes = {papel.name for papel in guild.roles}
+    existentes = {normalizar_nome_papel(papel.name) for papel in guild.roles}
     esperados = nomes_de_patentes_discord() | nomes_de_cargos_institucionais_discord()
-    return sorted(esperados - existentes)
+    return sorted(nome for nome in esperados if normalizar_nome_papel(nome) not in existentes)

@@ -24,6 +24,7 @@
 
 ## Notas de implementação
 
+- **RN-001 / RN-003 (nome do papel):** o papel é reconhecido pelo nome canônico **ignorando emojis, símbolos, acentos, espaços extras e maiúsculas** (`normalizar_nome_papel`); nome idêntico tem prioridade, e se mais de um papel corresponder o bot usa o primeiro e registra um aviso.
 - **RN-001 / RN-003:** ao atribuir patente, remover **todos** os papéis de patente anteriores antes da nova atribuição (ver TD-005); papéis de cargo institucional são geridos à parte.
 - **RN-005:** persistir em tabela de auditoria (ex.: `xp_audit`); o legado não registra autor/motivo (TD-006).
 - **RN-010:** preferir soft-delete e append-only em logs/auditoria.
