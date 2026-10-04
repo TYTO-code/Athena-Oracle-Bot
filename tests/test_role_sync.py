@@ -133,3 +133,60 @@ async def test_diagnostico_lista_papeis_ausentes():
         roles=[PapelFalso(i, nome) for i, nome in enumerate([*presentes, "Conselheiro"])],
     )
     assert await cargos_faltantes(guild) == ["Administrador", "Omni"]
+
+
+def montar_guild_com_emojis(papeis_do_membro: list[str]) -> tuple[GuildFalsa, MembroFalso]:
+    """Servidor cujos papéis TYTO têm emojis/enfeites no nome."""
+    nomes = [f"🛡️ {p.nome}" if i % 2 else f"【{p.nome}】" for i, p in enumerate(PATENTES)]
+    nomes += ["⚖️ Conselheiro", "🔧 Administrador", "🎨 Designer"]
+    catalogo = {nome: PapelFalso(id=indice + 1, name=nome) for indice, nome in enumerate(nomes)}
+    membro = MembroFalso(id=999, roles=[catalogo[nome] for nome in papeis_do_membro])
+    guild = GuildFalsa(id=1, name="Clube TYTO", roles=list(catalogo.values()))
+    guild.membros[membro.id] = membro
+    return guild, membro
+
+
+def nome_com_emoji(guild: GuildFalsa, nome: str) -> str:
+    return next(p.name for p in guild.roles if nome in p.name)
+
+
+async def test_atribui_e_remove_patentes_com_emoji_no_nome():
+    guild, membro = montar_guild_com_emojis([])
+    antigo = nome_com_emoji(guild, "Veterano")
+    membro.roles.append(next(p for p in guild.roles if p.name == antigo))
+    sincronizador = SincronizadorDiscord(BotFalso([guild]))
+
+    await sincronizador.sincronizar(discord_id=999, patente=OFICIAL, guild_id=1)
+
+    assert membro.removidos == [antigo]
+    assert membro.adicionados == [nome_com_emoji(guild, "Oficial")]
+
+
+async def test_cargo_institucional_com_emoji_e_encontrado():
+    guild, membro = montar_guild_com_emojis([])
+    sincronizador = SincronizadorDiscord(BotFalso([guild]))
+
+    await sincronizador.definir_cargo_institucional(
+        discord_id=999, cargo=CargoInstitucional.CONSELHEIRO, ativo=True, guild_id=1
+    )
+
+    assert membro.adicionados == ["⚖️ Conselheiro"]
+
+
+async def test_nome_identico_tem_prioridade_sobre_o_enfeitado():
+    exato = PapelFalso(1, "Oficial")
+    enfeitado = PapelFalso(2, "🎖️ Oficial")
+    guild = GuildFalsa(id=1, name="Clube TYTO", roles=[enfeitado, exato])
+    membro = MembroFalso(id=999)
+    guild.membros[999] = membro
+
+    await SincronizadorDiscord(BotFalso([guild])).sincronizar(
+        discord_id=999, patente=OFICIAL, guild_id=1
+    )
+
+    assert membro.adicionados == ["Oficial"]
+
+
+async def test_diagnostico_nao_acusa_papeis_que_so_tem_emoji():
+    guild, _ = montar_guild_com_emojis([])
+    assert await cargos_faltantes(guild) == []

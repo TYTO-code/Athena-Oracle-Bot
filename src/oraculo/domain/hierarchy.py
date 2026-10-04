@@ -20,6 +20,7 @@ patente ativa, e no Discord só o papel dela. Cargos institucionais são papéis
 
 from __future__ import annotations
 
+import unicodedata
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -139,6 +140,24 @@ def xp_faltante(xp_atual: int, patente_atual: Patente | None = None) -> int | No
     return max(0, seguinte.xp_minimo - xp_atual)
 
 
+def normalizar_nome_papel(nome: str) -> str:
+    """Forma canônica de um nome de papel do Discord, para comparar patentes e cargos.
+
+    Os papéis do servidor costumam ter enfeites no nome (``🛡️ Escudeiro``,
+    ``⚔️│Mestre de Armas``, ``【Neófito】``, ``Omni ⭐``). Esta função descarta
+    tudo o que não é letra ou número (emojis, símbolos, separadores, seletores de
+    variação, juntadores de largura zero), remove acentos, uniformiza letras
+    estilizadas (``𝐎𝐦𝐧𝐢`` → ``omni``), colapsa espaços e ignora maiúsculas.
+
+    Só a comparação usa essa forma: o nome que o bot **cria ou exibe** continua
+    sendo o canônico (`Patente.nome`).
+    """
+    decomposto = unicodedata.normalize("NFKD", nome)
+    sem_acentos = "".join(c for c in decomposto if not unicodedata.combining(c))
+    so_texto = "".join(c if c.isalnum() else " " for c in sem_acentos)
+    return " ".join(so_texto.split()).casefold()
+
+
 def nomes_de_patentes_discord() -> frozenset[str]:
     """Papéis de patente gerenciados pelo bot no Discord.
 
@@ -146,6 +165,14 @@ def nomes_de_patentes_discord() -> frozenset[str]:
     membro antes de atribuir a patente nova, evitando acúmulo.
     """
     return frozenset(p.nome for p in PATENTES)
+
+
+_POR_NOME_NORMALIZADO: dict[str, Patente] = {normalizar_nome_papel(p.nome): p for p in PATENTES}
+
+
+def patente_do_papel(nome_do_papel: str) -> Patente | None:
+    """Patente que um papel do Discord representa, ignorando emojis e enfeites do nome."""
+    return _POR_NOME_NORMALIZADO.get(normalizar_nome_papel(nome_do_papel))
 
 
 class CargoInstitucional(StrEnum):
