@@ -417,13 +417,12 @@ class FirestoreMembros:
                     dados.setdefault("id", pagina[0].id)
                     return dados
         except TimeoutError as exc:
-            raise IntegracaoIndisponivelError(
-                "Firebase", f"tempo esgotado após {self._cfg.firebase_timeout}s"
-            ) from exc
+            raise IntegracaoIndisponivelError("Firebase", "tempo esgotado") from exc
         except IntegracaoIndisponivelError:
             raise
         except Exception as exc:  # noqa: BLE001 — traduzido para erro de integração
-            raise IntegracaoIndisponivelError("Firebase", str(exc)) from exc
+            log.exception("Firestore: falha ao buscar membro por discordId")
+            raise IntegracaoIndisponivelError("Firebase", "falha na consulta") from exc
         return None
 
     async def projetos_de(self, id_externo: str) -> list[str]:

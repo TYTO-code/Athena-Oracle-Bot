@@ -403,3 +403,64 @@ async def test_importar_um_espelha_so_elegivel(session):
 
     assert await servico().importar_um(session, externo_fora) is None
     assert await session.scalar(select(Membro).where(Membro.id_externo == "u2")) is None
+
+
+async def test_discord_id_de_outra_conta_nao_herda_xp_nem_cargos(session):
+    """Quem preenche o `discordId` de outra pessoa não vira essa pessoa (RN-020)."""
+    dona = {"id": "a", "name": "Dona", "discordId": "500", "xp": 5_000, "conselheiro": True}
+    impostor = {"id": "b", "name": "Impostor", "discordId": "500"}
+    await servico([dona]).importar(session)
+
+    relatorio = await servico([impostor]).importar(session)
+
+    original = await session.scalar(select(Membro).where(Membro.id_externo == "a"))
+    assert original.xp == 5_000 and original.nome_exibicao == "Dona"
+    assert await session.scalar(select(Membro).where(Membro.id_externo == "b")) is None
+    assert len(relatorio.erros) == 1, "o conflito é relatado, e a carga continua"
+
+
+async def test_conflito_de_discord_nao_derruba_o_resto_da_carga(session):
+    documentos = [
+        {"id": "a", "name": "A", "discordId": "600"},
+        {"id": "b", "name": "B", "discordId": "600"},
+        {"id": "c", "name": "C", "discordId": "601"},
+    ]
+
+    relatorio = await servico(documentos).importar(session)
+
+    assert relatorio.criados == 2
+    assert len(relatorio.erros) == 1
+    assert await session.scalar(select(Membro).where(Membro.id_externo == "c")) is not None
+
+
+async def test_importar_um_recusa_discord_de_outra_conta(session):
+    await servico([{"id": "a", "name": "A", "discordId": "700"}]).importar(session)
+
+    outro = normalizar({"id": "b", "name": "B", "discordId": "700"})
+    assert await servico().importar_um(session, outro) is None
+
+
+async def test_desativacao_e_reativacao_ficam_na_auditoria(session):
+    await servico().importar(session)
+    await servico([{**DOCS[0], "suspended": True}]).importar(session)
+    await servico([DOCS[0]]).importar(session)
+
+    acoes = set(
+        await session.scalars(
+            select(RegistroAuditoria.acao).where(RegistroAuditoria.acao.like("importacao.membro_%"))
+        )
+    )
+    assert acoes == {"importacao.membro_desativado", "importacao.membro_reativado"}
+
+
+async def test_leitura_parcial_suspeita_nao_desativa_em_massa(session):
+    """Coleção errada ou leitura cortada: sumir quase todo mundo não é "saíram do Clube"."""
+    todos = [{"id": f"m{i}", "name": f"M{i}", "discordId": str(800 + i)} for i in range(12)]
+    await servico(todos).importar(session)
+
+    relatorio = await servico(todos[:2]).importar(session, desativar_ausentes=True)
+
+    assert relatorio.desativados == 0
+    assert any("suspeito" in e for e in relatorio.erros)
+    ativos = await session.scalar(select(func.count()).select_from(Membro).where(Membro.ativo))
+    assert ativos == 12

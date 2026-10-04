@@ -22,16 +22,20 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from oraculo.db.models import Membro
-from oraculo.domain.errors import NaoCadastradoError
+from oraculo.domain.errors import IntegracaoIndisponivelError, NaoCadastradoError
 from oraculo.integrations.plataforma import FonteBuscaPorDiscord, normalizar
 from oraculo.logging_config import get_logger
 from oraculo.repositories import membros as repo_membros
 from oraculo.services.importacao_service import ImportacaoService
 
 log = get_logger(__name__)
+
+INDISPONIBILIDADE_SEGUNDOS = 15.0
+"""Pausa nas consultas depois de uma falha da plataforma."""
 
 LIMITE_CACHE_NEGATIVO = 2000
 """Teto de entradas: um servidor aberto não pode inflar a memória do bot."""
@@ -53,6 +57,7 @@ class AcessoService:
         self._ttl = ttl_negativo
         self._relogio = relogio
         self._recusados: dict[int, float] = {}
+        self._indisponivel_ate = 0.0
 
     async def membro_cadastrado(
         self, session: AsyncSession, discord_id: int, *, guild_id: int | None = None
@@ -68,12 +73,33 @@ class AcessoService:
         if self._recusados.get(discord_id, 0.0) > agora:
             raise NaoCadastradoError()
 
-        documento = await self._fonte.buscar_por_discord(discord_id)
+        if self._indisponivel_ate > agora:
+            # Plataforma caiu há instantes: não faz uma leitura por comando.
+            raise IntegracaoIndisponivelError("Firebase", "Tente novamente em instantes.")
+
+        try:
+            documento = await self._fonte.buscar_por_discord(discord_id)
+        except IntegracaoIndisponivelError:
+            self._indisponivel_ate = agora + INDISPONIBILIDADE_SEGUNDOS
+            # O detalhe técnico fica no log; o usuário vê uma mensagem fixa.
+            log.exception("Acesso: plataforma indisponível ao consultar discord_id=%s", discord_id)
+            raise IntegracaoIndisponivelError(
+                "Firebase", "Não consegui verificar seu cadastro agora. Tente de novo em instantes."
+            ) from None
         externo = normalizar(documento, mapa=self._mapa) if documento is not None else None
 
         membro = None
         if externo is not None and externo.elegivel and externo.discord_id == discord_id:
-            membro = await self._importacao.importar_um(session, externo, guild_id=guild_id)
+            try:
+                async with session.begin_nested():
+                    membro = await self._importacao.importar_um(
+                        session, externo, guild_id=guild_id
+                    )
+            except IntegrityError:
+                # Corrida: outro comando do mesmo membro o espelhou primeiro.
+                membro = await repo_membros.buscar_por_discord_id(session, discord_id)
+                if membro is not None and not (membro.ativo and membro.id_externo):
+                    membro = None
 
         if membro is None:
             self._recusar(discord_id, agora)

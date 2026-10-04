@@ -4,7 +4,7 @@ Formato textual estruturado (UML Use Case).
 
 ---
 
-## UC-001 — Conceder XP
+## UC-001 — Conceder XP *(revogado — RN-021: o bot não concede XP; o caso de uso vive na TYTO.club)*
 
 | Campo | Valor |
 |-------|-------|

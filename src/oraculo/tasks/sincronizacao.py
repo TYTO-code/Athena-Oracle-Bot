@@ -4,8 +4,9 @@ Roda dentro do processo do bot, no mesmo padrão do backup: sem agendador
 externo, o que mantém o deploy de um container só (ADR-001).
 
 Uma falha de leitura no Firebase **não** derruba o bot nem apaga nada: o job
-registra o erro e tenta de novo no próximo ciclo. Como a política de ausentes é
-"não mexer", uma leitura parcial não desativa ninguém por engano.
+registra o erro e tenta de novo no próximo ciclo. Quem some da plataforma é
+desativado (RN-020), mas uma leitura vazia ou suspeita de ser parcial não
+desativa ninguém (ver `ImportacaoService`).
 """
 
 from __future__ import annotations

@@ -246,3 +246,23 @@ async def test_comandos_publicos_respondem_no_canal(bot, session, engine):
         except PermissaoInsuficiente:
             pass
         assert interacao.response.efemera is False, f"/{nome} deveria responder no canal"
+
+
+async def test_falha_da_plataforma_mostra_mensagem_fixa_e_pausa_consultas(bot, session, engine):
+    """O detalhe técnico não vaza para o Discord e uma queda não vira uma leitura por comando."""
+    consultas: list[int] = []
+
+    class FonteQuebrada(FonteEmMemoria):
+        async def buscar_por_discord(self, discord_id):
+            consultas.append(discord_id)
+            raise IntegracaoIndisponivelError("Firebase", "PERMISSION_DENIED projeto-x segredo")
+
+    fonte = FonteQuebrada([])
+    bot.container.acesso = AcessoService(fonte, ImportacaoService(fonte))
+
+    for usuario in (9101, 9102, 9103):
+        with pytest.raises(IntegracaoIndisponivelError) as erro:
+            await executar_checagens(bot, "perfil", interacao_de(bot, usuario))
+        assert "segredo" not in str(erro.value)
+
+    assert len(consultas) == 1

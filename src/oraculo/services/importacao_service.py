@@ -25,6 +25,7 @@ plataforma não rebaixa ninguém no bot — a divergência vai para a auditoria.
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass, field
 
 from sqlalchemy import select
@@ -80,9 +81,20 @@ class Relatorio:
             f"{self.atualizados} atualizados · {self.inalterados} sem mudança · "
             f"{self.promovidos} com patente alterada · "
             f"{self.nao_elegiveis} fora do Clube · {self.desativados} desativados · "
+            f"{self.reativados} reativados · "
             f"{self.sem_discord} sem Discord · "
             f"{self.invalidos} inválidos · {len(self.erros)} erros"
         )
+
+
+class ConflitoDeDiscordIdError(Exception):
+    """O `discordId` já pertence a outro membro — ninguém herda a conta de outrem."""
+
+
+LIMITE_DESATIVACAO_EM_MASSA = 0.5
+"""Fração de ativos que uma única leitura pode desativar por "ausência". Acima
+disso (e de 5 pessoas) a leitura é tratada como suspeita — coleção errada ou
+leitura parcial — e nada é desativado."""
 
 
 class ImportacaoService:
@@ -119,7 +131,14 @@ class ImportacaoService:
                 relatorio.sem_discord += 1
 
             try:
-                await self._aplicar(session, externo, relatorio, dry_run, guild_id)
+                # Savepoint por registro: uma violação de unicidade desfaz só ele,
+                # sem deixar a sessão inteira em `PendingRollback`. No ensaio não se
+                # usa: o driver do SQLite confirma a transação ao liberar o savepoint,
+                # e o ensaio precisa poder ser revertido por inteiro.
+                async with contextlib.AsyncExitStack() as pilha:
+                    if not dry_run:
+                        await pilha.enter_async_context(session.begin_nested())
+                    await self._aplicar(session, externo, relatorio, dry_run, guild_id)
             except Exception as exc:  # noqa: BLE001 — um registro ruim não aborta a carga
                 log.exception("Falha ao importar membro %s", externo.id_externo)
                 relatorio.erros.append(f"{externo.id_externo}: {type(exc).__name__}: {exc}")
@@ -128,6 +147,8 @@ class ImportacaoService:
         # esvaziou": desativar todo mundo por isso trancaria o bot inteiro.
         if desativar_ausentes and vistos:
             await self._desativar_ausentes(session, vistos, relatorio, dry_run)
+        elif desativar_ausentes:
+            relatorio.erros.append("leitura vazia: nenhuma desativação por ausência aplicada")
 
         if dry_run:
             # Nada do que foi feito acima deve sobreviver ao ensaio.
@@ -166,8 +187,14 @@ class ImportacaoService:
         Devolve o membro ativo no bot, ou `None` se ele não é elegível.
         """
         relatorio = Relatorio()
-        await self._aplicar(session, externo, relatorio, False, guild_id)
-        await session.flush()
+        try:
+            await self._aplicar(session, externo, relatorio, False, guild_id)
+            await session.flush()
+        except ConflitoDeDiscordIdError:
+            log.warning(
+                "Acesso recusado: discordId %s já pertence a outro membro.", externo.discord_id
+            )
+            return None
         membro = await self._encontrar(session, externo)
         return membro if membro is not None and membro.ativo else None
 
@@ -189,11 +216,18 @@ class ImportacaoService:
                 membro.ativo, membro.desativado_em = False, agora()
                 membro.sincronizado_em = agora()
                 relatorio.desativados += 1
+                await self._auditar_acesso(
+                    session, membro, "importacao.membro_desativado",
+                    "deixou de ser elegível na plataforma (suspenso, sem Discord ou fora do Clube)",
+                    guild_id,
+                )
                 if not dry_run:
                     await session.flush()
             else:
                 relatorio.nao_elegiveis += 1
             return
+
+        await self._garantir_discord_livre(session, externo, membro)
 
         if membro is None:
             await self._criar(session, externo, relatorio, guild_id)
@@ -217,6 +251,10 @@ class ImportacaoService:
             membro.ativo, membro.desativado_em = True, None
             relatorio.reativados += 1
             mudou = True
+            await self._auditar_acesso(
+                session, membro, "importacao.membro_reativado",
+                "voltou a ser elegível na plataforma", guild_id,
+            )
 
         mudou |= await self._espelhar_cargos(session, membro, externo, guild_id)
         mudou |= await self._espelhar_progressao(session, membro, externo, relatorio, guild_id)
@@ -256,6 +294,36 @@ class ImportacaoService:
         relatorio.criados += 1
 
         await self._subir_patente(session, membro, externo, relatorio, guild_id)
+
+    @staticmethod
+    async def _garantir_discord_livre(
+        session: AsyncSession, externo: MembroExterno, membro: Membro | None
+    ) -> None:
+        """Recusa o espelho se o `discordId` já está com outra conta (RN-020)."""
+        dono = await session.scalar(
+            select(Membro).where(Membro.discord_id == externo.discord_id)
+        )
+        if dono is not None and (membro is None or dono.id != membro.id):
+            raise ConflitoDeDiscordIdError(
+                f"discordId {externo.discord_id} de {externo.id_externo} já pertence a "
+                f"{dono.id_externo or dono.id}"
+            )
+
+    @staticmethod
+    async def _auditar_acesso(
+        session: AsyncSession, membro: Membro, acao: str, motivo: str, guild_id: int | None
+    ) -> None:
+        await auditoria.registrar(
+            session,
+            acao=acao,
+            resumo=f"{membro.nome_exibicao}: {motivo}",
+            ator_descricao="importação da plataforma",
+            alvo_tipo="membro",
+            alvo_id=membro.id,
+            dados={"id_externo": membro.id_externo},
+            origem=OrigemAcao.SISTEMA,
+            guild_id=guild_id,
+        )
 
     @staticmethod
     async def _espelhar_cargos(
@@ -399,8 +467,13 @@ class ImportacaoService:
         )
         if membro is not None or externo.discord_id is None:
             return membro
+        # Só adota um registro que ainda **não** pertence a outra conta da
+        # plataforma: quem preenche o `discordId` de outra pessoa não herda o
+        # XP, a patente nem os cargos dela.
         return await session.scalar(
-            select(Membro).where(Membro.discord_id == externo.discord_id)
+            select(Membro).where(
+                Membro.discord_id == externo.discord_id, Membro.id_externo.is_(None)
+            )
         )
 
     @staticmethod
@@ -411,11 +484,21 @@ class ImportacaoService:
         candidatos = await session.scalars(
             select(Membro).where(Membro.id_externo.is_not(None), Membro.ativo.is_(True))
         )
-        for membro in candidatos:
-            if membro.id_externo in vistos:
-                continue
+        ativos = list(candidatos)
+        ausentes = [m for m in ativos if m.id_externo not in vistos]
+        if len(ausentes) > 5 and len(ausentes) > len(ativos) * LIMITE_DESATIVACAO_EM_MASSA:
+            relatorio.erros.append(
+                f"{len(ausentes)} de {len(ativos)} membros ausentes na leitura: suspeito "
+                "(coleção errada ou leitura parcial); nenhuma desativação aplicada"
+            )
+            return
+        for membro in ausentes:
             membro.ativo = False
             membro.desativado_em = agora()
             relatorio.desativados += 1
+            await ImportacaoService._auditar_acesso(
+                session, membro, "importacao.membro_desativado",
+                "ausente da plataforma", None,
+            )
         if not dry_run:
             await session.flush()

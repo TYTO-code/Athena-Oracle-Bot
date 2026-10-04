@@ -50,7 +50,7 @@ class NaoCadastradoError(BusinessRuleError):
 
 
 class MotivoObrigatorioError(BusinessRuleError):
-    """RN-005 — toda movimentação de XP (ou de cargo institucional) exige motivo registrável."""
+    """RN-005 — toda movimentação registrada exige motivo."""
 
     regra = "RN-005"
 

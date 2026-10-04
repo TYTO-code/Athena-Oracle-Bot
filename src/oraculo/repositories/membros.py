@@ -8,7 +8,6 @@ from typing import NamedTuple
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from oraculo.db.base import agora
 from oraculo.db.models import Membro, MovimentacaoXp
 from oraculo.domain.errors import NaoCadastradoError, RecursoNaoEncontradoError
 
@@ -36,13 +35,6 @@ async def buscar_por_discord_id(session: AsyncSession, discord_id: int) -> Membr
     return resultado.scalar_one_or_none()
 
 
-async def buscar_por_whatsapp(session: AsyncSession, telefone_e164: str) -> Membro | None:
-    resultado = await session.execute(
-        select(Membro).where(Membro.whatsapp_e164 == telefone_e164)
-    )
-    return resultado.scalar_one_or_none()
-
-
 async def obter_cadastrado_por_discord(
     session: AsyncSession, discord_id: int, *, sujeito: str | None = None
 ) -> Membro:
@@ -58,20 +50,6 @@ async def obter_cadastrado_por_discord(
         )
     return membro
 
-
-async def reativar(session: AsyncSession, membro: Membro) -> Membro:
-    membro.ativo = True
-    membro.desativado_em = None
-    await session.flush()
-    return membro
-
-
-async def desativar(session: AsyncSession, membro: Membro) -> Membro:
-    """RN-010 — soft-delete: o histórico do membro permanece intacto."""
-    membro.ativo = False
-    membro.desativado_em = agora()
-    await session.flush()
-    return membro
 
 
 async def ranking(

@@ -31,7 +31,7 @@ from oraculo.db.models import (
     TipoMencao,
 )
 from oraculo.domain.errors import BusinessRuleError
-from oraculo.domain.permissions import Acao, exigir
+from oraculo.domain.permissions import Acao, exigir, pode_executar
 from oraculo.logging_config import get_logger
 from oraculo.repositories import auditoria
 from oraculo.repositories import comunicados as repo
@@ -293,12 +293,49 @@ class ComunicadoService:
         for comunicado in reservados:
             if como_utc(comunicado.publicar_em) < limite_atraso:
                 await self._expirar(session, comunicado, resultado)
+            elif not await self._autor_autorizado(session, comunicado):
+                await self._recusar_autor(session, comunicado, resultado)
             else:
                 await self._entregar(session, comunicado, resultado)
             await session.commit()
         return resultado
 
     # -- Interno -----------------------------------------------------------
+
+    @staticmethod
+    async def _autor_autorizado(session: AsyncSession, comunicado: Comunicado) -> bool:
+        """RN-020 / RN-008 — o autor ainda é membro ativo e ainda pode publicar?
+
+        A permissão foi checada ao programar; até a hora de sair o autor pode ter
+        sido suspenso ou perdido a patente/cargo na plataforma. Um agendamento
+        antigo não pode ser um caminho de volta para quem já não tem acesso.
+        """
+        autor = await session.get(Membro, comunicado.autor_id)
+        if autor is None or not autor.ativo:
+            return False
+        perfil = autor.perfil
+        if not pode_executar(perfil, Acao.PUBLICAR_COMUNICADO):
+            return False
+        mencao = TipoMencao(comunicado.mencao)
+        return mencao is not TipoMencao.TODOS or pode_executar(perfil, Acao.MENCIONAR_TODOS)
+
+    async def _recusar_autor(
+        self, session: AsyncSession, comunicado: Comunicado, resultado: ResultadoCiclo
+    ) -> None:
+        comunicado.status = StatusComunicado.FALHOU
+        comunicado.reservado_em = None
+        comunicado.erro = "Autor sem acesso ou sem permissão na hora da publicação (RN-020)."
+        resultado.falhados.append(comunicado.id)
+        await auditoria.registrar(
+            session,
+            acao="comunicado.recusado_autor",
+            resumo=f"Comunicado '{comunicado.titulo}' não publicado: autor sem permissão",
+            alvo_tipo="comunicado",
+            alvo_id=comunicado.id,
+            dados={"autor_id": comunicado.autor_id},
+            origem=OrigemAcao.SISTEMA,
+            guild_id=comunicado.guild_id,
+        )
 
     async def _entregar(
         self, session: AsyncSession, comunicado: Comunicado, resultado: ResultadoCiclo

@@ -18,6 +18,7 @@ from oraculo.bot.datas import interpretar_data
 from oraculo.bot.permissions import requer
 from oraculo.db.base import sessao
 from oraculo.db.models import OrigemAcao, StatusPresenca, TipoAgendamento
+from oraculo.domain.errors import OraculoError
 from oraculo.domain.permissions import Acao
 from oraculo.logging_config import get_logger
 from oraculo.repositories import agenda as repo_agenda
@@ -64,18 +65,27 @@ class BotaoRsvp(
         await interaction.response.defer(ephemeral=True)
         container = interaction.client.container
 
-        async with sessao() as session:
-            agendamento = await repo_agenda.obter(session, self.agendamento_id)
-            membro = await repo_membros.obter_cadastrado_por_discord(session, interaction.user.id)
-            await container.agenda.responder_rsvp(
-                session,
-                agendamento=agendamento,
-                membro=membro,
-                status=self.status,
-                origem=OrigemAcao.DISCORD,
-            )
-            resumo = await container.agenda.resumo_presencas(session, self.agendamento_id)
-            titulo = agendamento.titulo
+        # O botão não passa por `requer`/`tree.on_error`: aplica o mesmo gate de
+        # cadastro (RN-020) e devolve o erro por conta própria, para a interação
+        # adiada nunca ficar "pensando…".
+        try:
+            async with sessao() as session:
+                membro = await container.acesso.membro_cadastrado(
+                    session, interaction.user.id, guild_id=interaction.guild_id
+                )
+                agendamento = await repo_agenda.obter(session, self.agendamento_id)
+                await container.agenda.responder_rsvp(
+                    session,
+                    agendamento=agendamento,
+                    membro=membro,
+                    status=self.status,
+                    origem=OrigemAcao.DISCORD,
+                )
+                resumo = await container.agenda.resumo_presencas(session, self.agendamento_id)
+                titulo = agendamento.titulo
+        except OraculoError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+            return
 
         await interaction.followup.send(
             f"Presença registrada em **{titulo}**: **{self.status.value}**.\n"

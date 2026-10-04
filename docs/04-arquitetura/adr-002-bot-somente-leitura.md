@@ -38,5 +38,9 @@ servidor para disparar um comando.
 - **Risco herdado:** sem o teto e a confirmação manual de patente, uma patente/`admin` adulterados na
   plataforma chegam ao bot. A proteção disso é das regras do Firestore da TYTO.club (campos `tier`,
   `xp`, `admin`, `conselheiro` só alteráveis pelo backend) — fora deste repositório.
+- **Limitação conhecida:** a sincronização periódica não aplica papéis no Discord (ela roda sem o
+  cliente do bot). Patente e cargos espelhados só chegam ao servidor na primeira promoção feita no
+  fluxo de acesso ou com `/sincronizar-papeis`. Conselheiro/Administrador revogado na plataforma perde
+  o poder **no bot** na hora, mas mantém o papel visual no Discord até alguém sincronizar.
 - Tabelas `aldeoes`, `dracmas_ledger` e `vinculos_pendentes` ficam no schema como histórico; nenhuma
   migração destrutiva foi feita.

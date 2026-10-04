@@ -42,8 +42,8 @@ Fecha a cadeia `Visão → RN/RF/RNF → Casos de Uso → Dívida Técnica → A
 | RF-010 Notificações | [notificacao_service.py](../../src/oraculo/services/notificacao_service.py), canais Discord e e-mail |
 | RF-011 Google Agenda | `GoogleAgenda.criar/atualizar/cancelar` (bot → Google) e `alteracoes_desde` + `loop_agenda_google` (Google → bot: edições e cancelamentos feitos no calendário) |
 | RF-012 Logs | Tabela `audit_log` ([repositories/auditoria.py](../../src/oraculo/repositories/auditoria.py)) + `/auditoria` |
-| RF-013 Saldo/extrato de Dracmas | `/saldo`, `/extrato-dracmas` ([cogs/comunidade.py](../../src/oraculo/bot/cogs/comunidade.py)) |
-| RF-014 Doação de Dracmas | `/doar-dracmas`, `DracmasService.doar` |
+| RF-013 Saldo/extrato de Dracmas | *Revogado (RN-021): o bot não oferece Dracmas* | — |
+| RF-014 Doação de Dracmas | *Revogado (RN-021)* | — |
 | RF-015 Comunicados oficiais | `/comunicar`, `/agendar-comunicado`, `/comunicados`, `/cancelar-comunicado` e o ciclo `publicar_programados` ([cogs/comunicados.py](../../src/oraculo/bot/cogs/comunicados.py)) |
 
 ## Requisitos não funcionais
@@ -87,4 +87,4 @@ Fecha a cadeia `Visão → RN/RF/RNF → Casos de Uso → Dívida Técnica → A
 | Cargos institucionais | Conselheiro e Administrador como flags independentes da patente, **espelhadas** da plataforma (RN-021); o bot não os concede | Carta Art. VIII (eixos independentes); fonte única da verdade na TYTO.club |
 | Teto da importação | *Removido (ADR-002):* sem `/confirmar-patente`, a patente da plataforma é aplicada direto; a proteção de `tier`/`xp`/`admin` é das regras do Firestore da TYTO.club | O bot não escreve; reter patente sem ninguém para liberar só travaria o Clube |
 | WhatsApp | Schema e origem de ação já preveem o canal; adaptador não implementado | Fora da Sprint 1–4; exige ADR próprio (follow-up do ADR-001) |
-| Dracmas do Clube | Vivem só na plataforma; o bot guarda só a Comunidade e migra o saldo na filiação (RN-019). `Membro.dracmas` (US-405) fica sem uso | Decisão do Clube TYTO (F2-006): a plataforma já cobra a taxa mensal — manter um segundo saldo no bot cobraria em dobro |
+| Dracmas do Clube | Vivem só na plataforma; o bot não os lê nem movimenta (ADR-002). `Membro.dracmas` (US-405) e as tabelas da Comunidade ficam como histórico | Decisão do Clube |
