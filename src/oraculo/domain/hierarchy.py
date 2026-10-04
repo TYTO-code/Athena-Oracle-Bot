@@ -179,7 +179,7 @@ class CargoInstitucional(StrEnum):
     """Cargos fora da escala de XP — acumuláveis com qualquer patente.
 
     Não há rebaixamento por XP nem promoção automática: concessão e revogação
-    são sempre ato auditado de um Administrador (`/cargo-institucional`).
+    acontecem na plataforma TYTO.club e são apenas espelhadas pelo bot (RN-021).
     """
 
     CONSELHEIRO = "conselheiro"

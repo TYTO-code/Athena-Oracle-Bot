@@ -73,6 +73,7 @@ def criar_membro(session):
         patente = posicao if isinstance(posicao, Patente) else NEOFITO
         membro = Membro(
             discord_id=1_000_000 + contador["n"],
+            id_externo=f"uid-{contador['n']}",
             nome_exibicao=nome or f"Membro {contador['n']}",
             patente_slug=patente.slug,
             xp=xp,

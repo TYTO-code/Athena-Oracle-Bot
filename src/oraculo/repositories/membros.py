@@ -8,10 +8,8 @@ from typing import NamedTuple
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from oraculo.db.base import agora
 from oraculo.db.models import Membro, MovimentacaoXp
-from oraculo.domain.errors import RecursoNaoEncontradoError
-from oraculo.domain.hierarchy import PATENTE_INICIAL
+from oraculo.domain.errors import NaoCadastradoError, RecursoNaoEncontradoError
 
 
 class LinhaRanking(NamedTuple):
@@ -37,58 +35,21 @@ async def buscar_por_discord_id(session: AsyncSession, discord_id: int) -> Membr
     return resultado.scalar_one_or_none()
 
 
-async def buscar_por_whatsapp(session: AsyncSession, telefone_e164: str) -> Membro | None:
-    resultado = await session.execute(
-        select(Membro).where(Membro.whatsapp_e164 == telefone_e164)
-    )
-    return resultado.scalar_one_or_none()
-
-
-async def obter_ou_criar_por_discord(
-    session: AsyncSession,
-    *,
-    discord_id: int,
-    nome_exibicao: str,
-    email: str | None = None,
+async def obter_cadastrado_por_discord(
+    session: AsyncSession, discord_id: int, *, sujeito: str | None = None
 ) -> Membro:
-    """RF-001 — registra o usuário no primeiro contato (auto-onboarding).
+    """Membro com cadastro ativo na TYTO.club — **nunca cria** (RN-020).
 
-    O nome de exibição é mantido sincronizado com o Discord; XP, patente e
-    cargos de um membro já existente jamais são reinicializados aqui.
+    `sujeito` é o nome de quem está sendo consultado quando não é o próprio autor
+    do comando; muda só o texto do erro.
     """
     membro = await buscar_por_discord_id(session, discord_id)
-    if membro is not None:
-        if nome_exibicao and membro.nome_exibicao != nome_exibicao:
-            membro.nome_exibicao = nome_exibicao
-        if email and not membro.email:
-            membro.email = email
-        return membro
-
-    membro = Membro(
-        discord_id=discord_id,
-        nome_exibicao=nome_exibicao or str(discord_id),
-        email=email,
-        patente_slug=PATENTE_INICIAL.slug,
-        xp=0,
-    )
-    session.add(membro)
-    await session.flush()
+    if membro is None or membro.id_externo is None or not membro.ativo:
+        raise NaoCadastradoError(
+            f"**{sujeito}** não tem cadastro de membro ativo na TYTO.club." if sujeito else None
+        )
     return membro
 
-
-async def reativar(session: AsyncSession, membro: Membro) -> Membro:
-    membro.ativo = True
-    membro.desativado_em = None
-    await session.flush()
-    return membro
-
-
-async def desativar(session: AsyncSession, membro: Membro) -> Membro:
-    """RN-010 — soft-delete: o histórico do membro permanece intacto."""
-    membro.ativo = False
-    membro.desativado_em = agora()
-    await session.flush()
-    return membro
 
 
 async def ranking(

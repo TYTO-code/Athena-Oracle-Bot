@@ -17,16 +17,46 @@ from oraculo.domain.permissions import requisito_minimo, satisfaz
 CONSELHEIRO = CargoInstitucional.CONSELHEIRO
 ADMINISTRADOR = CargoInstitucional.ADMINISTRADOR
 
-COMANDOS_SEM_CARGO = frozenset(
-    {"saldo", "extrato-dracmas", "doar-dracmas", "vincular-conta", "confirmar-vinculo"}
+COMANDOS_ESPERADOS = frozenset(
+    {
+        "ajuda",
+        "perfil",
+        "ranking",
+        "hierarquia",
+        "agenda",
+        "criar-reuniao",
+        "criar-evento",
+        "cancelar-agendamento",
+        "comunicar",
+        "agendar-comunicado",
+        "comunicados",
+        "cancelar-comunicado",
+        "perguntar",
+        "auditoria",
+        "sincronizar-papeis",
+        "verificar-cargos",
+    }
 )
-"""RN-011 — camada Comunidade opera por `discord_id`, não por `Membro`/cargo
-do Clube (ver docstring de `bot/cogs/comunidade.py`); estes comandos
-legitimamente não passam por `@requer` nem aparecem em `/ajuda` por cargo.
+"""RN-021 — a superfície **inteira** do bot. Comando novo precisa entrar aqui de
+propósito, e o teste abaixo garante que nenhum deles escreve na plataforma."""
 
-RN-016 — `vincular-conta`/`confirmar-vinculo` têm o mesmo motivo, mas na outra
-ponta: `@requer` criaria o `Membro` "zerado" que o próprio fluxo existe para
-recusar como duplicado (ver docstring de `bot/cogs/vinculo.py`)."""
+COMANDOS_DE_ESCRITA_REMOVIDOS = frozenset(
+    {
+        "conceder-xp",
+        "historico-xp",
+        "cargo-institucional",
+        "confirmar-patente",
+        "migrar-para-clube",
+        "reconciliar-conta",
+        "vincular-conta",
+        "confirmar-vinculo",
+        "saldo",
+        "extrato-dracmas",
+        "doar-dracmas",
+        "remover-xp",
+        "definir-cargo",
+    }
+)
 
 
 @pytest.fixture
@@ -41,41 +71,20 @@ async def bot(settings):
 
 
 async def test_todo_comando_declara_a_acao_exigida(bot):
-    """Um comando sem `@requer` (fora da exceção documentada da Comunidade) escaparia da
-    política e sumiria do /ajuda."""
-    sem_acao = [
-        c.qualified_name
-        for c in bot.tree.walk_commands()
-        if acao_requerida(c) is None and c.qualified_name not in COMANDOS_SEM_CARGO
-    ]
+    """RN-020 — sem `@requer` o comando escaparia do gate de cadastro e do /ajuda."""
+    sem_acao = [c.qualified_name for c in bot.tree.walk_commands() if acao_requerida(c) is None]
     assert sem_acao == []
 
 
-async def test_comandos_esperados_estao_registrados(bot):
+async def test_superficie_de_comandos_e_exatamente_a_esperada(bot):
     nomes = {c.qualified_name for c in bot.tree.walk_commands()}
-    assert {
-        "ajuda",
-        "perfil",
-        "ranking",
-        "agenda",
-        "hierarquia",
-        "conceder-xp",
-        "historico-xp",
-        "criar-reuniao",
-        "criar-evento",
-        "cancelar-agendamento",
-        "auditoria",
-        "cargo-institucional",
-        "confirmar-patente",
-        "sincronizar-papeis",
-        "verificar-cargos",
-        "comunicar",
-        "agendar-comunicado",
-        "comunicados",
-        "cancelar-comunicado",
-    } <= nomes
-    assert "remover-xp" not in nomes, "XP é irrevogável (XP.md Art. 1º §1º)"
-    assert "definir-cargo" not in nomes, "patente só vem do XP (TD-007)"
+    assert nomes == COMANDOS_ESPERADOS
+
+
+async def test_nenhum_comando_de_escrita_na_plataforma(bot):
+    """RN-021 — XP, patente, cargo, Dracmas e vínculos só se alteram na TYTO.club."""
+    nomes = {c.qualified_name for c in bot.tree.walk_commands()}
+    assert nomes.isdisjoint(COMANDOS_DE_ESCRITA_REMOVIDOS)
 
 
 @pytest.mark.parametrize(
@@ -86,15 +95,11 @@ async def test_comandos_esperados_estao_registrados(bot):
         ("ajuda", NEOFITO),
         ("criar-reuniao", VETERANO),
         ("criar-evento", OFICIAL),
-        ("conceder-xp", CONSELHEIRO),
-        ("historico-xp", CONSELHEIRO),
         ("comunicar", OFICIAL),
         ("agendar-comunicado", OFICIAL),
         ("cancelar-comunicado", OFICIAL),
-        ("cargo-institucional", ADMINISTRADOR),
-        ("confirmar-patente", ADMINISTRADOR),
         ("sincronizar-papeis", ADMINISTRADOR),
-        ("migrar-para-clube", ADMINISTRADOR),
+        ("auditoria", CONSELHEIRO),
     ],
 )
 async def test_requisito_de_cada_comando(bot, comando, requisito):
@@ -106,13 +111,12 @@ async def test_ajuda_agrupa_todos_os_comandos_por_requisito(bot):
     todos = list(bot.tree.walk_commands())
     grupos = agrupar_por_requisito(todos)
 
-    com_cargo = [c for c in todos if c.qualified_name not in COMANDOS_SEM_CARGO]
     total_agrupado = sum(len(lista) for lista in grupos.values())
-    assert total_agrupado == len(com_cargo)
+    assert total_agrupado == len(todos)
 
     nomes_membro = {c.qualified_name for c in grupos[NEOFITO]}
     assert {"perfil", "ranking", "ajuda"} <= nomes_membro
-    assert "conceder-xp" not in nomes_membro
+    assert "auditoria" not in nomes_membro
 
 
 async def test_neofito_ve_apenas_a_secao_liberada(bot):

@@ -420,3 +420,48 @@ async def test_listagem_mostra_tambem_os_que_falharam(session, criar_membro, ser
     falhados = await repo.listar(session, status=StatusComunicado.FALHOU)
 
     assert len(falhados) == 1
+
+
+# -- Autor que perdeu o acesso antes da hora (RN-020) ------------------------
+
+
+async def test_autor_desativado_nao_publica_comunicado_antigo(
+    session, criar_membro, servico, publicador
+):
+    autor = await criar_membro(OFICIAL)
+    comunicado = await _agendar_direto(session, autor, quando=agora() - timedelta(minutes=1))
+    autor.ativo = False  # suspenso na plataforma entre programar e publicar
+    await session.flush()
+
+    resultado = await servico.publicar_pendentes(session)
+
+    assert publicador.publicados == []
+    assert resultado.falhados == [comunicado.id]
+    assert comunicado.status is StatusComunicado.FALHOU
+
+
+async def test_autor_que_perdeu_a_patente_nao_publica(session, criar_membro, servico, publicador):
+    autor = await criar_membro(OFICIAL)
+    await _agendar_direto(session, autor, quando=agora() - timedelta(minutes=1))
+    autor.patente_slug = NEOFITO.slug
+    await session.flush()
+
+    await servico.publicar_pendentes(session)
+
+    assert publicador.publicados == []
+
+
+async def test_everyone_exige_que_o_autor_ainda_seja_conselheiro(
+    session, criar_membro, servico, publicador
+):
+    autor = await criar_membro(CONSELHEIRO)
+    await _agendar_direto(
+        session, autor, quando=agora() - timedelta(minutes=1), mencao=TipoMencao.TODOS
+    )
+    autor.conselheiro = False
+    autor.patente_slug = OFICIAL.slug
+    await session.flush()
+
+    await servico.publicar_pendentes(session)
+
+    assert publicador.publicados == []

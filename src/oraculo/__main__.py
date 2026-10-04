@@ -14,7 +14,6 @@ Uso::
     python -m oraculo backup       # executa um backup imediato
     python -m oraculo importar     # importa os membros da plataforma (Firebase)
     python -m oraculo verificar    # valida a configuração (RNF-003)
-    python -m oraculo promover-admin --discord-id <id>  # bootstrap do 1º Administrador
 """
 
 from __future__ import annotations
@@ -43,42 +42,9 @@ async def rodar_bot(cfg: Settings) -> None:
     if not cfg.is_production:
         await criar_schema(cfg)
 
-    await _bootstrap_admin_se_configurado(cfg)
-
     bot = criar_bot(cfg)
     async with bot:
         await bot.start(cfg.require_discord_token())
-
-
-async def _bootstrap_admin_se_configurado(cfg: Settings) -> None:
-    """Bootstrap opcional do 1º Administrador via variável de ambiente (RN-008).
-
-    Alternativa a `python -m oraculo promover-admin` para quem só tem acesso
-    ao painel de variáveis do deploy — sem CLI, sem espaço local, sem shell.
-    Idempotente: silenciosamente não faz nada se já existir um Administrador
-    ativo, então é seguro deixar a variável configurada entre deploys.
-    """
-    if cfg.bootstrap_admin_discord_id is None:
-        return
-
-    from oraculo.db.base import sessao
-    from oraculo.services.bootstrap_service import (
-        AdministradorJaExisteError,
-        promover_primeiro_administrador,
-    )
-
-    try:
-        async with sessao(cfg) as session:
-            await promover_primeiro_administrador(
-                session, discord_id=cfg.bootstrap_admin_discord_id
-            )
-        log.info(
-            "Bootstrap: discord_id=%s promovido a Administrador via "
-            "ORACULO_BOOTSTRAP_ADMIN_DISCORD_ID.",
-            cfg.bootstrap_admin_discord_id,
-        )
-    except AdministradorJaExisteError:
-        log.debug("Bootstrap de Administrador ignorado: já existe um ativo.")
 
 
 async def rodar_api(cfg: Settings) -> None:
@@ -110,7 +76,7 @@ async def rodar_tudo(cfg: Settings) -> None:
         tarefas.append(asyncio.create_task(loop_backup(cfg), name="backup"))
     if cfg.google_enabled and cfg.google_sync_intervalo_minutos > 0:
         tarefas.append(asyncio.create_task(loop_agenda_google(cfg), name="agenda_google"))
-    if cfg.plataforma_habilitada and cfg.importacao_ao_iniciar or cfg.sincronizacao_periodica:
+    if cfg.plataforma_habilitada and (cfg.importacao_ao_iniciar or cfg.sincronizacao_periodica):
         tarefas.append(asyncio.create_task(loop_sincronizacao(cfg), name="sincronizacao"))
 
     if not tarefas:
@@ -194,35 +160,6 @@ async def comando_backup(cfg: Settings) -> None:
     print(f"Backup gerado em {arquivo}")
 
 
-async def comando_promover_admin(cfg: Settings, *, discord_id: int, nome: str | None) -> None:
-    """CLI para o bootstrap do primeiro Administrador — ver `services.bootstrap_service`."""
-    from oraculo.db.base import criar_schema, encerrar_engine, sessao
-    from oraculo.services.bootstrap_service import (
-        AdministradorJaExisteError,
-        promover_primeiro_administrador,
-    )
-
-    if not cfg.is_production:
-        await criar_schema(cfg)
-
-    try:
-        async with sessao(cfg) as session:
-            membro = await promover_primeiro_administrador(
-                session, discord_id=discord_id, nome=nome
-            )
-            nome_final = membro.nome_exibicao
-    except AdministradorJaExisteError as exc:
-        raise RuntimeError(str(exc)) from exc
-
-    await encerrar_engine()
-    print(f"{nome_final} (discord_id={discord_id}) agora é Administrador no banco do bot.")
-    print(
-        "O papel do Discord não foi sincronizado por este comando (não há bot conectado "
-        "aqui). Rode /sincronizar-papeis em você mesmo dentro do Discord — agora que você "
-        "já é Administrador no banco, o comando vai passar e aplicar os papéis no servidor."
-    )
-
-
 def comando_verificar(cfg: Settings) -> int:
     """RNF-003 — verifica a configuração antes de um deploy."""
     pendencias = cfg.validate_for_production()
@@ -254,7 +191,6 @@ def main(argv: list[str] | None = None) -> int:
             "backup",
             "importar",
             "verificar",
-            "promover-admin",
         ],
         help="O que executar (padrão: tudo, conforme as flags do .env).",
     )
@@ -267,15 +203,6 @@ def main(argv: list[str] | None = None) -> int:
         "--desativar-ausentes",
         action="store_true",
         help="Só para `importar`: desativa (sem apagar) quem sumiu da plataforma.",
-    )
-    parser.add_argument(
-        "--discord-id",
-        type=int,
-        help="Só para `promover-admin`: ID Discord de quem vira o primeiro Administrador.",
-    )
-    parser.add_argument(
-        "--nome",
-        help="Só para `promover-admin`: nome de exibição, se o membro ainda não existir no banco.",
     )
     args = parser.parse_args(argv)
 
@@ -292,16 +219,6 @@ def main(argv: list[str] | None = None) -> int:
                     cfg, dry_run=args.ensaio, desativar_ausentes=args.desativar_ausentes
                 )
             )
-        except RuntimeError as exc:
-            log.error("%s", exc)
-            return 1
-        return 0
-
-    if args.comando == "promover-admin":
-        if args.discord_id is None:
-            parser.error("promover-admin exige --discord-id")
-        try:
-            asyncio.run(comando_promover_admin(cfg, discord_id=args.discord_id, nome=args.nome))
         except RuntimeError as exc:
             log.error("%s", exc)
             return 1

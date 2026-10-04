@@ -135,11 +135,7 @@ class ComunicadosCog(commands.Cog):
         mencao: app_commands.Choice[str] | None = None,
     ) -> None:
         async with sessao() as session:
-            autor = await repo_membros.obter_ou_criar_por_discord(
-                session,
-                discord_id=interaction.user.id,
-                nome_exibicao=interaction.user.display_name,
-            )
+            autor = await repo_membros.obter_cadastrado_por_discord(session, interaction.user.id)
             comunicado = await self._servico.publicar_agora(
                 session,
                 titulo=titulo,
@@ -198,11 +194,7 @@ class ComunicadosCog(commands.Cog):
         publicar_em = interpretar_data(quando, excecao=DataDeComunicadoInvalidaError)
 
         async with sessao() as session:
-            autor = await repo_membros.obter_ou_criar_por_discord(
-                session,
-                discord_id=interaction.user.id,
-                nome_exibicao=interaction.user.display_name,
-            )
+            autor = await repo_membros.obter_cadastrado_por_discord(session, interaction.user.id)
             comunicado = await self._servico.programar(
                 session,
                 titulo=titulo,
@@ -263,10 +255,8 @@ class ComunicadosCog(commands.Cog):
     ) -> None:
         async with sessao() as session:
             comunicado = await repo_comunicados.obter(session, identificador)
-            solicitante = await repo_membros.obter_ou_criar_por_discord(
-                session,
-                discord_id=interaction.user.id,
-                nome_exibicao=interaction.user.display_name,
+            solicitante = await repo_membros.obter_cadastrado_por_discord(
+                session, interaction.user.id
             )
             await self._servico.cancelar(
                 session, comunicado=comunicado, solicitante=solicitante, motivo=motivo

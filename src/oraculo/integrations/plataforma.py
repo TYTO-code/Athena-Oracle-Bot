@@ -10,8 +10,9 @@ A importação é dividida em duas peças propositalmente:
   plataforma (`discordId`, `nome`, `pontos`…) não vaza para o resto do sistema
   e é ajustável sem alterar código.
 
-Nada aqui escreve no Firebase: a integração é **somente leitura** (RN-010 vale
-para os dois lados — não corrompemos a base de origem).
+Nada aqui escreve no Firebase: a integração é **somente leitura** (RN-021). Só
+as operações `get`/`stream`/`where` do cliente são usadas, e a conta de serviço
+recomendada (`roles/datastore.viewer`) não tem permissão de gravar.
 """
 
 from __future__ import annotations
@@ -29,20 +30,24 @@ log = get_logger(__name__)
 
 MAPA_PADRAO_FIREBASE: dict[str, str] = {
     "id_externo": "id",
-    "nome": "nome",
+    "nome": "name",
     "discord_id": "discordId",
     "email": "email",
     "patente": "tier",
     "xp": "xp",
     "ativo": "ativo",
+    "suspenso": "suspended",
+    "tipo_conta": "accountType",
+    "conselheiro": "conselheiro",
+    "administrador": "admin",
     "projetos": "projetos",
 }
 """Nomes assumidos por padrão. Sobrescreva com `ORACULO_FIREBASE_CAMPOS`, ex.:
 
     ORACULO_FIREBASE_CAMPOS={"nome":"displayName","discord_id":"discord","xp":"pontos"}
 
-`patente` lê o campo `tier` da plataforma TYTO.club, que guarda o nome da
-patente (XP.md Art. 2º). A chave antiga `cargo` continua aceita como sinônimo
+Os nomes padrão são os de `users/{uid}` da TYTO.club. `patente` lê o campo `tier`,
+que guarda o nome da patente (XP.md Art. 2º). A chave antiga `cargo` continua aceita como sinônimo
 de `patente` em configurações anteriores a TD-007.
 """
 
@@ -68,6 +73,13 @@ class MembroExterno:
     patente: str | None = None
     xp: int | None = None
     ativo: bool = True
+    #: Conta suspensa na plataforma (inadimplência etc.) — sem acesso ao bot.
+    suspenso: bool = False
+    #: `member` (Clube) ou `merchant`; só o Clube usa o bot (RN-020).
+    tipo_conta: str = "member"
+    #: Cargos institucionais, espelhados — o bot não os concede (RN-021).
+    conselheiro: bool = False
+    administrador: bool = False
     #: RN-017 — IDs dos projetos em que o membro participa. É a **única** fonte
     #: de autorização de `/perguntar` sobre projetos; lista vazia = sem acesso.
     projetos: list[str] = field(default_factory=list)
@@ -80,11 +92,32 @@ class MembroExterno:
     def identificavel_no_discord(self) -> bool:
         return self.discord_id is not None
 
+    @property
+    def elegivel(self) -> bool:
+        """RN-020 — conta de Clube ativa, não suspensa e com Discord informado."""
+        return (
+            self.ativo
+            and not self.suspenso
+            and self.tipo_conta != "merchant"
+            and self.discord_id is not None
+        )
+
 
 class FonteMembros(Protocol):
     """Origem de membros — qualquer coisa que saiba listar documentos crus."""
 
     async def listar(self) -> AsyncIterator[Mapping[str, Any]]: ...
+
+
+@runtime_checkable
+class FonteBuscaPorDiscord(Protocol):
+    """Consulta pontual de um membro pelo ID do Discord (acesso ao bot, RN-020).
+
+    Existe para quem acabou de preencher o ID no perfil não esperar o próximo
+    ciclo de sincronização (até 6h) para conseguir usar o bot.
+    """
+
+    async def buscar_por_discord(self, discord_id: int) -> Mapping[str, Any] | None: ...
 
 
 @runtime_checkable
@@ -212,6 +245,10 @@ def normalizar(
         patente=(lambda c: str(c).strip() or None)(_buscar(documento, campos["patente"]) or ""),
         xp=_para_int(_buscar(documento, campos["xp"])),
         ativo=_para_bool(_buscar(documento, campos["ativo"])),
+        suspenso=_para_bool(_buscar(documento, campos["suspenso"]), padrao=False),
+        tipo_conta=str(_buscar(documento, campos["tipo_conta"]) or "member").strip().casefold(),
+        conselheiro=_para_bool(_buscar(documento, campos["conselheiro"]), padrao=False),
+        administrador=_para_bool(_buscar(documento, campos["administrador"]), padrao=False),
         projetos=_para_lista_de_ids(_buscar(documento, campos["projetos"])),
         bruto=_resumir(documento),
     )
@@ -234,6 +271,13 @@ class FonteEmMemoria:
     async def listar(self) -> AsyncIterator[Mapping[str, Any]]:
         for documento in self._documentos:
             yield documento
+
+    async def buscar_por_discord(self, discord_id: int) -> Mapping[str, Any] | None:
+        for documento in self._documentos:
+            externo = normalizar(documento, mapa=self._mapa)
+            if externo is not None and externo.discord_id == discord_id:
+                return documento
+        return None
 
     async def projetos_de(self, id_externo: str) -> list[str]:
         for documento in self._documentos:
@@ -266,7 +310,20 @@ class FirestoreMembros:
             from google.cloud.firestore import AsyncClient
 
             credenciais_arquivo = self._cfg.credenciais_firebase()
-            if credenciais_arquivo:
+            if self._cfg.firebase_credentials_json:
+                # Deploy sem disco para arquivos (Render/Railway): o JSON da
+                # conta de serviço vem direto de uma variável de ambiente.
+                import json
+
+                from google.oauth2 import service_account
+
+                credenciais = service_account.Credentials.from_service_account_info(
+                    json.loads(self._cfg.firebase_credentials_json)
+                )
+                self._cliente = AsyncClient(
+                    project=self._cfg.firebase_project_id, credentials=credenciais
+                )
+            elif credenciais_arquivo:
                 from google.oauth2 import service_account
 
                 credenciais = service_account.Credentials.from_service_account_file(
@@ -337,6 +394,36 @@ class FirestoreMembros:
                 break
 
         log.info("Firestore: %d documentos lidos de '%s'.", total, self._cfg.firebase_colecao)
+
+    async def buscar_por_discord(self, discord_id: int) -> Mapping[str, Any] | None:
+        """Documento do membro cujo `discordId` é `discord_id`, ou `None`.
+
+        O perfil da TYTO.club grava o ID como **string**; tenta-se também o
+        número, para não negar acesso por diferença de tipo. Falha de leitura
+        propaga `IntegracaoIndisponivelError` (o gate diferencia "indisponível"
+        de "não cadastrado").
+        """
+        cliente = self._conectar()
+        colecao = cliente.collection(self._cfg.firebase_colecao)
+        campo = mapa_efetivo(self._cfg.firebase_campos)["discord_id"]
+        try:
+            for valor in (str(discord_id), discord_id):
+                consulta = colecao.where(campo, "==", valor).limit(1)
+                pagina = await asyncio.wait_for(
+                    _coletar(consulta), timeout=self._cfg.firebase_timeout
+                )
+                if pagina:
+                    dados = pagina[0].to_dict() or {}
+                    dados.setdefault("id", pagina[0].id)
+                    return dados
+        except TimeoutError as exc:
+            raise IntegracaoIndisponivelError("Firebase", "tempo esgotado") from exc
+        except IntegracaoIndisponivelError:
+            raise
+        except Exception as exc:  # noqa: BLE001 — traduzido para erro de integração
+            log.exception("Firestore: falha ao buscar membro por discordId")
+            raise IntegracaoIndisponivelError("Firebase", "falha na consulta") from exc
+        return None
 
     async def projetos_de(self, id_externo: str) -> list[str]:
         """RN-017 — projetos do membro, lidos **na hora** da pergunta.

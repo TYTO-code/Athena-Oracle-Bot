@@ -192,8 +192,8 @@ class Membro(TimestampMixin, Base):
     #: BigInteger: a escala vai até Omni, 300 bilhões de XP (XP.md Art. 2º).
     xp: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
 
-    #: Cargos institucionais (TD-007) — nunca vêm do XP; concedidos/revogados
-    #: por um Administrador via `/cargo-institucional`, sempre auditados.
+    #: Cargos institucionais (TD-007) — nunca vêm do XP; **espelhados** da plataforma
+    #: (`conselheiro`/`admin` em `users/{uid}`) — o bot não os concede (RN-021).
     conselheiro: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     administrador: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False, index=True

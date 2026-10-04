@@ -28,8 +28,8 @@ class PerfilCog(commands.Cog):
         alvo = membro or interaction.user
 
         async with sessao() as session:
-            registro = await repo_membros.obter_ou_criar_por_discord(
-                session, discord_id=alvo.id, nome_exibicao=alvo.display_name
+            registro = await repo_membros.obter_cadastrado_por_discord(
+                session, alvo.id, sujeito=alvo.display_name
             )
             dados = await self.bot.container.ranking.perfil(session, registro)
 

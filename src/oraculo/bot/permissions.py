@@ -3,7 +3,8 @@
 A checagem consulta o **perfil persistido** do membro (patente + cargos
 institucionais), não os papéis do Discord: o banco é a fonte de verdade da
 hierarquia (RN-001) e continua correto mesmo que alguém edite papéis
-manualmente no servidor.
+manualmente no servidor. O perfil é um **espelho** da TYTO.club e só existe
+para quem tem cadastro ativo lá (RN-020): o bot não registra ninguém sozinho.
 """
 
 from __future__ import annotations
@@ -23,7 +24,6 @@ from oraculo.domain.permissions import (
     pode_executar,
     requisito_minimo,
 )
-from oraculo.repositories import membros as repo_membros
 
 T = TypeVar("T")
 
@@ -42,12 +42,13 @@ class PermissaoInsuficiente(app_commands.CheckFailure):
 
 
 async def obter_autor(interaction: discord.Interaction) -> Membro:
-    """Membro persistido correspondente ao autor da interação (RF-001)."""
+    """Membro do Clube que disparou a interação — ou `NaoCadastradoError` (RN-020).
+
+    Nunca cria registro: quem não tem cadastro ativo na TYTO.club não usa o bot.
+    """
     async with sessao() as session:
-        return await repo_membros.obter_ou_criar_por_discord(
-            session,
-            discord_id=interaction.user.id,
-            nome_exibicao=interaction.user.display_name,
+        return await interaction.client.container.acesso.membro_cadastrado(  # type: ignore[attr-defined]
+            session, interaction.user.id, guild_id=interaction.guild_id
         )
 
 
@@ -64,8 +65,8 @@ def requer(acao: Acao, *, efemero: bool = False) -> Callable[[T], T]:
 
     **Confirma a interação antes de consultar o banco.** O Discord derruba a
     interação com "O aplicativo não respondeu" se nada for confirmado em 3
-    segundos, e esta checagem faz I/O (inclusive o `INSERT` de auto-registro no
-    primeiro contato de um usuário). Como o `defer` acontece aqui, os comandos
+    segundos, e esta checagem faz I/O (inclusive a consulta
+    à plataforma de quem acabou de se cadastrar). Como o `defer` acontece aqui, os comandos
     decorados **não** devem chamar `interaction.response.defer()` de novo —
     respondem sempre com `interaction.followup.send(...)`.
 
@@ -77,9 +78,9 @@ def requer(acao: Acao, *, efemero: bool = False) -> Callable[[T], T]:
 
     Uso::
 
-        @app_commands.command(name="conceder-xp")
-        @requer(Acao.CONCEDER_XP)
-        async def conceder_xp(self, interaction, ...): ...
+        @app_commands.command(name="criar-reuniao")
+        @requer(Acao.CRIAR_REUNIAO)
+        async def criar_reuniao(self, interaction, ...): ...
     """
 
     async def predicado(interaction: discord.Interaction) -> bool:

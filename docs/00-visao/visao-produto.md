@@ -35,8 +35,8 @@ vigente (`Institucional/DRACMAS.md`, `COMUNIDADE_E_CLUBE.md`, `CREDITO_DE_MERITO
 ## Relação com `Institucional/SERVIDOR_DISCORD.md`
 
 Este produto **é** o bot Atena regido por `Institucional/SERVIDOR_DISCORD.md` — identidade única
-por pessoa (Art. 1º), canais por função (Art. 3º) e as ferramentas de consulta de saldo/extrato/
-ranking (Art. 4º) descritas ali valem para este sistema. Onde este pacote de requisitos e aquele
+por pessoa (Art. 1º), canais por função (Art. 3º) e as ferramentas de consulta de 
+ranking (Art. 4º; saldo/extrato saíram do bot, ADR-002) descritas ali valem para este sistema. Onde este pacote de requisitos e aquele
 Regulamento divergirem, o Regulamento vence (`Institucional/` é a lei institucional vigente,
 independente do estado da implementação).
 

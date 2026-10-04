@@ -12,24 +12,25 @@ from datetime import timedelta
 
 from oraculo.config import Settings, get_settings
 from oraculo.integrations.cache import Cache, criar_cache
-from oraculo.integrations.economia_plataforma import criar_economia_plataforma
 from oraculo.integrations.email_canal import CanalEmail
 from oraculo.integrations.google_calendar import AgendaExterna, criar_agenda_externa
 from oraculo.integrations.llm import criar_cliente_llm
-from oraculo.integrations.plataforma import FonteProjetosDoMembro, criar_fonte_membros
+from oraculo.integrations.plataforma import (
+    FonteBuscaPorDiscord,
+    FonteProjetosDoMembro,
+    criar_fonte_membros,
+)
 from oraculo.integrations.projetos_db import BaseDeProjetos, criar_base_de_projetos
 from oraculo.integrations.regras_corpus import carregar_corpus
 from oraculo.logging_config import get_logger
+from oraculo.services.acesso_service import AcessoService
 from oraculo.services.agenda_service import AgendaService
-from oraculo.services.cargo_institucional_service import CargoInstitucionalService
 from oraculo.services.comunicado_service import ComunicadoService
-from oraculo.services.dracmas_service import DracmasService
-from oraculo.services.filiacao_service import FiliacaoService
+from oraculo.services.importacao_service import ImportacaoService
 from oraculo.services.notificacao_service import NotificacaoService
 from oraculo.services.pergunta_service import PerguntaService
 from oraculo.services.promocao_service import PromocaoService, SincronizadorCargos
 from oraculo.services.ranking_service import RankingService
-from oraculo.services.xp_service import XpService
 
 log = get_logger(__name__)
 
@@ -42,15 +43,11 @@ class Container:
     cache: Cache
     agenda_externa: AgendaExterna
     notificacoes: NotificacaoService
+    #: RN-020 — só entra quem tem cadastro de Clube na TYTO.club.
+    acesso: AcessoService
     promocoes: PromocaoService
-    #: TD-007 — Conselheiro/Administrador, fora da escala de patentes.
-    cargos: CargoInstitucionalService
-    xp: XpService
     ranking: RankingService
     agenda: AgendaService
-    dracmas: DracmasService
-    #: F2-007 — migração do saldo da Comunidade para o Clube (plataforma).
-    filiacao: FiliacaoService
     #: RF-015 — o publicador Discord só é registrado quando o cliente existe
     #: (ver `bot/cogs/comunicados.py`); até lá o serviço só programa e cancela.
     comunicados: ComunicadoService
@@ -76,13 +73,28 @@ class Container:
 
         promocoes = PromocaoService(sincronizador=sincronizador_cargos)
 
+        # RN-020 — a mesma fonte alimenta `/perguntar` (projetos) e o acesso ao
+        # bot (consulta pontual de quem acabou de se cadastrar).
+        fonte_membros = criar_fonte_membros(cfg)
+        acesso = AcessoService(
+            fonte_membros if isinstance(fonte_membros, FonteBuscaPorDiscord) else None,
+            (
+                ImportacaoService(
+                    fonte_membros, mapa_campos=cfg.firebase_campos, promocoes=promocoes
+                )
+                if fonte_membros is not None
+                else None
+            ),
+            mapa_campos=cfg.firebase_campos,
+        )
+
         # RN-017 — `/perguntar` só existe com chave de API; regulamento e base de
         # projetos são opcionais e degradam de forma independente.
         cliente_llm = criar_cliente_llm(cfg)
         projetos = criar_base_de_projetos(cfg) if cliente_llm is not None else None
         perguntas: PerguntaService | None = None
         if cliente_llm is not None:
-            fonte = criar_fonte_membros(cfg)
+            fonte = fonte_membros
             perguntas = PerguntaService(
                 cliente=cliente_llm,
                 corpus=carregar_corpus(cfg),
@@ -101,13 +113,10 @@ class Container:
             cache=cache,
             agenda_externa=agenda_externa,
             notificacoes=notificacoes,
+            acesso=acesso,
             promocoes=promocoes,
-            cargos=CargoInstitucionalService(sincronizador=sincronizador_cargos),
-            xp=XpService(promocoes=promocoes, somente_leitura=cfg.xp_somente_leitura),
             ranking=RankingService(cache=cache, settings=cfg),
             agenda=AgendaService(agenda_externa=agenda_externa),
-            dracmas=DracmasService(),
-            filiacao=FiliacaoService(criar_economia_plataforma(cfg)),
             comunicados=ComunicadoService(
                 atraso_maximo=timedelta(hours=cfg.comunicados_atraso_maximo_horas)
             ),

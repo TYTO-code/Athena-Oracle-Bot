@@ -7,12 +7,30 @@ from datetime import timedelta
 import pytest
 
 from oraculo.db.base import agora
+from oraculo.db.models import Membro, OrigemAcao
 from oraculo.domain.hierarchy import NEOFITO, OMNI, VETERANO, CargoInstitucional
 from oraculo.integrations.cache import CacheMemoria
+from oraculo.repositories import xp as repo_xp
 from oraculo.services.ranking_service import RankingService
-from oraculo.services.xp_service import XpService
 
 CONSELHEIRO = CargoInstitucional.CONSELHEIRO
+
+
+async def _espelhar_xp(session, membro: Membro, quantidade: int):
+    """Mesma trilha que a importação grava ao espelhar uma subida de XP da plataforma."""
+    anterior = membro.xp
+    membro.xp += quantidade
+    return await repo_xp.registrar(
+        session,
+        membro=membro,
+        autor=None,
+        autor_descricao="importação da plataforma",
+        quantidade=quantidade,
+        saldo_anterior=anterior,
+        saldo_posterior=membro.xp,
+        motivo="XP espelhado da plataforma (TYTO.club)",
+        origem=OrigemAcao.SISTEMA,
+    )
 MEMBRO = NEOFITO
 
 
@@ -63,14 +81,10 @@ async def test_ranking_geral_ordena_por_xp(session, criar_membro, servico):
 
 async def test_ranking_por_periodo_considera_apenas_a_janela(session, criar_membro, servico):
     """RF-004 — o ranking do período soma a trilha `xp_audit` da janela."""
-    autor = await criar_membro(CONSELHEIRO)
     veterano = await criar_membro(MEMBRO, xp=5_000, nome="Veterano")
     novato = await criar_membro(MEMBRO, xp=0, nome="Novato")
 
-    xp_service = XpService()
-    await xp_service.conceder(
-        session, membro=novato, quantidade=300, motivo="Evento da semana", autor=autor
-    )
+    await _espelhar_xp(session, novato, 300)
 
     linhas = await servico.ranking(session, periodo="semana", limite=10)
 
@@ -79,14 +93,10 @@ async def test_ranking_por_periodo_considera_apenas_a_janela(session, criar_memb
 
 
 async def test_ranking_por_periodo_ignora_movimentacoes_antigas(session, criar_membro, servico):
-    autor = await criar_membro(CONSELHEIRO)
     membro = await criar_membro(MEMBRO, xp=0)
 
-    xp_service = XpService()
-    resultado = await xp_service.conceder(
-        session, membro=membro, quantidade=300, motivo="Evento antigo", autor=autor
-    )
-    resultado.movimentacao.criado_em = agora() - timedelta(days=45)
+    movimentacao = await _espelhar_xp(session, membro, 300)
+    movimentacao.criado_em = agora() - timedelta(days=45)
     await session.flush()
 
     assert await servico.ranking(session, periodo="semana") == []
