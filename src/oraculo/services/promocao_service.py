@@ -187,35 +187,6 @@ class PromocaoService:
             erro_sincronizacao=erro,
         )
 
-    async def confirmar(
-        self,
-        session: AsyncSession,
-        membro: Membro,
-        *,
-        autor_descricao: str,
-        origem: OrigemAcao = OrigemAcao.DISCORD,
-        guild_id: int | None = None,
-    ) -> ResultadoPromocao:
-        """Aplica a patente que o XP já determina, retida pela importação.
-
-        Um Administrador nunca escolhe a patente — só libera a que o XP
-        registrado manda (XP.md Art. 1º §3º). Sem nada a liberar, não muda nada.
-        """
-        atual = patente_por_slug(membro.patente_slug)
-        alvo = patente_para_xp(membro.xp)
-        if alvo <= atual:
-            return ResultadoPromocao(False, atual, atual)
-        return await self.aplicar(
-            session,
-            membro,
-            patente_nova=alvo,
-            automatica=False,
-            autor_descricao=autor_descricao,
-            motivo="Patente retida pela importação confirmada por Administrador",
-            origem=origem,
-            guild_id=guild_id,
-        )
-
     async def _sincronizar(
         self, membro: Membro, patente: Patente, guild_id: int | None
     ) -> tuple[bool, str | None]:

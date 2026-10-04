@@ -9,32 +9,34 @@ Fecha a cadeia `Visão → RN/RF/RNF → Casos de Uso → Dívida Técnica → A
 | RN-001 Patente única | Coluna única `Membro.patente_slug` ([models.py](../../src/oraculo/db/models.py)); remoção de todos os papéis de patente em [role_sync.py](../../src/oraculo/bot/role_sync.py); cargos institucionais como flags `conselheiro`/`administrador` | `test_role_sync.py`, `test_promocao.py`, `test_cargo_institucional.py` |
 | RN-002 Progressão por XP | `patente_para_xp` ([hierarchy.py](../../src/oraculo/domain/hierarchy.py)); `PromocaoService` só sobe patente | `test_hierarquia.py`, `test_promocao.py` |
 | RN-003 Promoção automática | `PromocaoService.aplicar` ([promocao_service.py](../../src/oraculo/services/promocao_service.py)) | `test_promocao.py` |
-| RN-004 Controle de XP | `exigir(autor.perfil, Acao.CONCEDER_XP)` em [xp_service.py](../../src/oraculo/services/xp_service.py); não existe `remover` | `test_xp_service.py` |
-| RN-005 Auditoria de XP | Tabela `xp_audit` + validação de motivo em `XpService._movimentar` | `test_xp_service.py` |
+| RN-004 Controle de XP | Sem comando de XP: `Acao` não tem concessão; XP é espelhado em [importacao_service.py](../../src/oraculo/services/importacao_service.py) e só sobe | `test_permissoes.py`, `test_importacao.py`, `test_comandos.py` |
+| RN-005 Auditoria de XP | Tabela `xp_audit`: cada subida espelhada vira uma linha (`ImportacaoService._espelhar_progressao`) | `test_importacao.py`, `test_ranking_e_perfil.py` |
 | RN-006 Criação de reuniões | `_POLITICA[Acao.CRIAR_REUNIAO] = VETERANO` ([permissions.py](../../src/oraculo/domain/permissions.py)) | `test_permissoes.py`, `test_agenda.py` |
 | RN-007 Eventos oficiais | `_POLITICA[Acao.CRIAR_EVENTO] = OFICIAL` | `test_permissoes.py`, `test_agenda.py` |
 | RN-008 Controle de permissões | Política central + decorator `requer` ([bot/permissions.py](../../src/oraculo/bot/permissions.py)) | `test_permissoes.py` |
 | RN-009 Google Agenda | [google_calendar.py](../../src/oraculo/integrations/google_calendar.py) + `AgendaService` | `test_agenda.py` |
-| RN-010 Histórico imutável | Tabelas append-only; soft-delete de membro e agendamento | `test_agenda.py`, `test_xp_service.py` |
-| RN-011 Camada Comunidade separada de cargo | `Aldeao` ([models.py](../../src/oraculo/db/models.py)), `bot/cogs/comunidade.py` não usa `bot/permissions.py` | `test_dracmas_service.py` |
-| RN-012 Movimentação exige motivo/origem | `DracmasService._validar_motivo`/`_validar_valor` ([dracmas_service.py](../../src/oraculo/services/dracmas_service.py)) | `test_dracmas_service.py` |
-| RN-013 Ledger de Dracmas imutável | Tabela `dracmas_ledger` append-only ([repositories/dracmas.py](../../src/oraculo/repositories/dracmas.py)) | `test_dracmas_service.py` |
-| RN-014 Suspensão automática | `DracmasService.debitar` marca `Aldeao.suspenso` quando o saldo fica negativo | `test_dracmas_service.py` |
-| RN-015 Ingresso na Comunidade | `DracmasService._cobrar_ingresso`, `CUSTO_INGRESSO_COMUNIDADE` | `test_dracmas_service.py` |
-| RN-016 Prova de posse para autovínculo | `solicitar_vinculo`/`confirmar_vinculo` ([vinculo_service.py](../../src/oraculo/services/vinculo_service.py)), tabela `vinculos_pendentes`; `bot/cogs/vinculo.py` não usa `bot/permissions.py` (mesmo motivo de RN-011: não pode criar `Membro` antes do vínculo existir); válvula de escape para Administrador quando `confirmar_vinculo` recusa por já existir registro no bot: `reconciliar_manualmente` + `/reconciliar-conta` ([cogs/admin.py](../../src/oraculo/bot/cogs/admin.py)) | `test_vinculo_service.py` |
+| RN-010 Histórico imutável | Tabelas append-only; soft-delete de membro e agendamento | `test_agenda.py`, `test_importacao.py` |
+| RN-011 Camada Comunidade separada de cargo | *Revogada (RN-021): o código foi removido do bot* | — |
+| RN-012 Movimentação exige motivo/origem | *Revogada (RN-021): o código foi removido do bot* | — |
+| RN-013 Ledger de Dracmas imutável | *Revogada (RN-021): o código foi removido do bot* | — |
+| RN-014 Suspensão automática | *Revogada (RN-021): o código foi removido do bot* | — |
+| RN-015 Ingresso na Comunidade | *Revogada (RN-021): o código foi removido do bot* | — |
+| RN-016 Prova de posse para autovínculo | *Revogada (RN-021): o código foi removido do bot* | — |
 | RN-017 Autorização na recuperação | `PerguntaService._projetos_autorizados`/`_carregar_projetos` ([pergunta_service.py](../../src/oraculo/services/pergunta_service.py)); filtro obrigatório em [projetos_db.py](../../src/oraculo/integrations/projetos_db.py); leitura pontual em `FirestoreMembros.projetos_de` ([plataforma.py](../../src/oraculo/integrations/plataforma.py)); resposta efêmera em [cogs/pergunta.py](../../src/oraculo/bot/cogs/pergunta.py) | `test_pergunta_service.py`, `test_projetos_db.py`, `test_autorizacao_projetos.py` |
 | RN-018 Comunicado publica uma vez | `ComunicadoService.publicar_pendentes` / `_encerrar_orfaos` / `_expirar` ([comunicado_service.py](../../src/oraculo/services/comunicado_service.py)); reserva atômica em `reservar_vencidos` ([repositories/comunicados.py](../../src/oraculo/repositories/comunicados.py)); menção explícita em `permissoes_de_mencao` ([bot/comunicador.py](../../src/oraculo/bot/comunicador.py)) | `test_comunicado_service.py`, `test_comunicador_discord.py` |
-| RN-019 Migração de saldo na filiação | `FiliacaoService.migrar_saldo_para_clube` ([filiacao_service.py](../../src/oraculo/services/filiacao_service.py)) + `EconomiaPlataformaHttp` ([economia_plataforma.py](../../src/oraculo/integrations/economia_plataforma.py)) → `POST /api/internal/community-migrations` na TYTO.club-API; `/migrar-para-clube` ([cogs/admin.py](../../src/oraculo/bot/cogs/admin.py)); bloqueio de conta migrada em `DracmasService` | `test_filiacao.py` |
+| RN-019 Migração de saldo na filiação | *Revogada (RN-021): o código foi removido do bot* | — |
+| RN-020 Acesso só para cadastrados | `obter_cadastrado_por_discord` ([repositories/membros.py](../../src/oraculo/repositories/membros.py)), `AcessoService` ([acesso_service.py](../../src/oraculo/services/acesso_service.py)), gate em `requer` ([bot/permissions.py](../../src/oraculo/bot/permissions.py)); elegibilidade em `MembroExterno.elegivel` | `test_interacao.py`, `test_importacao.py` |
+| RN-021 Bot só consulta | Sem comandos nem serviços de escrita; `FirestoreMembros` só lê; trava estrutural | `test_somente_leitura.py`, `test_comandos.py` |
 
 ## Requisitos funcionais
 
 | RF | Implementação |
 |----|---------------|
-| RF-001 Autenticação | `obter_ou_criar_por_discord` ([repositories/membros.py](../../src/oraculo/repositories/membros.py)); autovínculo por prova de posse quando a plataforma não trouxe `discordId` — `/vincular-conta`, `/confirmar-vinculo` ([cogs/vinculo.py](../../src/oraculo/bot/cogs/vinculo.py), RN-016) |
+| RF-001 Autenticação | Cadastro vem da TYTO.club: `ImportacaoService` (espelho) + `AcessoService` (consulta pontual); o bot nunca registra ninguém (RN-020) | `test_importacao.py`, `test_interacao.py` |
 | RF-002 Perfil | `/perfil` ([cogs/perfil.py](../../src/oraculo/bot/cogs/perfil.py)) + `RankingService.perfil` |
-| RF-003 Gestão de XP | `/conceder-xp`, `/historico-xp` ([cogs/xp.py](../../src/oraculo/bot/cogs/xp.py)) — sem remoção (XP irrevogável) |
+| RF-003 Gestão de XP | *Fora do bot (RN-021): XP é concedido na TYTO.club e espelhado* | `test_importacao.py` |
 | RF-004 Ranking | `/ranking` ([cogs/ranking.py](../../src/oraculo/bot/cogs/ranking.py)) + cache |
-| RF-005 / RF-006 Promoções e cargos | `PromocaoService` (patente) + `CargoInstitucionalService` ([cargo_institucional_service.py](../../src/oraculo/services/cargo_institucional_service.py)) + `SincronizadorDiscord`; `/cargo-institucional`, `/confirmar-patente`, `/sincronizar-papeis` ([cogs/admin.py](../../src/oraculo/bot/cogs/admin.py)) |
+| RF-005 / RF-006 Promoções e cargos | `PromocaoService` (patente) + espelho de cargos em `ImportacaoService._espelhar_cargos` + `SincronizadorDiscord`; `/sincronizar-papeis` ([cogs/admin.py](../../src/oraculo/bot/cogs/admin.py)) |
 | RF-007 / RF-008 Reuniões e eventos | `/criar-reuniao`, `/criar-evento`, `/cancelar-agendamento` ([cogs/agenda.py](../../src/oraculo/bot/cogs/agenda.py)) |
 | RF-009 RSVP | `BotaoRsvp` / `PainelRsvp` + `AgendaService.responder_rsvp` |
 | RF-010 Notificações | [notificacao_service.py](../../src/oraculo/services/notificacao_service.py), canais Discord e e-mail |
@@ -82,8 +84,7 @@ Fecha a cadeia `Visão → RN/RF/RNF → Casos de Uso → Dívida Técnica → A
 | Privilégios por patente | Reunião Veterano+, evento/comunicado Oficial+; XP, auditoria e `@everyone` só com o cargo Conselheiro | Mapa aprovado pelo Clube TYTO ao fechar TD-007; Conselheiro satisfaz requisitos de patente (eleito já é Comandante+) |
 | Rebaixamento | Nunca: não há remoção de XP nem rebaixamento de patente; a importação ignora XP menor da plataforma e registra em auditoria | XP e patente irrevogáveis (`XP.md` Art. 1º §1º e §3º) |
 | Reuniões e eventos | Uma tabela `agendamentos` com `tipo` | Mesmo ciclo de vida, RSVP e sync; muda apenas a permissão de criação |
-| Cargos institucionais | Conselheiro e Administrador como flags independentes da patente, concedidos por `/cargo-institucional` (Admin); o último Administrador não pode ser revogado | Carta Art. VIII (eixos independentes); evita trancar a governança do bot |
-| Teto da importação | Patente acima de Oficial trazida pela plataforma fica pendente até `/confirmar-patente`, que aplica só a patente que o XP determina | A plataforma não está sob RN-008 deste bot; Oficial é a patente mais alta que libera privilégio |
+| Cargos institucionais | Conselheiro e Administrador como flags independentes da patente, **espelhadas** da plataforma (RN-021); o bot não os concede | Carta Art. VIII (eixos independentes); fonte única da verdade na TYTO.club |
+| Teto da importação | *Removido (ADR-002):* sem `/confirmar-patente`, a patente da plataforma é aplicada direto; a proteção de `tier`/`xp`/`admin` é das regras do Firestore da TYTO.club | O bot não escreve; reter patente sem ninguém para liberar só travaria o Clube |
 | WhatsApp | Schema e origem de ação já preveem o canal; adaptador não implementado | Fora da Sprint 1–4; exige ADR próprio (follow-up do ADR-001) |
-| Ingresso na Comunidade (RN-015) | Cobrado automaticamente no primeiro crédito de Dracmas, mesmo se deixar o saldo negativo (suspende a conta, RN-014) | `COMUNIDADE_E_CLUBE.md` Art. 3º §1º e §3º dão duas leituras possíveis para conciliar; decisão documentada em `services/dracmas_service.py`, vale revisar com o Clube TYTO se a leitura ficar contestada |
 | Dracmas do Clube | Vivem só na plataforma; o bot guarda só a Comunidade e migra o saldo na filiação (RN-019). `Membro.dracmas` (US-405) fica sem uso | Decisão do Clube TYTO (F2-006): a plataforma já cobra a taxa mensal — manter um segundo saldo no bot cobraria em dobro |

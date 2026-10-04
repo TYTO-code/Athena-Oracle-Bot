@@ -38,13 +38,6 @@ class Settings(BaseSettings):
     discord_guild_ids: Annotated[list[int], NoDecode] = Field(default_factory=list)
     discord_log_channel_id: int | None = None
 
-    #: Bootstrap opcional do 1º Administrador (RN-008), lido no start do bot.
-    #: Alternativa a `python -m oraculo promover-admin` para quem só tem acesso
-    #: ao painel de variáveis do deploy (ex.: sem espaço/CLI local) — mesma barra
-    #: de confiança, já que só quem edita as variáveis do serviço chega aqui.
-    #: Sem efeito se já existir um Administrador ativo (idempotente).
-    bootstrap_admin_discord_id: int | None = None
-
     # --- Comunicados (RF-015 / RN-018) ---------------------------------------
     #: Canal padrão dos comunicados oficiais (o `#comunicados` do servidor).
     #: Sem ele, `/comunicar` e `/agendar-comunicado` exigem o canal no comando.
@@ -86,16 +79,15 @@ class Settings(BaseSettings):
     # --- Plataforma de membros (Firebase) ------------------------------------
     #: Sem `project_id` a integração fica inerte — nada é consultado.
     firebase_project_id: str | None = None
-    #: API da plataforma (TYTO.club-API) e a chave serviço-a-serviço
-    #: (`ATHENA_SERVICE_KEY` lá). Usadas para migrar o saldo da Comunidade para
-    #: o Clube na filiação — os Dracmas do Clube vivem só na plataforma.
-    plataforma_api_url: str | None = None
-    plataforma_api_chave: str | None = None
-    #: JSON da service account. Se vazio, cai no ORACULO_GOOGLE_CREDENTIALS_FILE
-    #: e, por último, no Application Default Credentials do ambiente.
+    #: Arquivo JSON da service account. Se vazio, cai no
+    #: ORACULO_GOOGLE_CREDENTIALS_FILE e, por último, no Application Default
+    #: Credentials do ambiente. Use uma conta **somente leitura**
+    #: (`roles/datastore.viewer`): o bot nunca grava na plataforma (RN-021).
     firebase_credentials_file: Path | None = None
-    #: Coleção do Firestore com os membros (ex.: `membros`, `users`).
-    firebase_colecao: str = "membros"
+    #: O mesmo JSON, inline (para deploys sem disco). Tem precedência sobre o arquivo.
+    firebase_credentials_json: str | None = None
+    #: Coleção do Firestore com os membros (na TYTO.club: `users`).
+    firebase_colecao: str = "users"
     #: Mapeia campo interno → campo do documento. Ver `MAPA_PADRAO_FIREBASE`.
     firebase_campos: dict[str, str] = Field(default_factory=dict)
     #: Busca apenas os campos mapeados (evita baixar fotos em base64).
@@ -103,9 +95,6 @@ class Settings(BaseSettings):
     firebase_projecao: bool = True
     firebase_pagina_tamanho: int = 300
     firebase_timeout: float = 30.0
-    #: `cadastro` (padrão) | `carga_inicial` | `espelho`.
-    #: Ver `services.importacao_service.PoliticaImportacao`.
-    importacao_politica: Literal["cadastro", "carga_inicial", "espelho"] = "cadastro"
     #: Intervalo do job de sincronização; 0 desliga a execução periódica.
     importacao_intervalo_horas: float = 6.0
     #: Sincroniza uma vez logo após o bot conectar, além do intervalo.
@@ -196,15 +185,6 @@ class Settings(BaseSettings):
     @property
     def plataforma_habilitada(self) -> bool:
         return bool(self.firebase_project_id)
-
-    @property
-    def xp_somente_leitura(self) -> bool:
-        """No modo espelho o XP é da plataforma; o bot só exibe (RF-002).
-
-        Aceitar `/conceder-xp` aqui seria enganoso: a próxima sincronização
-        sobrescreveria o saldo e a concessão sumiria sem aviso.
-        """
-        return self.plataforma_habilitada and self.importacao_politica == "espelho"
 
     @property
     def sincronizacao_periodica(self) -> bool:

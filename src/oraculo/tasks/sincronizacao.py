@@ -16,11 +16,7 @@ from oraculo.config import Settings, get_settings
 from oraculo.db.base import sessao
 from oraculo.integrations.plataforma import criar_fonte_membros
 from oraculo.logging_config import get_logger
-from oraculo.services.importacao_service import (
-    ImportacaoService,
-    PoliticaImportacao,
-    Relatorio,
-)
+from oraculo.services.importacao_service import ImportacaoService, Relatorio
 
 log = get_logger(__name__)
 
@@ -33,7 +29,6 @@ def criar_servico_importacao(settings: Settings | None = None) -> ImportacaoServ
         return None
     return ImportacaoService(
         fonte,
-        politica=PoliticaImportacao(cfg.importacao_politica),
         mapa_campos=cfg.firebase_campos,
     )
 
@@ -46,9 +41,9 @@ async def sincronizar_uma_vez(settings: Settings | None = None) -> Relatorio | N
         return None
 
     async with sessao(cfg) as session:
-        # `desativar_ausentes` fica desligado: quem some da plataforma continua
-        # ativo no bot (decisão do clube).
-        return await servico.importar(session, desativar_ausentes=False)
+        # RN-020 — quem some da plataforma perde o acesso (soft-delete, RN-010);
+        # `importar` ignora a desativação se a leitura vier vazia.
+        return await servico.importar(session, desativar_ausentes=True)
 
 
 async def loop_sincronizacao(settings: Settings | None = None) -> None:

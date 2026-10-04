@@ -66,11 +66,7 @@ class BotaoRsvp(
 
         async with sessao() as session:
             agendamento = await repo_agenda.obter(session, self.agendamento_id)
-            membro = await repo_membros.obter_ou_criar_por_discord(
-                session,
-                discord_id=interaction.user.id,
-                nome_exibicao=interaction.user.display_name,
-            )
+            membro = await repo_membros.obter_cadastrado_por_discord(session, interaction.user.id)
             await container.agenda.responder_rsvp(
                 session,
                 agendamento=agendamento,
@@ -215,10 +211,8 @@ class AgendaCog(commands.Cog):
     ) -> None:
         async with sessao() as session:
             agendamento = await repo_agenda.obter(session, identificador)
-            solicitante = await repo_membros.obter_ou_criar_por_discord(
-                session,
-                discord_id=interaction.user.id,
-                nome_exibicao=interaction.user.display_name,
+            solicitante = await repo_membros.obter_cadastrado_por_discord(
+                session, interaction.user.id
             )
             await self.bot.container.agenda.cancelar(
                 session, agendamento=agendamento, solicitante=solicitante, motivo=motivo
@@ -250,10 +244,8 @@ class AgendaCog(commands.Cog):
         container = self.bot.container
 
         async with sessao() as session:
-            organizador = await repo_membros.obter_ou_criar_por_discord(
-                session,
-                discord_id=interaction.user.id,
-                nome_exibicao=interaction.user.display_name,
+            organizador = await repo_membros.obter_cadastrado_por_discord(
+                session, interaction.user.id
             )
             resultado = await container.agenda.criar(
                 session,

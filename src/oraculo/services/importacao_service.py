@@ -1,30 +1,31 @@
-"""Importação de membros da plataforma — RF-001 / RN-010 / RNF-004.
+"""Espelho dos membros da TYTO.club — RF-001 / RN-010 / RN-020 / RN-021.
+
+A plataforma é a **única fonte da verdade** e o bot só a consulta (RN-021): esta
+importação lê o Firestore e copia para o banco *do bot* (um cache de leitura);
+nada é escrito de volta na plataforma.
 
 Princípios:
 
+* **Só membros do Clube (RN-020).** Quem não é elegível — conta suspensa,
+  conta de mercador, sem o ID numérico do Discord no perfil — não entra; quem
+  já estava e deixou de ser elegível é desativado e perde o acesso.
+* **Espelho.** Nome, e-mail, vínculo de Discord, XP, patente e cargos
+  (Conselheiro/Administrador) vêm da plataforma. Nada é concedido no bot.
 * **Idempotente.** Rodar duas vezes seguidas não muda nada na segunda; a
   correspondência usa `id_externo` e, na falta dele, `discord_id`.
-* **Não destrutiva.** Membro que sumiu da plataforma nunca é apagado; no
-  máximo é desativado (soft-delete), e só se explicitamente pedido (RN-010).
-* **Auditável.** Cada execução grava um registro com o resumo, e cada mudança
-  de patente passa pelo `PromocaoService` — ou seja, entra no histórico normal.
+* **Não destrutiva.** Ninguém é apagado: perder elegibilidade é soft-delete
+  (RN-010), e reativa sozinho quando voltar a ser elegível.
+* **Auditável.** Cada execução grava um resumo; mudanças de patente passam pelo
+  `PromocaoService` e mudanças de cargo geram auditoria própria.
 * **Ensaiável.** `dry_run=True` percorre tudo e relata sem gravar nada.
 
-A política de XP e patente é explícita em `PoliticaImportacao`: por padrão a
-plataforma manda no **cadastro** (nome, e-mail, vínculo) e o bot continua dono
-do **XP e da patente**, que é a leitura conservadora das RN-002/RN-003.
-
-Cargos institucionais (Conselheiro, Administrador) **nunca** vêm da
-importação: são concedidos no bot por um Administrador (TD-007).
-
-XP e patente são irrevogáveis (`Institucional/XP.md` Art. 1º): nenhuma
-política faz a importação diminuir XP ou rebaixar patente.
+XP e patente são irrevogáveis (`Institucional/XP.md` Art. 1º): um XP menor na
+plataforma não rebaixa ninguém no bot — a divergência vai para a auditoria.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import StrEnum
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,7 +33,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from oraculo.db.base import agora
 from oraculo.db.models import Membro, OrigemAcao
 from oraculo.domain.hierarchy import (
-    OFICIAL,
     PATENTE_INICIAL,
     Patente,
     patente_para_xp,
@@ -41,45 +41,10 @@ from oraculo.domain.hierarchy import (
 from oraculo.integrations.plataforma import FonteMembros, MembroExterno, normalizar
 from oraculo.logging_config import get_logger
 from oraculo.repositories import auditoria
+from oraculo.repositories import xp as repo_xp
 from oraculo.services.promocao_service import PromocaoService
 
 log = get_logger(__name__)
-
-PATENTE_MAXIMA_AUTOMATICA: Patente = OFICIAL
-"""Teto de mitigação: a importação nunca aplica, sozinha, patente acima desta.
-
-A plataforma (Firebase) não está sob o controle de permissões deste bot
-(RN-008) — as regras de segurança do Firestore que decidem quem pode gravar
-`tier` ou `xp` ficam fora deste repositório. Oficial é a patente mais alta que
-libera privilégio no bot (eventos e comunicados); acima dela, a importação só
-registra a sugestão em auditoria (`importacao.patente_pendente_confirmacao`) e
-espera um Administrador rodar `/confirmar-patente`, que aplica a patente que o
-XP determina — nunca uma escolhida à mão."""
-
-
-class PoliticaImportacao(StrEnum):
-    """Quem é dono de XP e patente quando os dois lados divergem."""
-
-    CADASTRO = "cadastro"
-    """Importa apenas identidade (nome, e-mail, vínculo). Padrão."""
-
-    CARGA_INICIAL = "carga_inicial"
-    """Traz XP e patente **apenas** para membros novos; existentes não mudam."""
-
-    ESPELHO = "espelho"
-    """O XP é um espelho da plataforma e a patente decorre dele (RN-002).
-
-    Nesta política o bot **não** é dono do XP: a cada importação o saldo sobe
-    para o da plataforma. Por isso os comandos de escrita de XP ficam
-    bloqueados (ver `Settings.xp_somente_leitura`) — sem isso, um
-    `/conceder-xp` seria silenciosamente desfeito na sincronização seguinte.
-
-    Um XP **menor** na plataforma não é espelhado: XP é irrevogável (XP.md
-    Art. 1º §1º); a divergência vai para a auditoria. A patente vem do campo
-    `patente` quando a plataforma o informa e é maior que a do XP; caso
-    contrário, do XP. Nada disso **nunca** rebaixa ninguém.
-    """
-
 
 @dataclass(slots=True)
 class Relatorio:
@@ -91,7 +56,7 @@ class Relatorio:
     reativados: int = 0
     desativados: int = 0
     promovidos: int = 0
-    pendentes_confirmacao: int = 0
+    nao_elegiveis: int = 0
     sem_discord: int = 0
     invalidos: int = 0
     erros: list[str] = field(default_factory=list)
@@ -103,6 +68,7 @@ class Relatorio:
             self.criados
             + self.atualizados
             + self.inalterados
+            + self.nao_elegiveis
             + self.invalidos
             + len(self.erros)
         )
@@ -113,7 +79,7 @@ class Relatorio:
             f"{prefixo}{self.total_lidos} lidos · {self.criados} criados · "
             f"{self.atualizados} atualizados · {self.inalterados} sem mudança · "
             f"{self.promovidos} com patente alterada · "
-            f"{self.pendentes_confirmacao} aguardando confirmação manual · "
+            f"{self.nao_elegiveis} fora do Clube · {self.desativados} desativados · "
             f"{self.sem_discord} sem Discord · "
             f"{self.invalidos} inválidos · {len(self.erros)} erros"
         )
@@ -124,12 +90,10 @@ class ImportacaoService:
         self,
         fonte: FonteMembros,
         *,
-        politica: PoliticaImportacao = PoliticaImportacao.CADASTRO,
         mapa_campos: dict[str, str] | None = None,
         promocoes: PromocaoService | None = None,
     ) -> None:
         self._fonte = fonte
-        self._politica = politica
         self._mapa = mapa_campos or {}
         self._promocoes = promocoes or PromocaoService()
 
@@ -160,7 +124,9 @@ class ImportacaoService:
                 log.exception("Falha ao importar membro %s", externo.id_externo)
                 relatorio.erros.append(f"{externo.id_externo}: {type(exc).__name__}: {exc}")
 
-        if desativar_ausentes:
+        # Uma leitura que não trouxe ninguém é falha da fonte, não "o Clube
+        # esvaziou": desativar todo mundo por isso trancaria o bot inteiro.
+        if desativar_ausentes and vistos:
             await self._desativar_ausentes(session, vistos, relatorio, dry_run)
 
         if dry_run:
@@ -177,9 +143,8 @@ class ImportacaoService:
                     "criados": relatorio.criados,
                     "atualizados": relatorio.atualizados,
                     "promovidos": relatorio.promovidos,
-                    "pendentes_confirmacao": relatorio.pendentes_confirmacao,
+                    "nao_elegiveis": relatorio.nao_elegiveis,
                     "desativados": relatorio.desativados,
-                    "politica": self._politica.value,
                     "erros": len(relatorio.erros),
                 },
                 origem=OrigemAcao.SISTEMA,
@@ -188,6 +153,23 @@ class ImportacaoService:
 
         log.info("Importação concluída: %s", relatorio.resumo())
         return relatorio
+
+    async def importar_um(
+        self,
+        session: AsyncSession,
+        externo: MembroExterno,
+        *,
+        guild_id: int | None = None,
+    ) -> Membro | None:
+        """Espelha **um** membro já lido (consulta ao vivo do acesso, RN-020).
+
+        Devolve o membro ativo no bot, ou `None` se ele não é elegível.
+        """
+        relatorio = Relatorio()
+        await self._aplicar(session, externo, relatorio, False, guild_id)
+        await session.flush()
+        membro = await self._encontrar(session, externo)
+        return membro if membro is not None and membro.ativo else None
 
     # -- Interno -----------------------------------------------------------
 
@@ -200,6 +182,18 @@ class ImportacaoService:
         guild_id: int | None,
     ) -> None:
         membro = await self._encontrar(session, externo)
+
+        if not externo.elegivel:
+            # RN-020 — fora do Clube: não entra; quem já estava perde o acesso.
+            if membro is not None and membro.ativo:
+                membro.ativo, membro.desativado_em = False, agora()
+                membro.sincronizado_em = agora()
+                relatorio.desativados += 1
+                if not dry_run:
+                    await session.flush()
+            else:
+                relatorio.nao_elegiveis += 1
+            return
 
         if membro is None:
             await self._criar(session, externo, relatorio, guild_id)
@@ -219,15 +213,13 @@ class ImportacaoService:
         if externo.discord_id and membro.discord_id != externo.discord_id:
             membro.discord_id = externo.discord_id
             mudou = True
-        if externo.ativo and not membro.ativo:
+        if not membro.ativo:
             membro.ativo, membro.desativado_em = True, None
             relatorio.reativados += 1
             mudou = True
 
-        if self._politica is PoliticaImportacao.ESPELHO:
-            mudou |= await self._sobrescrever_progressao(
-                session, membro, externo, relatorio, guild_id
-            )
+        mudou |= await self._espelhar_cargos(session, membro, externo, guild_id)
+        mudou |= await self._espelhar_progressao(session, membro, externo, relatorio, guild_id)
 
         membro.sincronizado_em = agora()
         if mudou:
@@ -245,32 +237,59 @@ class ImportacaoService:
         relatorio: Relatorio,
         guild_id: int | None,
     ) -> None:
-        trazer_progressao = self._politica in (
-            PoliticaImportacao.CARGA_INICIAL,
-            PoliticaImportacao.ESPELHO,
-        )
-        xp_inicial = max(0, externo.xp or 0) if trazer_progressao else 0
-
-        # Nasce sempre na patente inicial: a subida vira uma promoção registrada,
-        # e não uma patente que apareceu no banco sem nenhuma explicação (RN-003).
+        # Nasce na patente inicial: a subida vira uma promoção registrada, e não
+        # uma patente que apareceu no banco sem nenhuma explicação (RN-003).
         membro = Membro(
             id_externo=externo.id_externo,
             discord_id=externo.discord_id,
             nome_exibicao=externo.nome,
             email=externo.email,
             patente_slug=PATENTE_INICIAL.slug,
-            xp=xp_inicial,
-            ativo=externo.ativo,
+            xp=max(0, externo.xp or 0),
+            conselheiro=externo.conselheiro,
+            administrador=externo.administrador,
+            ativo=True,
             sincronizado_em=agora(),
         )
         session.add(membro)
         await session.flush()
         relatorio.criados += 1
 
-        if trazer_progressao:
-            await self._subir_patente(session, membro, externo, relatorio, guild_id)
+        await self._subir_patente(session, membro, externo, relatorio, guild_id)
 
-    async def _sobrescrever_progressao(
+    @staticmethod
+    async def _espelhar_cargos(
+        session: AsyncSession, membro: Membro, externo: MembroExterno, guild_id: int | None
+    ) -> bool:
+        """Copia Conselheiro/Administrador da plataforma (o bot não os concede)."""
+        if (membro.conselheiro, membro.administrador) == (
+            externo.conselheiro,
+            externo.administrador,
+        ):
+            return False
+
+        await auditoria.registrar(
+            session,
+            acao="importacao.cargo_espelhado",
+            resumo=(
+                f"{membro.nome_exibicao}: Conselheiro {membro.conselheiro}→{externo.conselheiro}, "
+                f"Administrador {membro.administrador}→{externo.administrador} (plataforma)"
+            ),
+            ator_descricao="importação da plataforma",
+            alvo_tipo="membro",
+            alvo_id=membro.id,
+            dados={
+                "conselheiro": externo.conselheiro,
+                "administrador": externo.administrador,
+            },
+            origem=OrigemAcao.SISTEMA,
+            guild_id=guild_id,
+        )
+        membro.conselheiro = externo.conselheiro
+        membro.administrador = externo.administrador
+        return True
+
+    async def _espelhar_progressao(
         self,
         session: AsyncSession,
         membro: Membro,
@@ -282,6 +301,20 @@ class ImportacaoService:
         mudou = False
 
         if externo.xp is not None and externo.xp > membro.xp:
+            # A subida entra na trilha `xp_audit` como espelho da plataforma:
+            # é ela que alimenta o ranking por período (RF-004).
+            await repo_xp.registrar(
+                session,
+                membro=membro,
+                autor=None,
+                autor_descricao="importação da plataforma",
+                quantidade=externo.xp - membro.xp,
+                saldo_anterior=membro.xp,
+                saldo_posterior=externo.xp,
+                motivo="XP espelhado da plataforma (TYTO.club)",
+                origem=OrigemAcao.SISTEMA,
+                guild_id=guild_id,
+            )
             membro.xp = externo.xp
             mudou = True
         elif externo.xp is not None and externo.xp < membro.xp:
@@ -290,7 +323,7 @@ class ImportacaoService:
                 acao="importacao.xp_menor_ignorado",
                 resumo=(
                     f"{membro.nome_exibicao}: plataforma informa {externo.xp} XP, abaixo dos "
-                    f"{membro.xp} XP já concedidos; XP é irrevogável (XP.md Art. 1º §1º)"
+                    f"{membro.xp} XP já espelhados; XP é irrevogável (XP.md Art. 1º §1º)"
                 ),
                 ator_descricao="importação da plataforma",
                 alvo_tipo="membro",
@@ -322,19 +355,6 @@ class ImportacaoService:
             return False
 
         origem_dado = "patente" if declarada and declarada > pelo_xp else "xp"
-
-        if alvo > PATENTE_MAXIMA_AUTOMATICA:
-            await self._registrar_pendente(
-                session,
-                membro,
-                patente_atual=atual,
-                patente_sugerida=alvo,
-                origem_dado=origem_dado,
-                relatorio=relatorio,
-                guild_id=guild_id,
-            )
-            return False
-
         await self._promocoes.aplicar(
             session,
             membro,
@@ -351,54 +371,6 @@ class ImportacaoService:
         )
         relatorio.promovidos += 1
         return True
-
-    async def _registrar_pendente(
-        self,
-        session: AsyncSession,
-        membro: Membro,
-        *,
-        patente_atual: Patente,
-        patente_sugerida: Patente,
-        origem_dado: str,
-        relatorio: Relatorio,
-        guild_id: int | None,
-    ) -> None:
-        """Bloqueia a importação de aplicar sozinha patente acima do teto.
-
-        Não muda `membro.patente_slug` — só relata. A promoção real, se
-        procedente, é feita por um Administrador via `/confirmar-patente`,
-        entrando no fluxo normal de auditoria.
-        """
-        relatorio.pendentes_confirmacao += 1
-        log.warning(
-            "Importação sugere promover %s (id=%s) de %s para %s via %s da plataforma; "
-            "acima do teto automático (%s), aguardando confirmação manual.",
-            membro.nome_exibicao,
-            membro.id,
-            patente_atual.slug,
-            patente_sugerida.slug,
-            origem_dado,
-            PATENTE_MAXIMA_AUTOMATICA.slug,
-        )
-        await auditoria.registrar(
-            session,
-            acao="importacao.patente_pendente_confirmacao",
-            resumo=(
-                f"{membro.nome_exibicao}: sugestão {patente_atual.nome} → "
-                f"{patente_sugerida.nome} via {origem_dado} da plataforma; acima de "
-                f"{PATENTE_MAXIMA_AUTOMATICA.nome}, requer /confirmar-patente"
-            ),
-            ator_descricao="importação da plataforma",
-            alvo_tipo="membro",
-            alvo_id=membro.id,
-            dados={
-                "patente_atual": patente_atual.slug,
-                "patente_sugerida": patente_sugerida.slug,
-                "origem_dado": origem_dado,
-            },
-            origem=OrigemAcao.SISTEMA,
-            guild_id=guild_id,
-        )
 
     def _patente_de(self, externo: MembroExterno) -> Patente | None:
         """Patente declarada pela plataforma, ou `None` para deixar o XP decidir.

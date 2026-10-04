@@ -40,13 +40,16 @@ def test_nao_existe_acao_de_remover_xp():
     assert "remover_xp" not in {a.value for a in Acao}
 
 
-@pytest.mark.parametrize("acao", [Acao.CONCEDER_XP, Acao.VER_HISTORICO_XP])
-def test_xp_exige_cargo_conselheiro_nao_patente(acao):
-    """RN-004 — XP não elege ninguém: nem Omni concede XP sem ser Conselheiro."""
-    assert not pode_executar(NEOFITO_, acao)
-    assert not pode_executar(Perfil(OMNI), acao)
-    assert pode_executar(CONSELHEIRO, acao)
-    assert pode_executar(ADMINISTRADOR, acao)
+def test_bot_nao_tem_acao_de_escrita_na_plataforma():
+    """RN-021 — o bot só consulta: nenhuma ação concede XP, patente, cargo ou Dracmas."""
+    proibidas = {
+        "conceder_xp",
+        "definir_cargo_institucional",
+        "confirmar_patente",
+        "reconciliar_conta",
+        "migrar_saldo_comunidade",
+    }
+    assert proibidas.isdisjoint({a.value for a in Acao})
 
 
 def test_reuniao_exige_veterano():
@@ -74,12 +77,7 @@ def test_consultas_liberadas_para_qualquer_membro():
 
 
 def test_acoes_de_administracao_restritas():
-    for acao in (
-        Acao.ADMINISTRAR_SISTEMA,
-        Acao.DEFINIR_CARGO_INSTITUCIONAL,
-        Acao.CONFIRMAR_PATENTE,
-        Acao.RECONCILIAR_CONTA,
-    ):
+    for acao in (Acao.ADMINISTRAR_SISTEMA,):
         assert not pode_executar(CONSELHEIRO, acao)
         assert not pode_executar(Perfil(OMNI), acao)
         assert pode_executar(ADMINISTRADOR, acao)
@@ -87,11 +85,11 @@ def test_acoes_de_administracao_restritas():
 
 def test_exigir_levanta_erro_com_contexto():
     with pytest.raises(PermissaoNegadaError) as excecao:
-        exigir(NEOFITO_, Acao.CONCEDER_XP)
+        exigir(NEOFITO_, Acao.ADMINISTRAR_SISTEMA)
     erro = excecao.value
     assert erro.regra == "RN-008"
     assert erro.cargo_atual == "Neófito"
-    assert erro.cargo_minimo == "cargo Conselheiro"
+    assert erro.cargo_minimo == "cargo Administrador"
 
 
 def test_descrever_requisito():

@@ -47,11 +47,7 @@ class PerguntaCog(commands.Cog):
             return
 
         async with sessao() as session:
-            membro = await repo_membros.obter_ou_criar_por_discord(
-                session,
-                discord_id=interaction.user.id,
-                nome_exibicao=interaction.user.display_name,
-            )
+            membro = await repo_membros.obter_cadastrado_por_discord(session, interaction.user.id)
             resposta = await servico.perguntar(
                 session,
                 membro,

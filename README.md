@@ -74,15 +74,24 @@ Todos os segredos vêm de variáveis de ambiente com o prefixo `ORACULO_` — **
 2. Posicione o papel do bot **acima** deles na lista de cargos (senão o Discord recusa a atribuição).
 3. Habilite o intent **Server Members** no portal do desenvolvedor.
 4. Rode `/verificar-cargos` no servidor para confirmar.
-5. `/cargo-institucional` exige Administrador — e ninguém começa com esse cargo. Quebre o ciclo uma vez, por
-   qualquer um destes dois caminhos (recusam sozinhos se já existir um Administrador ativo):
-   - com acesso a rodar comandos no servidor: `python -m oraculo promover-admin --discord-id <seu id>`;
-   - só com acesso ao painel de variáveis do deploy (ex.: Railway, sem CLI/espaço local): defina
-     `ORACULO_BOOTSTRAP_ADMIN_DISCORD_ID=<seu id>` e reinicie o serviço — o bot se autopromove sozinho
-     no próximo start.
+5. O bot **não concede** cargos: Conselheiro e Administrador vêm da TYTO.club (campos `conselheiro` e
+   `admin` do documento do membro) e são espelhados na sincronização. Para ter o primeiro
+   Administrador, marque `admin` no seu usuário **na plataforma**; na próxima sincronização
+   (ou ao usar qualquer comando) o bot o reconhece. Depois, rode `/sincronizar-papeis` em você
+   mesmo para aplicar o papel no servidor.
 
-   Depois, rode `/sincronizar-papeis` em você mesmo para aplicar o papel no servidor, e use
-   `/cargo-institucional` normalmente para nomear Conselheiros e outros Administradores.
+## Acesso e modo somente leitura
+
+- **Só membros do Clube usam o bot (RN-020).** É preciso ter conta ativa e não suspensa na TYTO.club
+  (`accountType` diferente de `merchant`) **com o ID numérico do Discord preenchido em *Editar perfil***.
+  Quem não tem cadastro — visitante ou conta da Comunidade — recebe um aviso e nenhum comando funciona
+  para ele. O bot nunca cria um membro por conta própria.
+- **O bot só consulta (RN-021).** Ele lê o Firestore e espelha em seu banco local; não escreve na
+  plataforma e **não há comando** que altere XP, patente, cargo, Dracmas ou vínculos — isso se faz
+  na TYTO.club. Use uma conta de serviço **somente leitura** (`roles/datastore.viewer`): mesmo que o
+  bot fosse comprometido, o Google recusaria a escrita.
+- O que o bot ainda faz no *Discord*: comunicados, agenda/Google Agenda, RSVP e a aplicação dos papéis
+  de patente/cargo no servidor.
 
 ## Comandos do bot
 
@@ -92,9 +101,6 @@ Todos os segredos vêm de variáveis de ambiente com o prefixo `ORACULO_` — **
 | `/perguntar` | Pergunta sobre o regulamento TYTO e sobre **seus** projetos (RN-017) | Qualquer membro |
 | `/perfil` | Patente, cargos, XP, próxima patente e posição (RF-002) | Qualquer membro |
 | `/ranking` | Ranking geral ou por período (RF-004) | Qualquer membro |
-| `/saldo` | Saldo de Dracmas na Comunidade (RF-013) | Nenhuma — Aldeão não usa cargo |
-| `/extrato-dracmas` | Histórico de movimentações de Dracmas (RF-013) | Nenhuma — Aldeão não usa cargo |
-| `/doar-dracmas` | Doa Dracmas do próprio saldo a outra pessoa (RF-014) | Nenhuma — Aldeão não usa cargo |
 | `/agenda` | Próximas reuniões e eventos | Qualquer membro |
 | `/hierarquia` | Escala de patentes e cargos institucionais | Qualquer membro |
 | `/criar-reuniao` | Cria reunião e sincroniza agenda (RF-007) | Veterano+ |
@@ -104,13 +110,8 @@ Todos os segredos vêm de variáveis de ambiente com o prefixo `ORACULO_` — **
 | `/agendar-comunicado` | Programa um comunicado para depois (RF-015) | Oficial+ |
 | `/comunicados` | Fila de comunicados: programados, publicados, falhados | Oficial+ |
 | `/cancelar-comunicado` | Cancela um comunicado ainda não publicado (RN-010) | Oficial+ / autor |
-| `/conceder-xp` | Concede XP com motivo obrigatório (RF-003) — XP nunca é removido (`XP.md` Art. 1º) | Conselheiro |
-| `/historico-xp` | Trilha auditável de um membro (RF-012) | Conselheiro |
 | `/auditoria` | Últimos registros do log | Conselheiro |
-| `/cargo-institucional` | Concede ou revoga Conselheiro/Administrador | Administrador |
-| `/confirmar-patente` | Libera a patente que o XP determina, retida pela importação | Administrador |
-| `/sincronizar-papeis` | Reaplica no Discord a patente e os cargos do banco | Administrador |
-| `/migrar-para-clube` | Na filiação, leva o saldo inteiro da Comunidade para a conta do Clube na plataforma (RN-019) | Administrador |
+| `/sincronizar-papeis` | Reaplica no Discord a patente e os cargos espelhados da plataforma | Administrador |
 | `/verificar-cargos` | Diagnóstico dos papéis do servidor | Administrador |
 
 RSVP (UC-006) é feito pelos botões do anúncio — eles continuam funcionando após reiniciar o bot.
@@ -184,7 +185,7 @@ nunca no prompt**. O bot descobre no Firebase, no momento da pergunta, em quais
 projetos o autor está; só esses são lidos do banco externo; só então o modelo é
 chamado. Dado de projeto alheio nunca entra no contexto — então não existe
 instrução de prompt (nem texto malicioso salvo no banco) capaz de extraí-lo.
-Quem não tem vínculo Discord↔plataforma (RN-016) não tem projeto algum, e a
+Quem não tem vínculo Discord↔plataforma não tem projeto algum, e a
 resposta é sempre efêmera, porque conteúdo restrito não pode ir para o canal.
 
 ### Quem pode ver qual projeto (Firebase)
@@ -241,10 +242,10 @@ sozinha dentro do processo do bot: uma vez no start e a cada
 | Variável | Para quê |
 |----------|----------|
 | `ORACULO_FIREBASE_PROJECT_ID` | Projeto do Firebase; vazio desliga a integração |
-| `ORACULO_FIREBASE_CREDENTIALS_FILE` | JSON da service account (nunca versionar) |
-| `ORACULO_FIREBASE_COLECAO` | Coleção com os membros (padrão: `membros`) |
+| `ORACULO_FIREBASE_CREDENTIALS_FILE` | JSON da service account **somente leitura** (nunca versionar) |
+| `ORACULO_FIREBASE_CREDENTIALS_JSON` | O mesmo JSON inline, para deploys sem disco (precede o arquivo) |
+| `ORACULO_FIREBASE_COLECAO` | Coleção com os membros (padrão: `users`, a da TYTO.club) |
 | `ORACULO_FIREBASE_CAMPOS` | Mapa campo interno → campo do documento, em JSON |
-| `ORACULO_IMPORTACAO_POLITICA` | `cadastro`, `carga_inicial` ou `espelho` |
 
 Se os campos do Firestore tiverem outros nomes, ajuste o mapa em vez de mexer no
 código — ele aceita caminho aninhado:
@@ -253,16 +254,16 @@ código — ele aceita caminho aninhado:
 ORACULO_FIREBASE_CAMPOS={"nome":"displayName","discord_id":"discord.id","xp":"pontos"}
 ```
 
-**Modo `espelho`** (XP vem da plataforma): o bot passa a apenas exibir o XP.
-`/conceder-xp` é recusado com mensagem explicativa, porque a próxima
-sincronização sobrescreveria o saldo. A patente é derivada do XP (RN-002) e lida
-do campo `tier` da plataforma; XP menor na plataforma não é espelhado (XP é
-irrevogável — vai para a auditoria) e nada rebaixa uma patente. Acima de
-Oficial, a importação só registra a sugestão; um Administrador libera com
-`/confirmar-patente`. Cargos institucionais nunca vêm da importação.
+**Espelho (único modo).** Nome, e-mail, vínculo de Discord, XP, patente (`tier`) e cargos
+(`conselheiro`, `admin`) vêm da plataforma. A patente acompanha o XP (RN-002); XP menor na
+plataforma não é espelhado (XP é irrevogável — vai para a auditoria) e nada rebaixa uma patente.
+Só entra no bot quem é **elegível** (RN-020): conta de Clube ativa, não suspensa e com `discordId`.
+Quem deixa de ser elegível — ou some da plataforma — é desativado (soft-delete, RN-010) e perde o
+acesso na sincronização seguinte; volta sozinho se for reativado lá.
 
-Quem sai da plataforma **não** é desativado por padrão; use
-`--desativar-ausentes` (soft-delete, RN-010) se quiser esse comportamento.
+Quem acabou de preencher o ID do Discord não espera o ciclo: no primeiro comando, o bot faz **uma
+consulta pontual** à plataforma. Recusas ficam 60 s em cache, para que repetir o comando não gere
+leituras no Firestore.
 
 ## Estrutura
 

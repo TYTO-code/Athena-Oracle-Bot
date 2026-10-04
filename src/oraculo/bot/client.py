@@ -15,7 +15,7 @@ from oraculo.bot.permissions import PermissaoInsuficiente
 from oraculo.bot.role_sync import SincronizadorDiscord
 from oraculo.config import Settings, get_settings
 from oraculo.container import Container
-from oraculo.domain.errors import BusinessRuleError, OraculoError
+from oraculo.domain.errors import BusinessRuleError, NaoCadastradoError, OraculoError
 from oraculo.logging_config import get_logger
 
 log = get_logger(__name__)
@@ -24,11 +24,8 @@ COGS = (
     "oraculo.bot.cogs.ajuda",
     "oraculo.bot.cogs.perfil",
     "oraculo.bot.cogs.ranking",
-    "oraculo.bot.cogs.xp",
     "oraculo.bot.cogs.agenda",
     "oraculo.bot.cogs.admin",
-    "oraculo.bot.cogs.comunidade",
-    "oraculo.bot.cogs.vinculo",
     "oraculo.bot.cogs.pergunta",
     "oraculo.bot.cogs.comunicados",
 )
@@ -101,6 +98,8 @@ class OraculoBot(commands.Bot):
 
         if isinstance(error, PermissaoInsuficiente):
             embed = embeds.erro(str(error), titulo="Permissão insuficiente (RN-008)")
+        elif isinstance(original, NaoCadastradoError):
+            embed = embeds.erro(str(original), titulo="Acesso restrito a membros (RN-020)")
         elif isinstance(original, BusinessRuleError):
             embed = embeds.erro(str(original), titulo=f"Regra {original.regra}")
         elif isinstance(original, OraculoError):

@@ -29,6 +29,26 @@ class PermissaoNegadaError(BusinessRuleError):
         super().__init__(f"Ação '{acao}' exige {cargo_minimo}; autor possui '{cargo_atual}'.")
 
 
+class NaoCadastradoError(BusinessRuleError):
+    """RN-020 — só tem acesso ao bot quem tem cadastro ativo de membro na TYTO.club.
+
+    Não há auto-registro: estar no servidor do Discord não basta. O cadastro (e o
+    ID numérico do Discord no perfil) vive na plataforma; o bot só o consulta.
+    """
+
+    regra = "RN-020"
+
+    def __init__(self, motivo: str | None = None) -> None:
+        super().__init__(
+            motivo
+            or (
+                "Você não tem cadastro de membro ativo na TYTO.club. Crie sua conta em "
+                "tyto.club e preencha o **ID numérico do seu Discord** em *Editar perfil*; "
+                "depois use o comando de novo."
+            )
+        )
+
+
 class MotivoObrigatorioError(BusinessRuleError):
     """RN-005 — toda movimentação de XP (ou de cargo institucional) exige motivo registrável."""
 

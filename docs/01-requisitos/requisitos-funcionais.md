@@ -24,9 +24,6 @@
 |---------|----|------------------|
 | `/perfil` | RF-002 | Membro |
 | `/ranking` | RF-004 | Membro |
-| `/historico-xp` | RF-003, RF-012 | Cargo Conselheiro |
-| `/conceder-xp` | RF-003 | Cargo Conselheiro (não existe remoção: XP é irrevogável, `XP.md` Art. 1º §1º) |
 | Comandos de reunião | RF-007 | Veterano+ |
 | Comandos de evento | RF-008 | Oficial+ |
 | `/comunicar`, `/agendar-comunicado`, `/comunicados`, `/cancelar-comunicado` | RF-015 | Oficial+ para publicar; cargo Conselheiro para `@here`/`@everyone` (RN-018) |
-| `/saldo`, `/extrato-dracmas`, `/doar-dracmas` | RF-013, RF-014 | Nenhuma — aberto a qualquer pessoa registrada no Atena, camada Comunidade não usa cargo de hierarquia (ver `regras-de-negocio.md` RN-011) |

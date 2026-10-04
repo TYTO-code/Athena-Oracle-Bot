@@ -13,9 +13,11 @@ Você está mexendo na hierarquia do bot. TD-007 foi **fechada**: o Clube TYTO d
   adicione caminho que rebaixe patente nem que desconte XP (Art. 1º §1º) — por isso não existe
   `/remover-xp`.
 - **Cargo institucional** — `Conselheiro` e `Administrador`, flags independentes da patente,
-  concedidos só por Administrador (`/cargo-institucional`), sempre auditados.
+  concedidos **na plataforma TYTO.club** e apenas espelhados pelo bot (RN-021, `conselheiro`/`admin`
+  do documento do membro) — o bot não tem comando que os conceda ou revogue; mudanças geram
+  auditoria `importacao.cargo_espelhado`.
 
 O mapa de privilégios em `permissions.py` (reunião Veterano+, evento/comunicado Oficial+,
-XP/auditoria/`@everyone` Conselheiro, sistema Administrador) foi aprovado pelo Clube TYTO — mudar
+auditoria/`@everyone` Conselheiro, sistema Administrador) foi aprovado pelo Clube TYTO — mudar
 um requisito é decisão do Clube, não ajuste de engenharia. Mudar um limiar de patente exige mudar
 também a plataforma, para as duas nunca discordarem.

@@ -19,7 +19,6 @@ from oraculo.domain.hierarchy import (
     Patente,
 )
 from oraculo.services.promocao_service import PromocaoService
-from oraculo.services.xp_service import XpService
 
 
 @dataclass
@@ -46,20 +45,23 @@ class SincronizadorEspiao:
 CONSELHEIRO = CargoInstitucional.CONSELHEIRO
 
 
+async def _creditar(session, servico: PromocaoService, membro, quantidade: int):
+    """O XP chega da plataforma (espelho); o bot só reavalia a patente (RN-002)."""
+    membro.xp += quantidade
+    return await servico.avaliar(session, membro)
+
+
 async def test_promocao_automatica_ao_cruzar_o_limiar(session, criar_membro):
     """RN-002 / RN-003 — patente trocada, promoção registrada e Discord sincronizado."""
     espiao = SincronizadorEspiao()
-    xp_service = XpService(promocoes=PromocaoService(sincronizador=espiao))
-    autor = await criar_membro(CONSELHEIRO)
+    servico = PromocaoService(sincronizador=espiao)
     alvo = await criar_membro(NEOFITO, xp=90)
 
-    resultado = await xp_service.conceder(
-        session, membro=alvo, quantidade=20, motivo="Vitória em torneio", autor=autor
-    )
+    resultado = await _creditar(session, servico, alvo, 20)
 
     assert resultado.promovido
-    assert resultado.promocao.patente_anterior == NEOFITO
-    assert resultado.promocao.patente_atual == ESCUDEIRO
+    assert resultado.patente_anterior == NEOFITO
+    assert resultado.patente_atual == ESCUDEIRO
     assert alvo.patente_slug == "escudeiro"
     assert espiao.chamadas == [(alvo.discord_id, "escudeiro")]
 
@@ -74,12 +76,11 @@ async def test_promocao_automatica_ao_cruzar_o_limiar(session, criar_membro):
 async def test_membro_possui_uma_unica_patente_apos_multiplas_promocoes(session, criar_membro):
     """RN-001 — a patente é uma coluna única: não há como acumular (TD-005)."""
     espiao = SincronizadorEspiao()
-    xp_service = XpService(promocoes=PromocaoService(sincronizador=espiao))
-    autor = await criar_membro(CONSELHEIRO)
+    servico = PromocaoService(sincronizador=espiao)
     alvo = await criar_membro(NEOFITO, xp=0)
 
-    await xp_service.conceder(session, membro=alvo, quantidade=200, motivo="Etapa 1", autor=autor)
-    await xp_service.conceder(session, membro=alvo, quantidade=300, motivo="Etapa 2", autor=autor)
+    await _creditar(session, servico, alvo, 200)
+    await _creditar(session, servico, alvo, 300)
 
     assert alvo.patente_slug == ARMEIRO.slug
     promocoes = list((await session.execute(select(Promocao))).scalars())
@@ -92,32 +93,26 @@ async def test_membro_possui_uma_unica_patente_apos_multiplas_promocoes(session,
 
 async def test_promocao_pula_patamares_quando_o_xp_salta(session, criar_membro):
     espiao = SincronizadorEspiao()
-    xp_service = XpService(promocoes=PromocaoService(sincronizador=espiao))
-    autor = await criar_membro(CONSELHEIRO)
+    servico = PromocaoService(sincronizador=espiao)
     alvo = await criar_membro(NEOFITO, xp=0)
 
-    resultado = await xp_service.conceder(
-        session, membro=alvo, quantidade=7_000, motivo="Campanha anual", autor=autor
-    )
+    resultado = await _creditar(session, servico, alvo, 7_000)
 
-    assert resultado.promocao.patente_atual == MESTRE_DE_ARMAS
+    assert resultado.patente_atual == MESTRE_DE_ARMAS
     assert alvo.patente_slug == "mestre-de-armas"
 
 
 async def test_falha_no_discord_nao_desfaz_a_promocao(session, criar_membro):
     """A promoção é registrada mesmo com o Discord indisponível, marcada para retentativa."""
     espiao = SincronizadorEspiao(falhar=True)
-    xp_service = XpService(promocoes=PromocaoService(sincronizador=espiao))
-    autor = await criar_membro(CONSELHEIRO)
+    servico = PromocaoService(sincronizador=espiao)
     alvo = await criar_membro(NEOFITO, xp=100)
 
-    resultado = await xp_service.conceder(
-        session, membro=alvo, quantidade=20, motivo="Missão especial", autor=autor
-    )
+    resultado = await _creditar(session, servico, alvo, 20)
 
     assert resultado.promovido
     assert alvo.patente_slug == "escudeiro"
-    assert resultado.promocao.sincronizado is False
+    assert resultado.sincronizado is False
     registro = await session.scalar(select(Promocao))
     assert registro.sincronizado_discord is False
     assert "Discord fora do ar" in registro.erro_sincronizacao
@@ -148,24 +143,6 @@ async def test_aplicar_recusa_patente_igual_ou_inferior(session, criar_membro):
             motivo="tentativa de rebaixar",
         )
     assert membro.patente_slug == "oficial"
-
-
-async def test_confirmar_aplica_so_a_patente_que_o_xp_determina(session, criar_membro):
-    """`/confirmar-patente` — o Administrador libera, não escolhe a patente."""
-    espiao = SincronizadorEspiao()
-    servico = PromocaoService(sincronizador=espiao)
-    membro = await criar_membro(NEOFITO, xp=500_000)
-
-    resultado = await servico.confirmar(session, membro, autor_descricao="Admin")
-
-    assert resultado.promovido
-    assert membro.patente_slug == "centuriao"
-    registro = await session.scalar(select(Promocao))
-    assert registro.automatica is False
-    assert registro.autor_descricao == "Admin"
-
-    de_novo = await servico.confirmar(session, membro, autor_descricao="Admin")
-    assert de_novo.promovido is False
 
 
 @pytest.mark.parametrize(

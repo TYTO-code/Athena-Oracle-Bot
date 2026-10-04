@@ -1,18 +1,18 @@
-"""Importação de membros da plataforma (Firebase) — RF-001 / RN-010 / RNF-004."""
+"""Espelho dos membros da TYTO.club — RF-001 / RN-010 / RN-020 / RN-021."""
 
 from __future__ import annotations
 
 from sqlalchemy import func, select
 
-from oraculo.db.models import Membro, RegistroAuditoria
-from oraculo.domain.hierarchy import ARMEIRO, NEOFITO, OFICIAL, VETERANO
+from oraculo.db.models import Membro, MovimentacaoXp, RegistroAuditoria
+from oraculo.domain.hierarchy import ARMEIRO, OFICIAL, VETERANO
 from oraculo.integrations.plataforma import FonteEmMemoria, normalizar
-from oraculo.services.importacao_service import ImportacaoService, PoliticaImportacao
+from oraculo.services.importacao_service import ImportacaoService
 
 DOCS = [
-    {"id": "u1", "nome": "Perseu", "discordId": "1001", "email": "perseu@tyto.example", "xp": 700},
-    {"id": "u2", "nome": "Medeia", "discordId": 1002, "tier": "Centurião", "xp": 4000},
-    {"id": "u3", "nome": "Só na plataforma", "xp": 10},
+    {"id": "u1", "name": "Perseu", "discordId": "1001", "email": "perseu@tyto.example", "xp": 700},
+    {"id": "u2", "name": "Medeia", "discordId": 1002, "tier": "Centurião", "xp": 4000},
+    {"id": "u3", "name": "Sem Discord", "xp": 10},
 ]
 
 
@@ -25,7 +25,7 @@ def servico(documentos=DOCS, **kwargs) -> ImportacaoService:
 
 def test_normaliza_tipos_tolerantes():
     """A plataforma pode mandar número como string — não pode virar erro."""
-    externo = normalizar({"id": "x", "nome": " Perseu ", "discordId": "1001", "xp": "700"})
+    externo = normalizar({"id": "x", "name": " Perseu ", "discordId": "1001", "xp": "700"})
 
     assert externo.id_externo == "x"
     assert externo.nome == "Perseu"
@@ -104,25 +104,64 @@ def test_foto_em_base64_nao_e_carregada_para_a_memoria():
     assert len(str(externo.bruto)) < 500
 
 
+def test_campos_padrao_sao_os_da_colecao_users_da_plataforma():
+    externo = normalizar(
+        {
+            "id": "uid1",
+            "name": "Atena",
+            "discordId": "55",
+            "tier": "Oficial",
+            "suspended": True,
+            "accountType": "merchant",
+            "conselheiro": True,
+            "admin": True,
+        }
+    )
+
+    assert (externo.nome, externo.discord_id, externo.patente) == ("Atena", 55, "Oficial")
+    assert externo.suspenso is True
+    assert externo.tipo_conta == "merchant"
+    assert externo.conselheiro is True
+    assert externo.administrador is True
+
+
+def test_elegibilidade_exige_conta_de_clube_ativa_e_discord():
+    """RN-020 — suspensa, mercador, desativada ou sem Discord: sem acesso."""
+    base = {"id": "x", "name": "N", "discordId": "9"}
+
+    assert normalizar(base).elegivel is True
+    assert normalizar({**base, "suspended": True}).elegivel is False
+    assert normalizar({**base, "accountType": "merchant"}).elegivel is False
+    assert normalizar({**base, "ativo": False}).elegivel is False
+    assert normalizar({"id": "x", "name": "N"}).elegivel is False
+    assert normalizar({**base, "discordId": "não-é-número"}).elegivel is False
+
+
+
 # --- Importação -------------------------------------------------------------
 
 
-async def test_primeira_carga_cria_membros(session):
+async def test_primeira_carga_cria_so_membros_elegiveis(session):
     relatorio = await servico().importar(session)
 
-    assert relatorio.criados == 3
-    assert relatorio.atualizados == 0
+    assert relatorio.criados == 2
+    assert relatorio.nao_elegiveis == 1, "sem Discord informado: fora do bot (RN-020)"
     assert relatorio.sem_discord == 1
-    assert await session.scalar(select(func.count()).select_from(Membro)) == 3
+    assert await session.scalar(select(func.count()).select_from(Membro)) == 2
+    assert await session.scalar(select(Membro).where(Membro.id_externo == "u3")) is None
 
 
-async def test_membro_sem_discord_e_importado_e_contabilizado(session):
-    """A plataforma é a fonte do cadastro; o vínculo com o Discord vem depois."""
-    await servico().importar(session)
+async def test_conta_suspensa_ou_de_mercador_nao_entra(session):
+    documentos = [
+        {"id": "s1", "name": "Suspenso", "discordId": 21, "suspended": True},
+        {"id": "m1", "name": "Mercador", "discordId": 22, "accountType": "merchant"},
+        {"id": "ok", "name": "Membro", "discordId": 23},
+    ]
 
-    membro = await session.scalar(select(Membro).where(Membro.id_externo == "u3"))
-    assert membro.discord_id is None
-    assert membro.nome_exibicao == "Só na plataforma"
+    relatorio = await servico(documentos).importar(session)
+
+    assert relatorio.criados == 1
+    assert relatorio.nao_elegiveis == 2
 
 
 async def test_importacao_e_idempotente(session):
@@ -130,47 +169,12 @@ async def test_importacao_e_idempotente(session):
     relatorio = await servico().importar(session)
 
     assert relatorio.criados == 0
-    assert relatorio.inalterados == 3
-    assert await session.scalar(select(func.count()).select_from(Membro)) == 3
+    assert relatorio.inalterados == 2
+    assert await session.scalar(select(func.count()).select_from(Membro)) == 2
 
 
-async def test_politica_padrao_nao_toca_em_xp_nem_patente(session):
-    """Padrão `cadastro`: a plataforma manda no cadastro, o bot no XP (RN-002)."""
+async def test_traz_xp_e_patente_da_plataforma(session):
     await servico().importar(session)
-
-    medeia = await session.scalar(select(Membro).where(Membro.id_externo == "u2"))
-    assert medeia.xp == 0
-    assert medeia.patente_slug == NEOFITO.slug
-
-
-async def test_espelho_preserva_membros_ausentes(session):
-    """Decisão do clube: quem sumiu da plataforma continua ativo no bot."""
-    await servico(politica=PoliticaImportacao.ESPELHO).importar(session)
-
-    await servico([DOCS[0]], politica=PoliticaImportacao.ESPELHO).importar(session)
-
-    medeia = await session.scalar(select(Membro).where(Membro.id_externo == "u2"))
-    assert medeia.ativo is True
-
-
-async def test_carga_inicial_traz_xp_mas_retem_patente_declarada_acima_do_teto(session):
-    """XP vem da plataforma; patente declarada acima do teto vira pendência, não promoção."""
-    relatorio = await servico(politica=PoliticaImportacao.CARGA_INICIAL).importar(session)
-
-    medeia = await session.scalar(select(Membro).where(Membro.id_externo == "u2"))
-    assert medeia.xp == 4000
-    assert medeia.patente_slug == NEOFITO.slug, "Centurião está acima do teto automático (Oficial)"
-    assert relatorio.pendentes_confirmacao == 1
-
-    # Segunda rodada com XP diferente não pode sobrescrever o que o bot registrou.
-    novos_docs = [{**DOCS[1], "xp": 99}]
-    await servico(novos_docs, politica=PoliticaImportacao.CARGA_INICIAL).importar(session)
-    assert medeia.xp == 4000
-
-
-async def test_espelho_traz_o_xp_da_plataforma(session):
-    """Modo escolhido pelo clube: o XP do bot é um reflexo da plataforma."""
-    await servico(politica=PoliticaImportacao.ESPELHO).importar(session)
 
     perseu = await session.scalar(select(Membro).where(Membro.id_externo == "u1"))
     assert perseu.xp == 700
@@ -183,24 +187,33 @@ async def test_espelho_traz_o_xp_da_plataforma(session):
     assert registro is not None
 
 
-async def test_espelho_sobe_xp_a_cada_sincronizacao(session):
-    await servico(politica=PoliticaImportacao.ESPELHO).importar(session)
+async def test_patente_declarada_alta_e_aplicada_sem_confirmacao_manual(session):
+    """Não há `/confirmar-patente`: o bot só espelha (RN-021)."""
+    await servico().importar(session)
 
-    await servico([{**DOCS[0], "xp": 2_000}], politica=PoliticaImportacao.ESPELHO).importar(
-        session
-    )
+    medeia = await session.scalar(select(Membro).where(Membro.id_externo == "u2"))
+    assert medeia.xp == 4000
+    assert medeia.patente_slug == "centuriao"
+
+
+async def test_sobe_xp_a_cada_sincronizacao_e_registra_na_trilha(session):
+    await servico().importar(session)
+
+    await servico([{**DOCS[0], "xp": 2_000}]).importar(session)
 
     perseu = await session.scalar(select(Membro).where(Membro.id_externo == "u1"))
     assert perseu.xp == 2_000
     assert perseu.patente_slug == VETERANO.slug, "a patente acompanha o XP (RN-002)"
-
-
-async def test_espelho_nunca_diminui_xp(session):
-    """XP é irrevogável (XP.md Art. 1º §1º): XP menor na plataforma vai para a auditoria."""
-    await servico([{**DOCS[0], "xp": 2_000}], politica=PoliticaImportacao.ESPELHO).importar(
-        session
+    movimentacao = await session.scalar(
+        select(MovimentacaoXp).where(MovimentacaoXp.membro_id == perseu.id)
     )
-    await servico([{**DOCS[0], "xp": 50}], politica=PoliticaImportacao.ESPELHO).importar(session)
+    assert movimentacao.quantidade == 1_300, "só a subida entra; a carga inicial não é 'da semana'"
+
+
+async def test_nunca_diminui_xp(session):
+    """XP é irrevogável (XP.md Art. 1º §1º): XP menor na plataforma vai para a auditoria."""
+    await servico([{**DOCS[0], "xp": 2_000}]).importar(session)
+    await servico([{**DOCS[0], "xp": 50}]).importar(session)
 
     perseu = await session.scalar(select(Membro).where(Membro.id_externo == "u1"))
     assert perseu.xp == 2_000
@@ -211,11 +224,10 @@ async def test_espelho_nunca_diminui_xp(session):
     assert registro.dados == {"xp_bot": 2_000, "xp_plataforma": 50}
 
 
-async def test_espelho_deriva_patente_do_xp_quando_a_plataforma_nao_informa(session):
-    """Sem campo de patente no Firestore, a escala decide — RN-002 (dentro do teto)."""
-    documentos = [{"id": "u7", "nome": "Sem tier", "discordId": 7, "xp": 2_000}]
+async def test_deriva_patente_do_xp_quando_a_plataforma_nao_informa(session):
+    documentos = [{"id": "u7", "name": "Sem tier", "discordId": 7, "xp": 2_000}]
 
-    await servico(documentos, politica=PoliticaImportacao.ESPELHO).importar(session)
+    await servico(documentos).importar(session)
 
     membro = await session.scalar(select(Membro).where(Membro.id_externo == "u7"))
     assert membro.patente_slug == VETERANO.slug
@@ -224,83 +236,75 @@ async def test_espelho_deriva_patente_do_xp_quando_a_plataforma_nao_informa(sess
 async def test_patente_ausente_ou_menor_nunca_rebaixa(session):
     """XP.md Art. 1º §3º — nem campo faltando nem patente menor rebaixam ninguém."""
     session.add(
-        Membro(discord_id=8, nome_exibicao="Veterana", patente_slug=OFICIAL.slug, xp=106_000)
+        Membro(
+            discord_id=8,
+            id_externo="u8",
+            nome_exibicao="Veterana",
+            patente_slug=OFICIAL.slug,
+            xp=106_000,
+        )
     )
     await session.flush()
 
     for documento in (
-        {"id": "u8", "nome": "Veterana", "discordId": 8, "xp": 106_000},
-        {"id": "u8", "nome": "Veterana", "discordId": 8, "tier": "Neófito", "xp": 106_000},
+        {"id": "u8", "name": "Veterana", "discordId": 8, "xp": 106_000},
+        {"id": "u8", "name": "Veterana", "discordId": 8, "tier": "Neófito", "xp": 106_000},
     ):
-        await servico([documento], politica=PoliticaImportacao.ESPELHO).importar(session)
+        await servico([documento]).importar(session)
         membro = await session.scalar(select(Membro).where(Membro.discord_id == 8))
         assert membro.patente_slug == OFICIAL.slug
 
 
-# --- Teto de segurança da importação (mitigação: Firestore não é fonte de --
-# --- verdade de privilégio — ver RN-008) -------------------------------------
-
-
-async def test_patente_declarada_acima_do_teto_nao_e_aplicada_automaticamente(session):
-    """Campo `tier` da plataforma não pode, sozinho, subir acima de Oficial."""
-    documentos = [{"id": "u10", "nome": "Suspeito", "discordId": 10, "tier": "Omni", "xp": 0}]
-
-    relatorio = await servico(documentos, politica=PoliticaImportacao.CARGA_INICIAL).importar(
-        session
-    )
-
-    membro = await session.scalar(select(Membro).where(Membro.id_externo == "u10"))
-    assert membro.patente_slug == NEOFITO.slug
-    assert relatorio.pendentes_confirmacao == 1
-
-    pendencia = await session.scalar(
-        select(RegistroAuditoria).where(
-            RegistroAuditoria.acao == "importacao.patente_pendente_confirmacao"
-        )
-    )
-    assert pendencia is not None
-    assert pendencia.dados["patente_sugerida"] == "omni"
-    assert pendencia.dados["origem_dado"] == "patente"
-
-
-async def test_xp_espelhado_alto_nao_promove_sozinho_acima_do_teto(session):
-    """Mesmo em ESPELHO, XP espelhado não escala sozinho acima de Oficial."""
-    documentos = [{"id": "u11", "nome": "XP alto", "discordId": 11, "xp": 500_000}]
-
-    relatorio = await servico(documentos, politica=PoliticaImportacao.ESPELHO).importar(session)
-
-    membro = await session.scalar(select(Membro).where(Membro.id_externo == "u11"))
-    assert membro.xp == 500_000, "o XP em si continua espelhado; só a patente fica pendente"
-    assert membro.patente_slug == NEOFITO.slug
-    assert relatorio.pendentes_confirmacao == 1
-
-
-async def test_patente_no_teto_ainda_e_aplicada_automaticamente(session):
-    """O teto é em Oficial: até ali (inclusive), a importação segue automática."""
-    documentos = [{"id": "u12", "nome": "No teto", "discordId": 12, "tier": "Oficial", "xp": 0}]
-
-    await servico(documentos, politica=PoliticaImportacao.CARGA_INICIAL).importar(session)
-
-    membro = await session.scalar(select(Membro).where(Membro.id_externo == "u12"))
-    assert membro.patente_slug == OFICIAL.slug
-
-
-async def test_importacao_nunca_concede_cargo_institucional(session):
-    """Conselheiro/Administrador só por `/cargo-institucional` (TD-007)."""
+async def test_cargos_institucionais_sao_espelhados_da_plataforma(session):
+    """O bot não concede cargo (RN-021): Conselheiro/Administrador vêm da TYTO.club."""
     documentos = [
-        {"id": "u14", "nome": "Diz ser admin", "discordId": 14, "tier": "administrador",
-         "conselheiro": True, "admin": True, "xp": 0}
+        {"id": "u14", "name": "Conselheira", "discordId": 14, "conselheiro": True, "admin": True}
     ]
 
-    await servico(documentos, politica=PoliticaImportacao.ESPELHO).importar(session)
+    await servico(documentos).importar(session)
 
     membro = await session.scalar(select(Membro).where(Membro.id_externo == "u14"))
+    assert membro.conselheiro is True
+    assert membro.administrador is True
+
+    # E revogados lá, são revogados aqui, com auditoria.
+    await servico([{**documentos[0], "conselheiro": False, "admin": False}]).importar(session)
     assert membro.conselheiro is False
     assert membro.administrador is False
+    registros = await session.scalar(
+        select(func.count())
+        .select_from(RegistroAuditoria)
+        .where(RegistroAuditoria.acao == "importacao.cargo_espelhado")
+    )
+    assert registros == 1
+
+
+async def test_quem_perde_a_elegibilidade_e_desativado(session):
+    """RN-020 — suspenso na plataforma, suspenso no bot (soft-delete, RN-010)."""
+    await servico().importar(session)
+
+    relatorio = await servico([{**DOCS[0], "suspended": True}]).importar(session)
+
+    perseu = await session.scalar(select(Membro).where(Membro.id_externo == "u1"))
+    assert perseu.ativo is False
+    assert perseu.desativado_em is not None
+    assert relatorio.desativados == 1
+
+
+async def test_volta_a_ser_elegivel_reativa(session):
+    await servico().importar(session)
+    await servico([{**DOCS[0], "suspended": True}]).importar(session)
+
+    relatorio = await servico([DOCS[0]]).importar(session)
+
+    perseu = await session.scalar(select(Membro).where(Membro.id_externo == "u1"))
+    assert perseu.ativo is True
+    assert perseu.desativado_em is None
+    assert relatorio.reativados == 1
 
 
 async def test_vincula_membro_ja_existente_pelo_discord_id(session):
-    """Quem já usava o bot não vira duplicata ao ser importado."""
+    """Quem já estava no banco do bot não vira duplicata ao ser importado."""
     session.add(
         Membro(discord_id=1001, nome_exibicao="Perseu", patente_slug=VETERANO.slug, xp=2_000)
     )
@@ -308,32 +312,42 @@ async def test_vincula_membro_ja_existente_pelo_discord_id(session):
 
     relatorio = await servico().importar(session)
 
-    assert relatorio.criados == 2
+    assert relatorio.criados == 1
     perseu = await session.scalar(select(Membro).where(Membro.discord_id == 1001))
     assert perseu.id_externo == "u1"
-    assert perseu.xp == 2_000, "o XP acumulado no bot não pode ser perdido"
+    assert perseu.xp == 2_000, "o XP já registrado não pode ser perdido"
     assert perseu.patente_slug == VETERANO.slug
 
 
 async def test_ensaio_nao_grava_nada(session):
     relatorio = await servico().importar(session, dry_run=True)
 
-    assert relatorio.criados == 3
+    assert relatorio.criados == 2
     assert relatorio.dry_run is True
     assert await session.scalar(select(func.count()).select_from(Membro)) == 0
 
 
 async def test_ausentes_sao_desativados_e_nao_apagados(session):
-    """RN-010 — sair da plataforma não apaga histórico."""
+    """RN-010 / RN-020 — sair da plataforma tira o acesso, mas não apaga histórico."""
     await servico().importar(session)
 
     relatorio = await servico([DOCS[0]]).importar(session, desativar_ausentes=True)
 
-    assert relatorio.desativados == 2
-    assert await session.scalar(select(func.count()).select_from(Membro)) == 3
+    assert relatorio.desativados == 1
+    assert await session.scalar(select(func.count()).select_from(Membro)) == 2
     inativo = await session.scalar(select(Membro).where(Membro.id_externo == "u2"))
     assert inativo.ativo is False
     assert inativo.desativado_em is not None
+
+
+async def test_leitura_vazia_nao_desativa_ninguem(session):
+    """Fonte que devolve zero documentos é falha de leitura, não um Clube vazio."""
+    await servico().importar(session)
+
+    relatorio = await servico([]).importar(session, desativar_ausentes=True)
+
+    assert relatorio.desativados == 0
+    assert await session.scalar(select(func.count()).select_from(Membro).where(Membro.ativo)) == 2
 
 
 async def test_execucao_e_registrada_na_auditoria(session):
@@ -343,12 +357,12 @@ async def test_execucao_e_registrada_na_auditoria(session):
         select(RegistroAuditoria).where(RegistroAuditoria.acao == "importacao.executada")
     )
     assert registro is not None
-    assert registro.dados["criados"] == 3
-    assert registro.dados["politica"] == "cadastro"
+    assert registro.dados["criados"] == 2
+    assert registro.dados["nao_elegiveis"] == 1
 
 
 async def test_documento_invalido_nao_aborta_a_carga(session):
-    documentos = [DOCS[0], {"nome": "sem id"}, DOCS[1]]
+    documentos = [DOCS[0], {"name": "sem id"}, DOCS[1]]
 
     relatorio = await servico(documentos).importar(session)
 
@@ -359,11 +373,9 @@ async def test_documento_invalido_nao_aborta_a_carga(session):
 
 async def test_patente_desconhecida_deixa_o_xp_decidir(session):
     """Inclusive nomes da hierarquia anterior a TD-007, como "cavalaria"."""
-    documentos = [
-        {"id": "u9", "nome": "Estranho", "discordId": 9, "tier": "cavalaria", "xp": 500}
-    ]
+    documentos = [{"id": "u9", "name": "Estranho", "discordId": 9, "tier": "cavalaria", "xp": 500}]
 
-    await servico(documentos, politica=PoliticaImportacao.CARGA_INICIAL).importar(session)
+    await servico(documentos).importar(session)
 
     membro = await session.scalar(select(Membro).where(Membro.id_externo == "u9"))
     assert membro.patente_slug == ARMEIRO.slug
@@ -372,7 +384,7 @@ async def test_patente_desconhecida_deixa_o_xp_decidir(session):
 async def test_dados_do_cadastro_sao_atualizados(session):
     await servico().importar(session)
 
-    atualizados = [{**DOCS[0], "nome": "Perseu de Argos", "email": "novo@tyto.example"}]
+    atualizados = [{**DOCS[0], "name": "Perseu de Argos", "email": "novo@tyto.example"}]
     relatorio = await servico(atualizados).importar(session)
 
     assert relatorio.atualizados == 1
@@ -380,3 +392,14 @@ async def test_dados_do_cadastro_sao_atualizados(session):
     assert perseu.nome_exibicao == "Perseu de Argos"
     assert perseu.email == "novo@tyto.example"
     assert perseu.sincronizado_em is not None
+
+
+async def test_importar_um_espelha_so_elegivel(session):
+    externo_ok = normalizar(DOCS[0])
+    externo_fora = normalizar({**DOCS[1], "suspended": True})
+
+    membro = await servico().importar_um(session, externo_ok)
+    assert membro is not None and membro.id_externo == "u1"
+
+    assert await servico().importar_um(session, externo_fora) is None
+    assert await session.scalar(select(Membro).where(Membro.id_externo == "u2")) is None

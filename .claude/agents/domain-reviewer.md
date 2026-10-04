@@ -25,13 +25,15 @@ documentada em `docs/`.
    cargo institucional (Conselheiro, Administrador) são geridos à parte e nunca removidos pela
    troca de patente.
 4. **RN-005/RN-010 (auditoria, histórico imutável)** — nenhum `DELETE` em `xp_audit`, `promocoes`
-   ou `audit_log`; toda alteração de XP registra autor, membro, quantidade, motivo, data/hora; toda
-   concessão/revogação de cargo institucional grava `cargo_institucional.*` no log.
+   ou `audit_log`; toda subida de XP espelhada registra membro, quantidade, motivo, data/hora; todo
+   cargo espelhado grava `importacao.cargo_espelhado` no log.
 5. **XP e patente irrevogáveis (`Institucional/XP.md` Art. 1º)** — qualquer caminho que desconte
    XP ou rebaixe patente (inclusive via importação da plataforma) é achado. A patente vem só do XP;
-   cargo institucional nunca vem do XP nem da importação.
-6. **Modo `espelho` (XP vem da plataforma)** — nesse modo, `/conceder-xp` deve continuar recusado;
-   uma mudança que o reabra sob `espelho` sem justificativa explícita é uma regressão.
+   cargo institucional nunca vem do XP — vem do espelho da plataforma (RN-021).
+6. **Bot somente leitura e só para cadastrados (RN-020 / RN-021)** — qualquer comando, serviço ou
+   chamada que escreva XP, patente, cargo, Dracmas ou vínculo na plataforma (ou crie `Membro` fora
+   da importação) é achado crítico; todo comando precisa passar por `requer` (gate de cadastro) e
+   `obter_ou_criar_por_discord` não pode voltar. Ver `docs/04-arquitetura/adr-002-bot-somente-leitura.md`.
 
 ## Como reportar
 

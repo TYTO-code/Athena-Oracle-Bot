@@ -3,6 +3,7 @@
 from oraculo.domain.errors import (
     BusinessRuleError,
     MotivoObrigatorioError,
+    NaoCadastradoError,
     OraculoError,
     PermissaoNegadaError,
     QuantidadeInvalidaError,
@@ -29,6 +30,7 @@ __all__ = [
     "BusinessRuleError",
     "CargoInstitucional",
     "MotivoObrigatorioError",
+    "NaoCadastradoError",
     "OraculoError",
     "Patente",
     "Perfil",

@@ -54,10 +54,8 @@ class Acao(StrEnum):
     # (verificado no Firebase a cada pergunta, em `pergunta_service.py`).
     PERGUNTAR = "perguntar"
 
-    # XP — RF-003, RN-004, RN-005. Não existe "remover XP": XP é irrevogável
-    # (XP.md Art. 1º §1º).
-    CONCEDER_XP = "conceder_xp"
-    VER_HISTORICO_XP = "ver_historico_xp"
+    # O bot é somente leitura (RN-021): não há ação que conceda XP, patente ou
+    # cargo, nem que mexa em Dracmas — isso vive na TYTO.club.
 
     # Agenda — RF-007, RF-008, RN-006, RN-007
     CRIAR_REUNIAO = "criar_reuniao"
@@ -73,16 +71,9 @@ class Acao(StrEnum):
     MENCIONAR_TODOS = "mencionar_todos"
 
     # Governança — RF-012, RNF-003, RNF-004
-    DEFINIR_CARGO_INSTITUCIONAL = "definir_cargo_institucional"
-    CONFIRMAR_PATENTE = "confirmar_patente"
     VER_AUDITORIA = "ver_auditoria"
     ADMINISTRAR_SISTEMA = "administrar_sistema"
 
-    # Vínculo de conta — RN-016
-    RECONCILIAR_CONTA = "reconciliar_conta"
-
-    # Filiação ao Clube — F2-007 (COMUNIDADE_E_CLUBE.md Art. 4º §1º-A)
-    MIGRAR_SALDO_COMUNIDADE = "migrar_saldo_comunidade"
 
 
 _POLITICA: dict[Acao, Requisito] = {
@@ -90,8 +81,6 @@ _POLITICA: dict[Acao, Requisito] = {
     Acao.VER_RANKING: NEOFITO,
     Acao.RESPONDER_RSVP: NEOFITO,
     Acao.PERGUNTAR: NEOFITO,
-    Acao.CONCEDER_XP: CargoInstitucional.CONSELHEIRO,
-    Acao.VER_HISTORICO_XP: CargoInstitucional.CONSELHEIRO,
     Acao.CRIAR_REUNIAO: VETERANO,
     Acao.GERIR_REUNIAO: VETERANO,
     Acao.CRIAR_EVENTO: OFICIAL,
@@ -99,12 +88,8 @@ _POLITICA: dict[Acao, Requisito] = {
     Acao.PUBLICAR_COMUNICADO: OFICIAL,
     Acao.GERIR_COMUNICADO: OFICIAL,
     Acao.MENCIONAR_TODOS: CargoInstitucional.CONSELHEIRO,
-    Acao.DEFINIR_CARGO_INSTITUCIONAL: CargoInstitucional.ADMINISTRADOR,
-    Acao.CONFIRMAR_PATENTE: CargoInstitucional.ADMINISTRADOR,
     Acao.VER_AUDITORIA: CargoInstitucional.CONSELHEIRO,
     Acao.ADMINISTRAR_SISTEMA: CargoInstitucional.ADMINISTRADOR,
-    Acao.RECONCILIAR_CONTA: CargoInstitucional.ADMINISTRADOR,
-    Acao.MIGRAR_SALDO_COMUNIDADE: CargoInstitucional.ADMINISTRADOR,
 }
 
 
