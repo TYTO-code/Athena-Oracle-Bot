@@ -6,7 +6,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: oraculo
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-oraculo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env (sem valor padrão)}
       POSTGRES_DB: oraculo
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -34,7 +34,7 @@ services:
     env_file: .env
     environment:
       # Sobrescreve o `.env` com os endereços internos do compose.
-      ORACULO_DATABASE_URL: postgresql+asyncpg://oraculo:${POSTGRES_PASSWORD:-oraculo}@db:5432/oraculo
+      ORACULO_DATABASE_URL: postgresql+asyncpg://oraculo:${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD}@db:5432/oraculo
       ORACULO_REDIS_URL: redis://cache:6379/0
     depends_on:
       db:
