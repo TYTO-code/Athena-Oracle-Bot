@@ -6,6 +6,19 @@
 credentials.json
 token.json
 google-credentials.json
+*service-account*.json
+*serviceAccount*.json
+firebase-adminsdk*.json
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+
+# Regulamento do Clube: o bot lê estes arquivos, mas o repositório é público —
+# só o README da pasta é versionado (ver docs/regras-tyto/README.md).
+docs/regras-tyto/*
+!docs/regras-tyto/README.md
 
 # Python
 __pycache__/

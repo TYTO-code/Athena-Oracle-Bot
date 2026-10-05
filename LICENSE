@@ -1,0 +1,92 @@
+TYTO.club Source-Available License — All Rights Reserved
+Version 1.0
+
+Copyright (c) 2025-2026 TYTO.club. All rights reserved.
+
+"Licensor" means TYTO.club, the owner of the copyright in this repository.
+"Software" means all source code, documentation, schemas, tests, configuration
+and any other material in this repository, in source or any other form, and all
+copies, modifications and derivative works of it.
+
+1. NO IMPLIED LICENSE. This repository is public so that it can be read, audited
+   and discussed. Publication is not a grant of rights. Except for the limited
+   permission in Section 2, no license of any kind is granted, whether by
+   implication, estoppel, exhaustion or otherwise. All rights are reserved by the
+   Licensor.
+
+2. LIMITED PERMISSION (VIEW AND EVALUATE ONLY). Subject to this license, you may,
+   free of charge, (a) read and study the Software; (b) run it solely on your own
+   equipment, in a private non-production environment, for the sole purpose of
+   evaluating it or of reviewing its security; and (c) make the transient copies
+   that are technically necessary to do so, including clones and forks made on
+   GitHub as allowed by the GitHub Terms of Service, which remain subject to this
+   license. This permission is personal, non-exclusive, non-transferable,
+   non-sublicensable and revocable.
+
+3. RESTRICTIONS. Without the Licensor's prior written permission, you must not:
+   a. copy, reproduce or redistribute the Software, in whole or in part, except as
+      permitted by Section 2;
+   b. modify, adapt, translate or create derivative works of the Software, or
+      incorporate any part of it into another work or project;
+   c. use the Software, or any part of it, for any commercial, production,
+      organizational or operational purpose, including running it as a service,
+      bot or application for yourself or for any third party;
+   d. sublicense, sell, rent, lease, lend or otherwise make the Software available
+      to third parties;
+   e. remove, alter or obscure any copyright, license or attribution notice;
+   f. use the Software, or any part of it, to train, fine-tune, evaluate for
+      training purposes, or build any machine-learning or generative AI model or
+      dataset, or submit it to any automated process for that purpose;
+   g. use the Software to build a competing product or service, or to replicate
+      the Licensor's rules, workflows or hierarchy in another system;
+   h. use the Licensor's names, logos or trademarks (including "TYTO", "TYTO.club",
+      "Atena", "Oráculo") to endorse or promote any product or to suggest
+      affiliation. All trademarks are reserved.
+
+4. SECURITY RESEARCH. The Licensor welcomes good-faith security research on the
+   Software. If you find a vulnerability, report it privately as described in
+   SECURITY.md and do not disclose it publicly before the Licensor has had a
+   reasonable opportunity to fix it. Good-faith research limited to the Software
+   on your own equipment, and conducted in line with SECURITY.md, will not be
+   treated as a breach of Section 3. This Section does not authorize any access
+   to systems, accounts, data or infrastructure that you do not own.
+
+5. CONTRIBUTIONS. Unless you and the Licensor agree otherwise in writing, any
+   contribution you intentionally submit to this repository (for example a pull
+   request) is submitted under a perpetual, worldwide, irrevocable, royalty-free,
+   sublicensable license that allows the Licensor to use, reproduce, modify,
+   distribute and relicense it as part of the Software, and you represent that
+   you have the right to grant it. The Licensor is under no obligation to accept
+   any contribution.
+
+6. THIRD-PARTY COMPONENTS. The Software depends on third-party packages that are
+   not part of it and that remain under their own licenses. This license does
+   not change those licenses.
+
+7. NO PERSONAL DATA OR SECRETS. This repository does not contain, and you must not
+   submit to it, credentials, tokens, keys or personal data of any person. Any
+   such material found in it was published by mistake: do not use or copy it, and
+   please report it as described in SECURITY.md.
+
+8. TERMINATION. This license terminates automatically and immediately if you
+   breach any of its terms. On termination you must stop all use of the Software
+   and delete all copies in your possession, other than copies that GitHub hosts
+   as a platform service. The Licensor may also revoke the permission in Section 2
+   at any time by written notice.
+
+9. DISCLAIMER OF WARRANTY. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+   ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT.
+
+10. LIMITATION OF LIABILITY. TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT
+    SHALL THE LICENSOR OR ITS CONTRIBUTORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+    OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR ITS USE.
+
+11. GENERAL. If any provision of this license is held unenforceable, the remaining
+    provisions stay in force. Failure to enforce a provision is not a waiver. This
+    license is governed by the laws of the Federative Republic of Brazil, without
+    regard to conflict-of-laws rules, and the courts of Brazil have exclusive
+    jurisdiction, except where mandatory law provides otherwise. For permission to
+    use the Software beyond this license, contact the Licensor through the
+    channels listed at https://github.com/TYTO-code.

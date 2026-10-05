@@ -4,7 +4,8 @@ version = "1.0.0"
 description = "Bot Oráculo — gestão operacional do Clube TYTO (Atena v1.0)"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "Proprietary" }
+license = { file = "LICENSE" }
+classifiers = ["License :: Other/Proprietary License"]
 
 dependencies = [
     "discord.py>=2.4",

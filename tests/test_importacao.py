@@ -92,13 +92,13 @@ def test_foto_em_base64_nao_e_carregada_para_a_memoria():
     """Mesmo se vier no documento, a foto não deve sobreviver à normalização."""
     documento = {
         "id": "u1",
-        "name": "Dayvid Santana",
+        "name": "Maria Souza",
         "photoUrl": "data:image/png;base64," + "A" * 50_000,
     }
 
     externo = normalizar(documento, mapa={"nome": "name"})
 
-    assert externo.nome == "Dayvid Santana"
+    assert externo.nome == "Maria Souza"
     # A chave permanece para diagnóstico, mas sem o conteúdo.
     assert "base64" not in externo.bruto["photoUrl"]
     assert len(str(externo.bruto)) < 500

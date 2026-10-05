@@ -317,3 +317,14 @@ IDs estáveis: `RN-xxx`, `RF-xxx`, `RNF-xxx`, `UC-xxx`, `TD-xxx`, `ADR-xxx`, `US
 - Commits e PRs que fecham dívida referenciam o ID (`TD-003: valida HMAC no webhook`).
 - Toda ação privilegiada nova entra em `Acao` **e** em `_POLITICA` (RN-008) — sem política, o código falha explicitamente.
 - Nada de `DELETE` em `xp_audit`, `promocoes` ou `audit_log` (RN-010).
+
+## License and security
+
+This repository is **public for transparency and security review, not for reuse**. The code is
+published under the [TYTO.club Source-Available License](LICENSE) — *all rights reserved*: you
+may read it and run it privately to evaluate it, but you may not copy, modify, redistribute,
+run it as a service, use it commercially, or use it to train AI models.
+
+Found a vulnerability? Please follow [SECURITY.md](SECURITY.md) and report it privately — never
+in a public issue. No credentials are ever committed: see `.env.example` for the variable names
+only, and use a **read-only** Firebase service account (`roles/datastore.viewer`).
