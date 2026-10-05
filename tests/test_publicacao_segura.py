@@ -30,15 +30,20 @@ NOMES_PROIBIDOS = re.compile(
 
 
 def _versionados() -> list[Path]:
-    saida = subprocess.run(
-        ["git", "ls-files", "-z"], cwd=RAIZ, capture_output=True, check=True
+    saida = subprocess.run(  # noqa: S603 — comando fixo, sem entrada externa
+        ["git", "ls-files", "-z"],  # noqa: S607 — `git` do PATH, como no CI
+        cwd=RAIZ,
+        capture_output=True,
+        check=True,
     ).stdout.decode()
     return [Path(p) for p in saida.split("\0") if p]
 
 
 def test_nenhum_arquivo_de_segredo_versionado():
     ruins = [
-        str(p) for p in _versionados() if NOMES_PROIBIDOS.search(str(p)) and p.name != ".env.example"
+        str(p)
+        for p in _versionados()
+        if NOMES_PROIBIDOS.search(str(p)) and p.name != ".env.example"
     ]
     assert ruins == []
 
