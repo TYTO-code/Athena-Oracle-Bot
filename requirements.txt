@@ -15,7 +15,7 @@ discord.py==2.7.1
 
 # --- Persistência (TD-002) ---------------------------------------------------
 SQLAlchemy[asyncio]==2.0.51
-alembic==1.19.1
+alembic==1.20.0
 asyncpg==0.31.0          # driver PostgreSQL (produção)
 aiosqlite==0.22.1        # driver SQLite (desenvolvimento e testes)
 
