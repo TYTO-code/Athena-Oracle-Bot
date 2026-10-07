@@ -55,17 +55,19 @@ def test_nao_existem_niveis_do_legado_nem_da_hierarquia_anterior():
     [
         (0, NEOFITO),
         (103, NEOFITO),
-        (104, ESCUDEIRO),
-        (415, ESCUDEIRO),
-        (416, ARMEIRO),
-        (1_664, VETERANO),
-        (106_495, DESAFIANTE_LEGIONARIO),
-        (106_496, OFICIAL),
-        (425_984, CENTURIAO),
-        (1_703_935, CENTURIAO),
-        (1_703_936, COMANDANTE),
-        (104 * 4**14, RENOVEK),
-        (104 * 4**15, OMNI),
+        (400, ESCUDEIRO),
+        (399, NEOFITO),
+        (400, ESCUDEIRO),
+        (1_599, ESCUDEIRO),
+        (1_600, ARMEIRO),
+        (6_400, VETERANO),
+        (409_599, DESAFIANTE_LEGIONARIO),
+        (409_600, OFICIAL),
+        (1_638_400, CENTURIAO),
+        (6_553_599, CENTURIAO),
+        (6_553_600, COMANDANTE),
+        (400 * 4**14, RENOVEK),
+        (400 * 4**15, OMNI),
         (10**15, OMNI),
     ],
 )
@@ -77,29 +79,29 @@ def test_patente_para_xp(xp, esperado):
 def test_cada_patamar_vale_quatro_vezes_o_anterior():
     """XP.md Art. 2º §3º — regra única da escala: de Escudeiro em diante, 4× o patamar anterior."""
     assert NEOFITO.xp_minimo == 0
-    assert ESCUDEIRO.xp_minimo == XP_BASE == 104
+    assert ESCUDEIRO.xp_minimo == XP_BASE == 400
     for anterior, atual in zip(PATENTES[1:], PATENTES[2:], strict=False):
         assert atual.xp_minimo == anterior.xp_minimo * XP_MULTIPLICADOR == anterior.xp_minimo * 4
 
 
 def test_limiar_exato_de_oficial():
-    assert patente_para_xp(106_495) != OFICIAL
-    assert patente_para_xp(106_496) == OFICIAL
+    assert patente_para_xp(409_599) != OFICIAL
+    assert patente_para_xp(409_600) == OFICIAL
 
 
 def test_limiares_batem_com_a_plataforma():
     """Mesmos valores de CLAN_TIERS em TYTO.club e no backend — nunca discordam."""
-    assert [p.xp_minimo for p in PATENTES[:6]] == [0, 104, 416, 1_664, 6_656, 26_624]
-    assert COMANDANTE.xp_minimo == 1_703_936
-    assert CENTURIAO.xp_minimo == 425_984
-    assert OMNI.xp_minimo == 111_669_149_696
+    assert [p.xp_minimo for p in PATENTES[:6]] == [0, 400, 1_600, 6_400, 25_600, 102_400]
+    assert COMANDANTE.xp_minimo == 6_553_600
+    assert CENTURIAO.xp_minimo == 1_638_400
+    assert OMNI.xp_minimo == 429_496_729_600
 
 
 def test_proxima_patente_e_xp_faltante():
     assert proxima_patente(NEOFITO) == ESCUDEIRO
     assert proxima_patente(OMNI) is None
-    assert xp_faltante(100) == 4
-    assert xp_faltante(104) == 416 - 104
+    assert xp_faltante(396) == 4
+    assert xp_faltante(400) == 1_600 - 400
     assert xp_faltante(OMNI.xp_minimo) is None
 
 

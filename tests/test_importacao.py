@@ -5,13 +5,13 @@ from __future__ import annotations
 from sqlalchemy import func, select
 
 from oraculo.db.models import Membro, MovimentacaoXp, RegistroAuditoria
-from oraculo.domain.hierarchy import ARMEIRO, OFICIAL, VETERANO
+from oraculo.domain.hierarchy import ARMEIRO, CENTURIAO, OFICIAL, VETERANO
 from oraculo.integrations.plataforma import FonteEmMemoria, normalizar
 from oraculo.services.importacao_service import ImportacaoService
 
 DOCS = [
-    {"id": "u1", "name": "Perseu", "discordId": "1001", "email": "perseu@tyto.example", "xp": 700},
-    {"id": "u2", "name": "Medeia", "discordId": 1002, "tier": "Centurião", "xp": 4000},
+    {"id": "u1", "name": "Perseu", "discordId": "1001", "email": "perseu@tyto.example", "xp": ARMEIRO.xp_minimo},
+    {"id": "u2", "name": "Medeia", "discordId": 1002, "tier": "Centurião", "xp": CENTURIAO.xp_minimo},
     {"id": "u3", "name": "Sem Discord", "xp": 10},
 ]
 
@@ -177,7 +177,7 @@ async def test_traz_xp_e_patente_da_plataforma(session):
     await servico().importar(session)
 
     perseu = await session.scalar(select(Membro).where(Membro.id_externo == "u1"))
-    assert perseu.xp == 700
+    assert perseu.xp == ARMEIRO.xp_minimo
     assert perseu.patente_slug == ARMEIRO.slug
 
     # A mudança de patente passa pelo fluxo normal e entra no histórico (RN-003).
@@ -192,40 +192,40 @@ async def test_patente_declarada_alta_e_aplicada_sem_confirmacao_manual(session)
     await servico().importar(session)
 
     medeia = await session.scalar(select(Membro).where(Membro.id_externo == "u2"))
-    assert medeia.xp == 4000
+    assert medeia.xp == CENTURIAO.xp_minimo
     assert medeia.patente_slug == "centuriao"
 
 
 async def test_sobe_xp_a_cada_sincronizacao_e_registra_na_trilha(session):
     await servico().importar(session)
 
-    await servico([{**DOCS[0], "xp": 2_000}]).importar(session)
+    await servico([{**DOCS[0], "xp": VETERANO.xp_minimo}]).importar(session)
 
     perseu = await session.scalar(select(Membro).where(Membro.id_externo == "u1"))
-    assert perseu.xp == 2_000
+    assert perseu.xp == VETERANO.xp_minimo
     assert perseu.patente_slug == VETERANO.slug, "a patente acompanha o XP (RN-002)"
     movimentacao = await session.scalar(
         select(MovimentacaoXp).where(MovimentacaoXp.membro_id == perseu.id)
     )
-    assert movimentacao.quantidade == 1_300, "só a subida entra; a carga inicial não é 'da semana'"
+    assert movimentacao.quantidade == VETERANO.xp_minimo - ARMEIRO.xp_minimo, "só a subida entra; a carga inicial não é 'da semana'"
 
 
 async def test_nunca_diminui_xp(session):
     """XP é irrevogável (XP.md Art. 1º §1º): XP menor na plataforma vai para a auditoria."""
-    await servico([{**DOCS[0], "xp": 2_000}]).importar(session)
+    await servico([{**DOCS[0], "xp": VETERANO.xp_minimo}]).importar(session)
     await servico([{**DOCS[0], "xp": 50}]).importar(session)
 
     perseu = await session.scalar(select(Membro).where(Membro.id_externo == "u1"))
-    assert perseu.xp == 2_000
+    assert perseu.xp == VETERANO.xp_minimo
     assert perseu.patente_slug == VETERANO.slug
     registro = await session.scalar(
         select(RegistroAuditoria).where(RegistroAuditoria.acao == "importacao.xp_menor_ignorado")
     )
-    assert registro.dados == {"xp_bot": 2_000, "xp_plataforma": 50}
+    assert registro.dados == {"xp_bot": VETERANO.xp_minimo, "xp_plataforma": 50}
 
 
 async def test_deriva_patente_do_xp_quando_a_plataforma_nao_informa(session):
-    documentos = [{"id": "u7", "name": "Sem tier", "discordId": 7, "xp": 2_000}]
+    documentos = [{"id": "u7", "name": "Sem tier", "discordId": 7, "xp": VETERANO.xp_minimo}]
 
     await servico(documentos).importar(session)
 
@@ -235,22 +235,22 @@ async def test_deriva_patente_do_xp_quando_a_plataforma_nao_informa(session):
 
 async def test_patente_ausente_ou_menor_nunca_rebaixa(session):
     """XP.md Art. 1º §3º — nem campo faltando nem patente menor rebaixam ninguém."""
-    # 106.000 XP ficou abaixo do novo limiar de Oficial (106.496, escala 4×): a patente já alcançada
-    # é irrevogável (XP.md Art. 1º §3º), então a importação não pode rebaixar nem reter a patente.
+    # XP logo abaixo do limiar de Oficial (cenário de revisão da escala): a patente já alcançada é
+    # irrevogável (XP.md Art. 1º §3º), então a importação não pode rebaixar nem reter a patente.
     session.add(
         Membro(
             discord_id=8,
             id_externo="u8",
             nome_exibicao="Veterana",
             patente_slug=OFICIAL.slug,
-            xp=106_000,
+            xp=OFICIAL.xp_minimo - 1,
         )
     )
     await session.flush()
 
     for documento in (
-        {"id": "u8", "name": "Veterana", "discordId": 8, "xp": 106_000},
-        {"id": "u8", "name": "Veterana", "discordId": 8, "tier": "Neófito", "xp": 106_000},
+        {"id": "u8", "name": "Veterana", "discordId": 8, "xp": OFICIAL.xp_minimo - 1},
+        {"id": "u8", "name": "Veterana", "discordId": 8, "tier": "Neófito", "xp": OFICIAL.xp_minimo - 1},
     ):
         await servico([documento]).importar(session)
         membro = await session.scalar(select(Membro).where(Membro.discord_id == 8))
@@ -308,7 +308,7 @@ async def test_volta_a_ser_elegivel_reativa(session):
 async def test_vincula_membro_ja_existente_pelo_discord_id(session):
     """Quem já estava no banco do bot não vira duplicata ao ser importado."""
     session.add(
-        Membro(discord_id=1001, nome_exibicao="Perseu", patente_slug=VETERANO.slug, xp=2_000)
+        Membro(discord_id=1001, nome_exibicao="Perseu", patente_slug=VETERANO.slug, xp=VETERANO.xp_minimo)
     )
     await session.flush()
 
@@ -317,7 +317,7 @@ async def test_vincula_membro_ja_existente_pelo_discord_id(session):
     assert relatorio.criados == 1
     perseu = await session.scalar(select(Membro).where(Membro.discord_id == 1001))
     assert perseu.id_externo == "u1"
-    assert perseu.xp == 2_000, "o XP já registrado não pode ser perdido"
+    assert perseu.xp == VETERANO.xp_minimo, "o XP já registrado não pode ser perdido"
     assert perseu.patente_slug == VETERANO.slug
 
 
@@ -375,7 +375,7 @@ async def test_documento_invalido_nao_aborta_a_carga(session):
 
 async def test_patente_desconhecida_deixa_o_xp_decidir(session):
     """Inclusive nomes da hierarquia anterior a TD-007, como "cavalaria"."""
-    documentos = [{"id": "u9", "name": "Estranho", "discordId": 9, "tier": "cavalaria", "xp": 500}]
+    documentos = [{"id": "u9", "name": "Estranho", "discordId": 9, "tier": "cavalaria", "xp": ARMEIRO.xp_minimo}]
 
     await servico(documentos).importar(session)
 

@@ -63,7 +63,7 @@ class Patente:
 # `TYTO.club/src/constants/tiers.ts` e do backend, para que bot e plataforma nunca discordem da
 # patente de um mesmo XP. Mudar a escala vale só dali em diante — nunca rebaixa quem já alcançou o
 # patamar (Art. 1º §3º): o bot só promove (`PromocaoService`) e guarda a patente no banco.
-XP_BASE = 104
+XP_BASE = 400
 XP_MULTIPLICADOR = 4
 
 
