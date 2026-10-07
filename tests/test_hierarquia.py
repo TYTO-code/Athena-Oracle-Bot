@@ -34,9 +34,23 @@ from oraculo.domain.hierarchy import (
 
 def test_escala_tem_os_17_patamares_do_xp_md_em_ordem():
     assert [p.nome for p in PATENTES] == [
-        "Neófito", "Escudeiro", "Armeiro", "Veterano", "Mestre de Armas",
-        "Desafiante Legionário", "Oficial", "Centurião", "Comandante", "Dom", "Lorde",
-        "Senhor da Guerra", "Suserano", "Monarca", "Dominador", "Renovek", "Omni",
+        "Neófito",
+        "Escudeiro",
+        "Armeiro",
+        "Veterano",
+        "Mestre de Armas",
+        "Desafiante Legionário",
+        "Oficial",
+        "Centurião",
+        "Comandante",
+        "Dom",
+        "Lorde",
+        "Senhor da Guerra",
+        "Suserano",
+        "Monarca",
+        "Dominador",
+        "Renovek",
+        "Omni",
     ]
     assert [p.ordem for p in PATENTES] == list(range(1, 18))
     limiares = [p.xp_minimo for p in PATENTES]

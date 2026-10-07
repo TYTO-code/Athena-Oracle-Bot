@@ -10,8 +10,20 @@ from oraculo.integrations.plataforma import FonteEmMemoria, normalizar
 from oraculo.services.importacao_service import ImportacaoService
 
 DOCS = [
-    {"id": "u1", "name": "Perseu", "discordId": "1001", "email": "perseu@tyto.example", "xp": ARMEIRO.xp_minimo},
-    {"id": "u2", "name": "Medeia", "discordId": 1002, "tier": "Centurião", "xp": CENTURIAO.xp_minimo},
+    {
+        "id": "u1",
+        "name": "Perseu",
+        "discordId": "1001",
+        "email": "perseu@tyto.example",
+        "xp": ARMEIRO.xp_minimo,
+    },
+    {
+        "id": "u2",
+        "name": "Medeia",
+        "discordId": 1002,
+        "tier": "Centurião",
+        "xp": CENTURIAO.xp_minimo,
+    },
     {"id": "u3", "name": "Sem Discord", "xp": 10},
 ]
 
@@ -137,7 +149,6 @@ def test_elegibilidade_exige_conta_de_clube_ativa_e_discord():
     assert normalizar({**base, "discordId": "não-é-número"}).elegivel is False
 
 
-
 # --- Importação -------------------------------------------------------------
 
 
@@ -207,7 +218,9 @@ async def test_sobe_xp_a_cada_sincronizacao_e_registra_na_trilha(session):
     movimentacao = await session.scalar(
         select(MovimentacaoXp).where(MovimentacaoXp.membro_id == perseu.id)
     )
-    assert movimentacao.quantidade == VETERANO.xp_minimo - ARMEIRO.xp_minimo, "só a subida entra; a carga inicial não é 'da semana'"
+    assert movimentacao.quantidade == VETERANO.xp_minimo - ARMEIRO.xp_minimo, (
+        "só a subida entra; a carga inicial não é 'da semana'"
+    )
 
 
 async def test_nunca_diminui_xp(session):
@@ -250,7 +263,13 @@ async def test_patente_ausente_ou_menor_nunca_rebaixa(session):
 
     for documento in (
         {"id": "u8", "name": "Veterana", "discordId": 8, "xp": OFICIAL.xp_minimo - 1},
-        {"id": "u8", "name": "Veterana", "discordId": 8, "tier": "Neófito", "xp": OFICIAL.xp_minimo - 1},
+        {
+            "id": "u8",
+            "name": "Veterana",
+            "discordId": 8,
+            "tier": "Neófito",
+            "xp": OFICIAL.xp_minimo - 1,
+        },
     ):
         await servico([documento]).importar(session)
         membro = await session.scalar(select(Membro).where(Membro.discord_id == 8))
@@ -308,7 +327,12 @@ async def test_volta_a_ser_elegivel_reativa(session):
 async def test_vincula_membro_ja_existente_pelo_discord_id(session):
     """Quem já estava no banco do bot não vira duplicata ao ser importado."""
     session.add(
-        Membro(discord_id=1001, nome_exibicao="Perseu", patente_slug=VETERANO.slug, xp=VETERANO.xp_minimo)
+        Membro(
+            discord_id=1001,
+            nome_exibicao="Perseu",
+            patente_slug=VETERANO.slug,
+            xp=VETERANO.xp_minimo,
+        )
     )
     await session.flush()
 
@@ -375,7 +399,15 @@ async def test_documento_invalido_nao_aborta_a_carga(session):
 
 async def test_patente_desconhecida_deixa_o_xp_decidir(session):
     """Inclusive nomes da hierarquia anterior a TD-007, como "cavalaria"."""
-    documentos = [{"id": "u9", "name": "Estranho", "discordId": 9, "tier": "cavalaria", "xp": ARMEIRO.xp_minimo}]
+    documentos = [
+        {
+            "id": "u9",
+            "name": "Estranho",
+            "discordId": 9,
+            "tier": "cavalaria",
+            "xp": ARMEIRO.xp_minimo,
+        }
+    ]
 
     await servico(documentos).importar(session)
 
