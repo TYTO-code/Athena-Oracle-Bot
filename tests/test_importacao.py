@@ -235,6 +235,8 @@ async def test_deriva_patente_do_xp_quando_a_plataforma_nao_informa(session):
 
 async def test_patente_ausente_ou_menor_nunca_rebaixa(session):
     """XP.md Art. 1º §3º — nem campo faltando nem patente menor rebaixam ninguém."""
+    # 106.000 XP ficou abaixo do novo limiar de Oficial (106.496, escala 4×): a patente já alcançada
+    # é irrevogável (XP.md Art. 1º §3º), então a importação não pode rebaixar nem reter a patente.
     session.add(
         Membro(
             discord_id=8,
