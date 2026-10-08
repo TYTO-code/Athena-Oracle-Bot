@@ -8,7 +8,7 @@ import pytest
 
 from oraculo.db.base import agora
 from oraculo.db.models import Membro, OrigemAcao
-from oraculo.domain.hierarchy import NEOFITO, OMNI, VETERANO, CargoInstitucional
+from oraculo.domain.hierarchy import MESTRE_DE_ARMAS, NEOFITO, OMNI, VETERANO, CargoInstitucional
 from oraculo.integrations.cache import CacheMemoria
 from oraculo.repositories import xp as repo_xp
 from oraculo.services.ranking_service import RankingService
@@ -53,7 +53,7 @@ async def test_perfil_traz_progressao_completa(session, criar_membro, servico):
 
     assert perfil.patente == VETERANO
     assert perfil.proxima.slug == "mestre-de-armas"
-    assert perfil.xp_para_proximo == 4_600
+    assert perfil.xp_para_proximo == MESTRE_DE_ARMAS.xp_minimo - 2_000
     assert perfil.posicao == 2
     assert perfil.total_membros == 2
     assert perfil.no_topo is False

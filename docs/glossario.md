@@ -4,7 +4,7 @@
 |-------|-----------|
 | Atena v1.0 | Linha de requisitos / versão do sistema especificada neste pacote |
 | Bot Oráculo | Sistema de gestão operacional do Clube TYTO via Discord e WhatsApp — implementação do **bot Atena** regido normativamente por `Institucional/SERVIDOR_DISCORD.md` |
-| Patente | Posição na escala oficial de `Institucional/XP.md` Art. 2º (17 patamares, Neófito→Omni), determinada **só** pelo XP e irrevogável (Art. 1º §3º); apenas uma ativa por membro (RN-001). Substituiu a hierarquia Membro/Cavalaria/Lorde/Conselheiro/Administrador ao fechar TD-007 |
+| Patente | Posição na escala oficial de `Institucional/XP.md` Art. 2º (19 patamares, Neófito→Omni), determinada **só** pelo XP e irrevogável (Art. 1º §3º); apenas uma ativa por membro (RN-001). Substituiu a hierarquia Membro/Cavalaria/Lorde/Conselheiro/Administrador ao fechar TD-007 |
 | Cargo institucional | Conselheiro (eleito, Carta Art. III/IV) ou Administrador (governança técnica do bot) — eixo independente da patente (Carta Art. VIII), concedido por Administrador via `/cargo-institucional` |
 | Veterano+ | Patente Veterano ou superior; pode criar reuniões (RN-006) |
 | Conselheiro | Cargo institucional eleito do Conselho Régio (Carta Art. III/IV); no bot, concede XP e audita (RN-004). Não é alcançado por XP |

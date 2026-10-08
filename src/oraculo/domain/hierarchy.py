@@ -3,7 +3,7 @@
 A Carta Institucional (Art. VIII) separa a posição de um membro em eixos
 **independentes**, e este módulo modela exatamente isso:
 
-1. **Patente** (`Institucional/XP.md` Art. 2º) — 17 patamares, de Neófito a
+1. **Patente** (`Institucional/XP.md` Art. 2º) — 19 patamares, de Neófito a
    Omni, determinados **exclusivamente** pelo XP acumulado (RN-002). É
    irrevogável: nada rebaixa uma patente (XP.md Art. 1º §3º).
 2. **Cargo institucional** — `Conselheiro` (eleito, Carta Art. III/IV), e a
@@ -36,7 +36,7 @@ class Patente:
     """Nome exibido ao usuário e esperado como nome do papel no Discord."""
 
     ordem: int
-    """Posição na escala, de 1 (Neófito) a 17 (Omni)."""
+    """Posição na escala, de 1 (Neófito) a 19 (Omni)."""
 
     xp_minimo: int
     """Limiar de XP do patamar (XP.md Art. 2º)."""
@@ -57,29 +57,40 @@ class Patente:
         return self.nome
 
 
-# XP.md Art. 2º. §3º: patamares 1–8 e 16–17 são provisórios até ratificação do
-# Dominatium; 9–15 já são oficiais. A tabela do regulamento arredonda (ex.:
-# "1,7M+"); os valores exatos abaixo são os mesmos de `CLAN_TIERS` na plataforma
-# (TYTO.club/src/constants/tiers.ts), para que bot e plataforma nunca discordem
-# da patente de um mesmo XP. Revisar um limiar vale só dali em diante — nunca
-# rebaixa quem já alcançou o patamar (Art. 1º §3º).
-NEOFITO = Patente("neofito", "Neófito", 1, 0)
-ESCUDEIRO = Patente("escudeiro", "Escudeiro", 2, 104)
-ARMEIRO = Patente("armeiro", "Armeiro", 3, 415)
-VETERANO = Patente("veterano", "Veterano", 4, 1_660)
-MESTRE_DE_ARMAS = Patente("mestre-de-armas", "Mestre de Armas", 5, 6_600)
-DESAFIANTE_LEGIONARIO = Patente("desafiante-legionario", "Desafiante Legionário", 6, 26_500)
-OFICIAL = Patente("oficial", "Oficial", 7, 106_000)
-CENTURIAO = Patente("centuriao", "Centurião", 8, 425_000)
-COMANDANTE = Patente("comandante", "Comandante", 9, 1_702_400)
-DOM = Patente("dom", "Dom", 10, 6_809_600)
-LORDE = Patente("lorde", "Lorde", 11, 27_238_400)
-SENHOR_DA_GUERRA = Patente("senhor-da-guerra", "Senhor da Guerra", 12, 108_973_600)
-SUSERANO = Patente("suserano", "Suserano", 13, 435_814_400)
-MONARCA = Patente("monarca", "Monarca", 14, 1_743_257_600)
-DOMINADOR = Patente("dominador", "Dominador", 15, 12_202_803_200)
-RENOVEK = Patente("renovek", "Renovek", 16, 60_000_000_000)
-OMNI = Patente("omni", "Omni", 17, 300_000_000_000)
+# REGRA ÚNICA DA ESCALA (XP.md Art. 2º §3º): Neófito começa em 0 XP; Escudeiro exige
+# `XP_BASE`; e cada patamar seguinte exige exatamente `XP_MULTIPLICADOR` vezes o XP do anterior
+# (`xp_minimo(n) = XP_BASE × XP_MULTIPLICADOR^(n − 2)`, n ≥ 2). É a mesma regra de
+# `TYTO.club/src/constants/tiers.ts` e do backend, para que bot e plataforma nunca discordem da
+# patente de um mesmo XP. Mudar a escala vale só dali em diante — nunca rebaixa quem já alcançou o
+# patamar (Art. 1º §3º): o bot só promove (`PromocaoService`) e guarda a patente no banco.
+XP_BASE = 400
+XP_MULTIPLICADOR = 4
+
+
+def xp_minimo(ordem: int) -> int:
+    """Limiar de XP do patamar `ordem` (1 = Neófito), pela regra única da escala."""
+    return 0 if ordem <= 1 else XP_BASE * XP_MULTIPLICADOR ** (ordem - 2)
+
+
+NEOFITO = Patente("neofito", "Neófito", 1, xp_minimo(1))
+ESCUDEIRO = Patente("escudeiro", "Escudeiro", 2, xp_minimo(2))
+ARMEIRO = Patente("armeiro", "Armeiro", 3, xp_minimo(3))
+VETERANO = Patente("veterano", "Veterano", 4, xp_minimo(4))
+MESTRE_DE_ARMAS = Patente("mestre-de-armas", "Mestre de Armas", 5, xp_minimo(5))
+DESAFIANTE_LEGIONARIO = Patente("desafiante-legionario", "Desafiante Legionário", 6, xp_minimo(6))
+OFICIAL = Patente("oficial", "Oficial", 7, xp_minimo(7))
+CENTURIAO = Patente("centuriao", "Centurião", 8, xp_minimo(8))
+COMANDANTE = Patente("comandante", "Comandante", 9, xp_minimo(9))
+DOM = Patente("dom", "Dom", 10, xp_minimo(10))
+LORDE = Patente("lorde", "Lorde", 11, xp_minimo(11))
+SENHOR_DA_GUERRA = Patente("senhor-da-guerra", "Senhor da Guerra", 12, xp_minimo(12))
+SUSERANO = Patente("suserano", "Suserano", 13, xp_minimo(13))
+MONARCA = Patente("monarca", "Monarca", 14, xp_minimo(14))
+KYRIOS = Patente("kyrios", "Kyrios", 15, xp_minimo(15))
+INVICTUS = Patente("invictus", "Invictus", 16, xp_minimo(16))
+DOMINUS = Patente("dominus", "Dominus", 17, xp_minimo(17))
+RENOVEK = Patente("renovek", "Renovek", 18, xp_minimo(18))
+OMNI = Patente("omni", "Omni", 19, xp_minimo(19))
 
 PATENTES: tuple[Patente, ...] = (
     NEOFITO,
@@ -96,7 +107,9 @@ PATENTES: tuple[Patente, ...] = (
     SENHOR_DA_GUERRA,
     SUSERANO,
     MONARCA,
-    DOMINADOR,
+    KYRIOS,
+    INVICTUS,
+    DOMINUS,
     RENOVEK,
     OMNI,
 )
@@ -107,11 +120,16 @@ PATENTE_INICIAL: Patente = NEOFITO
 _POR_SLUG: dict[str, Patente] = {p.slug: p for p in PATENTES}
 _POR_NOME: dict[str, Patente] = {p.nome.casefold(): p for p in PATENTES}
 
+# "Dominador" foi renomeado para Kyrios (mesmo patamar, mesmo limiar). O slug antigo ainda pode
+# estar gravado no banco e o papel antigo ainda pode existir no Discord até a migração e a troca do
+# nome do papel; ambos resolvem para Kyrios.
+_SLUGS_LEGADOS: dict[str, Patente] = {"dominador": KYRIOS}
+
 
 def patente_por_slug(slug: str) -> Patente:
     """Resolve uma patente pelo slug (ou pelo nome exibido, por conveniência)."""
     chave = slug.strip().casefold()
-    patente = _POR_SLUG.get(chave) or _POR_NOME.get(chave)
+    patente = _POR_SLUG.get(chave) or _POR_NOME.get(chave) or _SLUGS_LEGADOS.get(chave)
     if patente is None:
         validos = ", ".join(p.slug for p in PATENTES)
         raise KeyError(f"Patente desconhecida: {slug!r}. Válidas: {validos}.")
@@ -168,6 +186,7 @@ def nomes_de_patentes_discord() -> frozenset[str]:
 
 
 _POR_NOME_NORMALIZADO: dict[str, Patente] = {normalizar_nome_papel(p.nome): p for p in PATENTES}
+_POR_NOME_NORMALIZADO.update({normalizar_nome_papel(nome): p for nome, p in _SLUGS_LEGADOS.items()})
 
 
 def patente_do_papel(nome_do_papel: str) -> Patente | None:

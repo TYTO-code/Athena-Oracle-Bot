@@ -33,6 +33,13 @@ rastreamento por ID.
 4. TD-007 bloqueava F2-007 (camadas Comunidade/Clube) e F2-008 (Crédito de Mérito), que dependiam
    de saber a que, na Carta, "Membro" deste bot corresponde — com a unificação, `Membro` é a
    filiação ao Clube, e os dois itens estão desbloqueados.
-5. Os limiares de patente seguem `XP.md` Art. 2º (patamares 1–8 e 16–17 provisórios até
-   ratificação do Dominatium) e os valores exatos de `CLAN_TIERS` da plataforma, para que bot e
-   plataforma nunca discordem da patente de um mesmo XP.
+5. Os limiares de patente seguem a regra única de `XP.md` Art. 2º §3º — Escudeiro em 400 XP e cada
+   patamar seguinte com 4× o XP do anterior (`XP_BASE`/`XP_MULTIPLICADOR` em
+   `domain/hierarchy.py`) — a mesma de `CLAN_TIERS` na plataforma e no backend, para que bot e
+   plataforma nunca discordem da patente de um mesmo XP. A tabela depende de ratificação do
+   Dominatium. A patente já alcançada é irrevogável: o bot só promove e nunca rebaixa quem ficou
+   abaixo de um limiar revisto (coberto por `tests/test_importacao.py`).
+   O título "Dominador" (patamar 15) passou a se chamar **Kyrios**, e Invictus e Dominus entraram no
+   nível divino (patamares 16 e 17; Renovek e Omni agora são 18 e 19). A migração
+   `d4e5f6a7b8c9` renomeia o slug gravado, e o papel do Discord precisa ser renomeado de
+   "Dominador" para "Kyrios" (e criados "Invictus" e "Dominus") — até lá o bot ainda reconhece o nome antigo.

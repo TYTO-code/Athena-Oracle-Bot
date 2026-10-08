@@ -55,7 +55,7 @@ async def test_promocao_automatica_ao_cruzar_o_limiar(session, criar_membro):
     """RN-002 / RN-003 — patente trocada, promoção registrada e Discord sincronizado."""
     espiao = SincronizadorEspiao()
     servico = PromocaoService(sincronizador=espiao)
-    alvo = await criar_membro(NEOFITO, xp=90)
+    alvo = await criar_membro(NEOFITO, xp=ESCUDEIRO.xp_minimo - 10)
 
     resultado = await _creditar(session, servico, alvo, 20)
 
@@ -68,7 +68,7 @@ async def test_promocao_automatica_ao_cruzar_o_limiar(session, criar_membro):
     registro = await session.scalar(select(Promocao))
     assert registro.cargo_anterior == "neofito"
     assert registro.cargo_novo == "escudeiro"
-    assert registro.xp_no_momento == 110
+    assert registro.xp_no_momento == ESCUDEIRO.xp_minimo + 10
     assert registro.automatica is True
     assert registro.sincronizado_discord is True
 
@@ -79,8 +79,8 @@ async def test_membro_possui_uma_unica_patente_apos_multiplas_promocoes(session,
     servico = PromocaoService(sincronizador=espiao)
     alvo = await criar_membro(NEOFITO, xp=0)
 
-    await _creditar(session, servico, alvo, 200)
-    await _creditar(session, servico, alvo, 300)
+    await _creditar(session, servico, alvo, ESCUDEIRO.xp_minimo)
+    await _creditar(session, servico, alvo, ARMEIRO.xp_minimo - ESCUDEIRO.xp_minimo)
 
     assert alvo.patente_slug == ARMEIRO.slug
     promocoes = list((await session.execute(select(Promocao))).scalars())
@@ -96,7 +96,7 @@ async def test_promocao_pula_patamares_quando_o_xp_salta(session, criar_membro):
     servico = PromocaoService(sincronizador=espiao)
     alvo = await criar_membro(NEOFITO, xp=0)
 
-    resultado = await _creditar(session, servico, alvo, 7_000)
+    resultado = await _creditar(session, servico, alvo, MESTRE_DE_ARMAS.xp_minimo + 1)
 
     assert resultado.patente_atual == MESTRE_DE_ARMAS
     assert alvo.patente_slug == "mestre-de-armas"
@@ -106,7 +106,7 @@ async def test_falha_no_discord_nao_desfaz_a_promocao(session, criar_membro):
     """A promoção é registrada mesmo com o Discord indisponível, marcada para retentativa."""
     espiao = SincronizadorEspiao(falhar=True)
     servico = PromocaoService(sincronizador=espiao)
-    alvo = await criar_membro(NEOFITO, xp=100)
+    alvo = await criar_membro(NEOFITO, xp=ESCUDEIRO.xp_minimo - 20)
 
     resultado = await _creditar(session, servico, alvo, 20)
 
@@ -131,7 +131,7 @@ async def test_patente_nunca_e_rebaixada(session, criar_membro):
 
 async def test_aplicar_recusa_patente_igual_ou_inferior(session, criar_membro):
     servico = PromocaoService(sincronizador=SincronizadorEspiao())
-    membro = await criar_membro(OFICIAL, xp=106_000)
+    membro = await criar_membro(OFICIAL, xp=OFICIAL.xp_minimo - 1)
 
     with pytest.raises(ValueError, match="irrevogável"):
         await servico.aplicar(
@@ -147,7 +147,12 @@ async def test_aplicar_recusa_patente_igual_ou_inferior(session, criar_membro):
 
 @pytest.mark.parametrize(
     ("xp", "patente"),
-    [(0, NEOFITO), (104, ESCUDEIRO), (1_660, VETERANO), (106_000, OFICIAL)],
+    [
+        (0, NEOFITO),
+        (ESCUDEIRO.xp_minimo, ESCUDEIRO),
+        (VETERANO.xp_minimo, VETERANO),
+        (OFICIAL.xp_minimo, OFICIAL),
+    ],
 )
 async def test_avaliar_e_idempotente(session, criar_membro, xp, patente):
     """Reavaliar sem mudança de XP não gera promoção duplicada."""
