@@ -28,6 +28,6 @@ Nenhum item F2-* inicia desenvolvimento com dívida crítica (TD-001–TD-006) a
 A divergência registrada como **TD-007** em
 [divida-tecnica.md](../03-analise/divida-tecnica.md#dívida-técnica-pós-baseline-não-é-do-legado-bot-xp-discord)
 foi fechada: o Clube TYTO decidiu **unificar** a hierarquia do bot com `Institucional/XP.md`. A
-patente agora é a escala oficial de 17 patamares (Neófito→Omni), e Conselheiro/Administrador são
+patente agora é a escala oficial de 19 patamares (Neófito→Omni), e Conselheiro/Administrador são
 cargos institucionais independentes da patente (`CARTA_INSTITUCIONAL.md` Art. VIII). `Membro` é a
 filiação ao Clube, o que desbloqueia F2-007 e F2-008.

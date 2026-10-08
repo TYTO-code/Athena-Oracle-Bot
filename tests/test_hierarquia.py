@@ -48,11 +48,13 @@ def test_escala_tem_os_17_patamares_do_xp_md_em_ordem():
         "Senhor da Guerra",
         "Suserano",
         "Monarca",
-        "Dominador",
+        "Kyrios",
+        "Invictus",
+        "Dominus",
         "Renovek",
         "Omni",
     ]
-    assert [p.ordem for p in PATENTES] == list(range(1, 18))
+    assert [p.ordem for p in PATENTES] == list(range(1, 20))
     limiares = [p.xp_minimo for p in PATENTES]
     assert limiares == sorted(limiares)
     assert len(set(limiares)) == len(limiares)
@@ -80,8 +82,8 @@ def test_nao_existem_niveis_do_legado_nem_da_hierarquia_anterior():
         (1_638_400, CENTURIAO),
         (6_553_599, CENTURIAO),
         (6_553_600, COMANDANTE),
-        (400 * 4**14, RENOVEK),
-        (400 * 4**15, OMNI),
+        (400 * 4**16, RENOVEK),
+        (400 * 4**17, OMNI),
         (10**15, OMNI),
     ],
 )
@@ -108,7 +110,7 @@ def test_limiares_batem_com_a_plataforma():
     assert [p.xp_minimo for p in PATENTES[:6]] == [0, 400, 1_600, 6_400, 25_600, 102_400]
     assert COMANDANTE.xp_minimo == 6_553_600
     assert CENTURIAO.xp_minimo == 1_638_400
-    assert OMNI.xp_minimo == 429_496_729_600
+    assert OMNI.xp_minimo == 6_871_947_673_600
 
 
 def test_proxima_patente_e_xp_faltante():
@@ -178,3 +180,23 @@ def test_toda_patente_e_reconhecida_com_emoji_e_enfeites():
 def test_papel_que_nao_e_patente_nao_e_reconhecido():
     assert patente_do_papel("🎨 Designer") is None
     assert patente_do_papel("Escudeiro Mirim") is None
+
+
+def test_nivel_divino_tem_cinco_titulos_cada_um_com_o_quadruplo_do_anterior():
+    """XP.md Art. 2º — Kyrios, Invictus, Dominus, Renovek e Omni (patamares 15 a 19)."""
+    divinos = PATENTES[14:]
+    assert [p.nome for p in divinos] == ["Kyrios", "Invictus", "Dominus", "Renovek", "Omni"]
+    for anterior, atual in zip(divinos, divinos[1:], strict=False):
+        assert atual.xp_minimo == anterior.xp_minimo * 4
+
+
+def test_dominador_agora_e_kyrios_slug_e_papel_antigos_ainda_resolvem():
+    """O slug gravado e o papel do Discord antigos não somem do dia para a noite."""
+    from oraculo.domain.hierarchy import KYRIOS, patente_por_slug
+
+    assert patente_por_slug("dominador") is KYRIOS
+    assert patente_por_slug("Dominador") is KYRIOS
+    assert patente_por_slug("kyrios") is KYRIOS
+    assert patente_do_papel("Dominador") is KYRIOS
+    assert patente_do_papel("★ DOMINADOR ★") is KYRIOS
+    assert KYRIOS.ordem == 15

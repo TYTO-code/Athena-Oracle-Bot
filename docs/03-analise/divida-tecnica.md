@@ -39,3 +39,7 @@ rastreamento por ID.
    plataforma nunca discordem da patente de um mesmo XP. A tabela depende de ratificação do
    Dominatium. A patente já alcançada é irrevogável: o bot só promove e nunca rebaixa quem ficou
    abaixo de um limiar revisto (coberto por `tests/test_importacao.py`).
+   O título "Dominador" (patamar 15) passou a se chamar **Kyrios**, e Invictus e Dominus entraram no
+   nível divino (patamares 16 e 17; Renovek e Omni agora são 18 e 19). A migração
+   `d4e5f6a7b8c9` renomeia o slug gravado, e o papel do Discord precisa ser renomeado de
+   "Dominador" para "Kyrios" (e criados "Invictus" e "Dominus") — até lá o bot ainda reconhece o nome antigo.

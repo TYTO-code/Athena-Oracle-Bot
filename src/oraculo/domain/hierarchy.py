@@ -3,7 +3,7 @@
 A Carta Institucional (Art. VIII) separa a posição de um membro em eixos
 **independentes**, e este módulo modela exatamente isso:
 
-1. **Patente** (`Institucional/XP.md` Art. 2º) — 17 patamares, de Neófito a
+1. **Patente** (`Institucional/XP.md` Art. 2º) — 19 patamares, de Neófito a
    Omni, determinados **exclusivamente** pelo XP acumulado (RN-002). É
    irrevogável: nada rebaixa uma patente (XP.md Art. 1º §3º).
 2. **Cargo institucional** — `Conselheiro` (eleito, Carta Art. III/IV), e a
@@ -36,7 +36,7 @@ class Patente:
     """Nome exibido ao usuário e esperado como nome do papel no Discord."""
 
     ordem: int
-    """Posição na escala, de 1 (Neófito) a 17 (Omni)."""
+    """Posição na escala, de 1 (Neófito) a 19 (Omni)."""
 
     xp_minimo: int
     """Limiar de XP do patamar (XP.md Art. 2º)."""
@@ -86,9 +86,11 @@ LORDE = Patente("lorde", "Lorde", 11, xp_minimo(11))
 SENHOR_DA_GUERRA = Patente("senhor-da-guerra", "Senhor da Guerra", 12, xp_minimo(12))
 SUSERANO = Patente("suserano", "Suserano", 13, xp_minimo(13))
 MONARCA = Patente("monarca", "Monarca", 14, xp_minimo(14))
-DOMINADOR = Patente("dominador", "Dominador", 15, xp_minimo(15))
-RENOVEK = Patente("renovek", "Renovek", 16, xp_minimo(16))
-OMNI = Patente("omni", "Omni", 17, xp_minimo(17))
+KYRIOS = Patente("kyrios", "Kyrios", 15, xp_minimo(15))
+INVICTUS = Patente("invictus", "Invictus", 16, xp_minimo(16))
+DOMINUS = Patente("dominus", "Dominus", 17, xp_minimo(17))
+RENOVEK = Patente("renovek", "Renovek", 18, xp_minimo(18))
+OMNI = Patente("omni", "Omni", 19, xp_minimo(19))
 
 PATENTES: tuple[Patente, ...] = (
     NEOFITO,
@@ -105,7 +107,9 @@ PATENTES: tuple[Patente, ...] = (
     SENHOR_DA_GUERRA,
     SUSERANO,
     MONARCA,
-    DOMINADOR,
+    KYRIOS,
+    INVICTUS,
+    DOMINUS,
     RENOVEK,
     OMNI,
 )
@@ -116,11 +120,16 @@ PATENTE_INICIAL: Patente = NEOFITO
 _POR_SLUG: dict[str, Patente] = {p.slug: p for p in PATENTES}
 _POR_NOME: dict[str, Patente] = {p.nome.casefold(): p for p in PATENTES}
 
+# "Dominador" foi renomeado para Kyrios (mesmo patamar, mesmo limiar). O slug antigo ainda pode
+# estar gravado no banco e o papel antigo ainda pode existir no Discord até a migração e a troca do
+# nome do papel; ambos resolvem para Kyrios.
+_SLUGS_LEGADOS: dict[str, Patente] = {"dominador": KYRIOS}
+
 
 def patente_por_slug(slug: str) -> Patente:
     """Resolve uma patente pelo slug (ou pelo nome exibido, por conveniência)."""
     chave = slug.strip().casefold()
-    patente = _POR_SLUG.get(chave) or _POR_NOME.get(chave)
+    patente = _POR_SLUG.get(chave) or _POR_NOME.get(chave) or _SLUGS_LEGADOS.get(chave)
     if patente is None:
         validos = ", ".join(p.slug for p in PATENTES)
         raise KeyError(f"Patente desconhecida: {slug!r}. Válidas: {validos}.")
@@ -177,6 +186,7 @@ def nomes_de_patentes_discord() -> frozenset[str]:
 
 
 _POR_NOME_NORMALIZADO: dict[str, Patente] = {normalizar_nome_papel(p.nome): p for p in PATENTES}
+_POR_NOME_NORMALIZADO.update({normalizar_nome_papel(nome): p for nome, p in _SLUGS_LEGADOS.items()})
 
 
 def patente_do_papel(nome_do_papel: str) -> Patente | None:

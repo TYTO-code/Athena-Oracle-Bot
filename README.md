@@ -67,9 +67,9 @@ Todos os segredos vêm de variáveis de ambiente com o prefixo `ORACULO_` — **
 ### Antes do primeiro uso no servidor Discord
 
 1. Crie os papéis com estes nomes (emojis e enfeites no nome são aceitos — `🛡️ Escudeiro`, `【Neófito】`,
-   `Omni ⭐` —, o bot ignora emojis, símbolos, acentos e maiúsculas ao reconhecer o papel): as 17 patentes de `XP.md` (`Neófito`, `Escudeiro`,
+   `Omni ⭐` —, o bot ignora emojis, símbolos, acentos e maiúsculas ao reconhecer o papel): as 19 patentes de `XP.md` (`Neófito`, `Escudeiro`,
    `Armeiro`, `Veterano`, `Mestre de Armas`, `Desafiante Legionário`, `Oficial`, `Centurião`,
-   `Comandante`, `Dom`, `Lorde`, `Senhor da Guerra`, `Suserano`, `Monarca`, `Dominador`, `Renovek`,
+   `Comandante`, `Dom`, `Lorde`, `Senhor da Guerra`, `Suserano`, `Monarca`, `Kyrios`, `Invictus`, `Dominus`, `Renovek`,
    `Omni`) e os cargos institucionais `Conselheiro` e `Administrador`.
 2. Posicione o papel do bot **acima** deles na lista de cargos (senão o Discord recusa a atribuição).
 3. Habilite o intent **Server Members** no portal do desenvolvedor.
