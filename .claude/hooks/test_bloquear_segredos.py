@@ -31,7 +31,7 @@ class AnalisarTest(unittest.TestCase):
     def test_chave_privada_e_tokens(self):
         d = diff(
             "x.txt",
-            "-----BEGIN PRIVATE KEY-----",
+            "-----BEGIN " + "PRIVATE KEY-----",  # montado em partes: o repo não pode conter a chave por extenso
             "aws = AKIA" + "ABCDEFGHIJKLMNOP",
             "gh = ghp_" + "a" * 36,
             "slack = xoxb-" + "1234567890-abcdef",
