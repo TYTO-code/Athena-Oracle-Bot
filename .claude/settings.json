@@ -12,7 +12,12 @@
       "Bash(git log)",
       "Bash(git log *)",
       "Bash(git show)",
-      "Bash(git show *)"
+      "Bash(git show *)",
+      "Bash(.venv/bin/python -m pytest *)",
+      "Bash(.venv/bin/ruff *)",
+      "Bash(make lint)",
+      "Bash(make typecheck)",
+      "Bash(python3 -m unittest *)"
     ]
   },
   "hooks": {
@@ -20,6 +25,13 @@
       {
         "matcher": "Bash",
         "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/bloquear-segredos.py\"",
+            "if": "Bash(git commit *)",
+            "timeout": 20,
+            "statusMessage": "Gate: procurando segredos e dados pessoais no commit..."
+          },
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/gate-testes.sh\"",
