@@ -8,8 +8,12 @@ paths:
 Você está mexendo na hierarquia do bot. TD-007 foi **fechada**: o Clube TYTO decidiu unificar com
 `Institucional/XP.md`, e o código modela os eixos da Carta Art. VIII:
 
-- **Patente** — os 17 patamares de `XP.md` Art. 2º (Neófito→Omni), com os valores exatos de
-  `CLAN_TIERS` da plataforma TYTO.club. Vem **só** do XP e é irrevogável (Art. 1º §3º): não
+- **Patente** — os 19 patamares de `XP.md` Art. 2º (Neófito→Omni; o nível divino é Kyrios,
+  Invictus, Dominus, Renovek, Omni). Os limiares **não são números soltos**: vêm da regra única
+  `xp_minimo(n) = XP_BASE × XP_MULTIPLICADOR^(n−2)` (Escudeiro em 400 XP, cada patamar 4× o
+  anterior), a mesma de `src/constants/tiers.ts` na plataforma e no backend. Para mudar a curva,
+  mude só `XP_BASE`/`XP_MULTIPLICADOR` e `docs/XP.md` — e as outras duas cópias (ver
+  `escala-de-patentes`). Vem **só** do XP e é irrevogável (Art. 1º §3º): não
   adicione caminho que rebaixe patente nem que desconte XP (Art. 1º §1º) — por isso não existe
   `/remover-xp`.
 - **Cargo institucional** — `Conselheiro` e `Administrador`, flags independentes da patente,

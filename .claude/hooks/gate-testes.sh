@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Gating mechanism do harness .claude/ deste repositório.
 #
-# Barra `git commit`/`git push` a menos que `make test` (146 testes, pytest) passe primeiro —
+# Barra `git commit`/`git push` a menos que `make test` (a suíte pytest completa) passe primeiro —
 # mas só quando dá pra rodar de verdade. Este repositório exige um venv Python instalado
 # (`make setup`) para testar localmente; em máquina sem espaço/capacidade pra isso, o gate não
 # pode travar todo commit para sempre — ele libera com aviso, e quem verifica de fato é o CI
