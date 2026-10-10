@@ -59,6 +59,7 @@ filterwarnings = ["ignore::DeprecationWarning"]
 line-length = 100
 target-version = "py311"
 src = ["src", "tests"]
+extend-exclude = [".claude"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC", "S"]
