@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     # `NoDecode`: o valor cru chega ao validador abaixo em vez de ser lido como JSON.
     discord_guild_ids: Annotated[list[int], NoDecode] = Field(default_factory=list)
     discord_log_channel_id: int | None = None
+    #: Canal do banner de boas-vindas (avatar sobre o fundo da TYTO) quando alguém entra no
+    #: servidor. Sem ele, a feature fica inerte — é cosmético, sem RN (RN-021 não se aplica: não lê
+    #: nem escreve dado da plataforma). Exige o intent privilegiado "Server Members" ligado no
+    #: portal de desenvolvedores do Discord (sem ele, `on_member_join` nunca dispara).
+    discord_boas_vindas_channel_id: int | None = None
 
     # --- Comunicados (RF-015 / RN-018) ---------------------------------------
     #: Canal padrão dos comunicados oficiais (o `#comunicados` do servidor).
