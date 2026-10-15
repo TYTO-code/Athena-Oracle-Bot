@@ -15,9 +15,11 @@ from PIL import Image, ImageDraw
 
 FUNDO_PADRAO = Path(__file__).resolve().parent.parent / "assets" / "boas_vindas_fundo.png"
 
-_LADO_SAIDA = 1024
-_DIAMETRO_AVATAR = 440
-_ESPESSURA_ANEL = 14
+# Retângulo "de monitor" (16:9) em vez de um quadrado — mais parecido com um banner de verdade.
+_LARGURA_SAIDA = 1280
+_ALTURA_SAIDA = 720
+_DIAMETRO_AVATAR = 360
+_ESPESSURA_ANEL = 12
 
 
 def _mascara_circular(diametro: int) -> Image.Image:
@@ -27,16 +29,28 @@ def _mascara_circular(diametro: int) -> Image.Image:
 
 
 def montar_banner(avatar_bytes: bytes, *, fundo: Path = FUNDO_PADRAO) -> bytes:
-    """Fundo da TYTO (recortado ao quadrado, redimensionado) + avatar circular centralizado, com um
-    anel branco separando um do outro. Devolve os bytes de um PNG RGB pronto para `discord.File`.
+    """Fundo da TYTO recortado num retângulo 16:9 ("de monitor") + avatar circular centralizado,
+    com um anel branco separando um do outro. Devolve os bytes de um PNG RGB, pronto para
+    `discord.File`.
     """
     with Image.open(fundo) as imagem_fundo:
         fundo_rgba = imagem_fundo.convert("RGBA")
-    lado = min(fundo_rgba.width, fundo_rgba.height)
-    esquerda = (fundo_rgba.width - lado) // 2
-    topo = (fundo_rgba.height - lado) // 2
-    fundo_rgba = fundo_rgba.crop((esquerda, topo, esquerda + lado, topo + lado))
-    fundo_rgba = fundo_rgba.resize((_LADO_SAIDA, _LADO_SAIDA), Image.Resampling.LANCZOS)
+
+    largura_alvo, altura_alvo = _LARGURA_SAIDA, _ALTURA_SAIDA
+    proporcao_alvo = largura_alvo / altura_alvo
+    proporcao_fundo = fundo_rgba.width / fundo_rgba.height
+    if proporcao_fundo > proporcao_alvo:
+        # Fundo mais largo que o alvo: corta as laterais, mantém a altura inteira.
+        nova_largura = round(fundo_rgba.height * proporcao_alvo)
+        esquerda = (fundo_rgba.width - nova_largura) // 2
+        caixa = (esquerda, 0, esquerda + nova_largura, fundo_rgba.height)
+    else:
+        # Fundo mais alto (ou quadrado, como o nosso): corta topo/base, mantém a largura inteira.
+        nova_altura = round(fundo_rgba.width / proporcao_alvo)
+        topo = (fundo_rgba.height - nova_altura) // 2
+        caixa = (0, topo, fundo_rgba.width, topo + nova_altura)
+    fundo_rgba = fundo_rgba.crop(caixa)
+    fundo_rgba = fundo_rgba.resize((largura_alvo, altura_alvo), Image.Resampling.LANCZOS)
 
     tamanho_avatar = (_DIAMETRO_AVATAR, _DIAMETRO_AVATAR)
     with Image.open(io.BytesIO(avatar_bytes)) as imagem_avatar:
@@ -46,10 +60,10 @@ def montar_banner(avatar_bytes: bytes, *, fundo: Path = FUNDO_PADRAO) -> bytes:
     anel = Image.new("RGBA", (diametro_anel, diametro_anel), (0, 0, 0, 0))
     cor_anel = (255, 255, 255, 235)
     ImageDraw.Draw(anel).ellipse((0, 0, diametro_anel - 1, diametro_anel - 1), fill=cor_anel)
-    posicao_anel = ((_LADO_SAIDA - diametro_anel) // 2, (_LADO_SAIDA - diametro_anel) // 2)
+    posicao_anel = ((largura_alvo - diametro_anel) // 2, (altura_alvo - diametro_anel) // 2)
     fundo_rgba.alpha_composite(anel, posicao_anel)
 
-    posicao_avatar = ((_LADO_SAIDA - _DIAMETRO_AVATAR) // 2, (_LADO_SAIDA - _DIAMETRO_AVATAR) // 2)
+    posicao_avatar = ((largura_alvo - _DIAMETRO_AVATAR) // 2, (altura_alvo - _DIAMETRO_AVATAR) // 2)
     fundo_rgba.paste(avatar, posicao_avatar, _mascara_circular(_DIAMETRO_AVATAR))
 
     saida = io.BytesIO()

@@ -7,7 +7,7 @@ import io
 import pytest
 from PIL import Image
 
-from oraculo.bot.welcome_image import _LADO_SAIDA, FUNDO_PADRAO, montar_banner
+from oraculo.bot.welcome_image import _ALTURA_SAIDA, _LARGURA_SAIDA, FUNDO_PADRAO, montar_banner
 
 
 def _png_bytes(cor: tuple[int, int, int], lado: int) -> bytes:
@@ -39,7 +39,7 @@ def test_monta_banner_do_tamanho_esperado_e_e_png_valido(fundo_sintetico):
     with Image.open(io.BytesIO(banner)) as imagem:
         imagem.verify()
     with Image.open(io.BytesIO(banner)) as imagem:
-        assert imagem.size == (_LADO_SAIDA, _LADO_SAIDA)
+        assert imagem.size == (_LARGURA_SAIDA, _ALTURA_SAIDA)
         assert imagem.format == "PNG"
 
 
