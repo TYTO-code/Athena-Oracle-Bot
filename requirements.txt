@@ -20,7 +20,7 @@ asyncpg==0.31.0          # driver PostgreSQL (produção)
 aiosqlite==0.22.1        # driver SQLite (desenvolvimento e testes)
 
 # --- API / webhooks (TD-003) -------------------------------------------------
-fastapi==0.141.1
+fastapi==0.143.0
 uvicorn[standard]==0.52.1
 
 # --- Configuração e segredos (TD-001 / RNF-003) ------------------------------
