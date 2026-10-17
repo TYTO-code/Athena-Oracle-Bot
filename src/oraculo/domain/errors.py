@@ -245,6 +245,20 @@ class IntegracaoIndisponivelError(OraculoError):
         super().__init__(f"Integração indisponível: {servico}. {detalhe}".strip())
 
 
+class ComandoDemorouError(OraculoError):
+    """Teto de tempo do corpo de um comando estourado (`bot/permissions.py:requer`).
+
+    Preferível a deixar a interação travada no Discord esperando resposta.
+    """
+
+    def __init__(self, segundos: float) -> None:
+        self.segundos = segundos
+        super().__init__(
+            f"O comando demorou mais de {segundos:.0f}s para responder. "
+            "Tente de novo em instantes."
+        )
+
+
 class AssinaturaInvalidaError(OraculoError):
     """TD-003 — webhook recebido sem assinatura HMAC válida."""
 

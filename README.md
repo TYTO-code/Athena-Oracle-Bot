@@ -115,6 +115,11 @@ Todos os segredos vêm de variáveis de ambiente com o prefixo `ORACULO_` — **
 | `/sincronizar-papeis` | Reaplica no Discord a patente e os cargos espelhados da plataforma | Administrador |
 | `/verificar-cargos` | Diagnóstico dos papéis do servidor | Administrador |
 
+Todo comando passa por `bot/permissions.py:requer`, que além da permissão aplica um teto de
+tempo ao corpo do comando: `ORACULO_COMANDO_TIMEOUT_SEGUNDOS` (padrão 45s) — estourado, o
+comando responde com erro em vez de deixar a interação travada esperando um banco ou o
+Firestore lento.
+
 RSVP (UC-006) é feito pelos botões do anúncio — eles continuam funcionando após reiniciar o bot.
 
 **Boas-vindas** (não é um `/comando`, é reativo): ao entrar no servidor, o bot publica no canal

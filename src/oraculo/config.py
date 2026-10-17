@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     run_bot: bool = True
     run_api: bool = True
+    #: Teto de tempo para o CORPO de qualquer slash command (banco, Firestore,
+    #: cache…), aplicado por `bot/permissions.py:requer`. Maior que
+    #: `llm_timeout_segundos` de propósito: é uma rede de segurança geral, não
+    #: o timeout específico (e com mensagem melhor) de `/perguntar` — esse
+    #: dispara primeiro no caminho comum.
+    comando_timeout_segundos: float = 45.0
 
     # --- Discord (RF-001) ----------------------------------------------------
     discord_token: str | None = None
