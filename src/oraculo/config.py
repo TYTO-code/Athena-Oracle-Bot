@@ -127,6 +127,10 @@ class Settings(BaseSettings):
     #: resposta; a brevidade da resposta em si é pedida no prompt, porque o
     #: embed do Discord corta em ~4096 caracteres.
     llm_max_tokens: int = 4000
+    #: Sem isto o SDK usa o padrão de 10 minutos — tempo demais para quem está
+    #: esperando uma resposta no Discord. Passado esse prazo, `/perguntar`
+    #: responde com erro em vez de deixar a interação travada.
+    llm_timeout_segundos: float = 30.0
     #: Diretório com os `.md` do regulamento TYTO, dentro da documentação do
     #: próprio bot. Já vem apontado: basta largar os arquivos lá.
     regras_dir: Path | None = Path("docs/regras-tyto")

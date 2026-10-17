@@ -232,6 +232,9 @@ compartilhado** entre todas as perguntas de todos os membros — a parte cara do
 prompt é paga uma vez, não por pessoa. `ORACULO_PERGUNTA_LIMITE_HORA` (padrão 10)
 é o freio por pessoa: um LLM aberto ao servidor inteiro sem teto é conta aberta.
 Se as respostas ficarem rasas, `ORACULO_LLM_MODEL=claude-sonnet-5` dobra o custo.
+`ORACULO_LLM_TIMEOUT_SEGUNDOS` (padrão 30) limita quanto tempo se espera pelo
+modelo; estourado o prazo, `/perguntar` responde com erro em vez de travar a
+interação do Discord.
 
 ## Plataforma de membros (Firebase)
 
