@@ -63,7 +63,8 @@ class Settings(BaseSettings):
     ranking_cache_ttl: int = 60
 
     # --- API / Webhooks (TD-003 / RNF-003) -----------------------------------
-    api_host: str = "0.0.0.0"  # noqa: S104 — exposto pelo container, não pelo host
+    # 0.0.0.0 é exposto pelo container, não pelo host (bind intencional).
+    api_host: str = "0.0.0.0"  # noqa: S104 # nosec B104
     api_port: int = 8000
     #: Painel de métricas (`/metrics` Prometheus e `/painel` HTML). Sem token os
     #: dois endpoints nem existem (404): a API é pública, e contagem de membros
