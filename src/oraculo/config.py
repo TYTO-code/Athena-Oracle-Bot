@@ -7,6 +7,7 @@ TD-001 / RNF-003 — nenhum segredo é lido do código-fonte: tudo vem de `.env`
 from __future__ import annotations
 
 import json
+import logging
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
@@ -15,6 +16,8 @@ from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 Environment = Literal["development", "staging", "production"]
+
+log = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -178,19 +181,51 @@ class Settings(BaseSettings):
     @field_validator("discord_guild_ids", mode="before")
     @classmethod
     def _split_guild_ids(cls, value: object) -> object:
-        """Aceita `123,456` (formato natural em `.env`) além de lista JSON."""
+        """Aceita `123,456` (formato natural em `.env`) além de lista JSON.
+
+        Uma entrada não-numérica (variável mal configurada) não derruba o bot
+        inteiro no boot: é ignorada com um aviso, e o pior caso é cair na
+        sincronização global de comandos (`bot/client.py`), que já é o
+        comportamento padrão sem `discord_guild_ids` nenhum.
+        """
         if isinstance(value, str):
-            return [int(part) for part in value.replace(";", ",").split(",") if part.strip()]
+            ids: list[int] = []
+            for part in value.replace(";", ",").split(","):
+                part = part.strip()
+                if not part:
+                    continue
+                try:
+                    ids.append(int(part))
+                except ValueError:
+                    log.warning(
+                        "ORACULO_DISCORD_GUILD_IDS tem uma entrada não-numérica "
+                        "(%r) — ignorando-a.",
+                        part,
+                    )
+            return ids
         return value
 
     @field_validator("firebase_campos", mode="before")
     @classmethod
     def _parse_firebase_campos(cls, value: object) -> object:
-        """Aceita `{}`/JSON válido, string vazia (= nenhum mapeamento) ou já-dict."""
+        """Aceita `{}`/JSON válido, string vazia (= nenhum mapeamento) ou já-dict.
+
+        Um valor inválido aqui é só um mapa de *overrides* (o padrão em
+        `MAPA_PADRAO_FIREBASE` já cobre o caso comum) — nunca vale a pena
+        derrubar o bot inteiro no boot por ele; loga um aviso e cai no `{}`.
+        """
         if isinstance(value, str):
             if not value.strip():
                 return {}
-            return json.loads(value)
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                log.warning(
+                    "ORACULO_FIREBASE_CAMPOS não é JSON válido (%r) — ignorando, "
+                    "usando só o mapa padrão (MAPA_PADRAO_FIREBASE).",
+                    value,
+                )
+                return {}
         return value
 
     @field_validator("log_level")
