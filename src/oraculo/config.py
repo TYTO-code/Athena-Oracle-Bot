@@ -6,6 +6,7 @@ TD-001 / RNF-003 — nenhum segredo é lido do código-fonte: tudo vem de `.env`
 
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
@@ -95,7 +96,10 @@ class Settings(BaseSettings):
     #: Coleção do Firestore com os membros (na TYTO.club: `users`).
     firebase_colecao: str = "users"
     #: Mapeia campo interno → campo do documento. Ver `MAPA_PADRAO_FIREBASE`.
-    firebase_campos: dict[str, str] = Field(default_factory=dict)
+    # `NoDecode`: evita que pydantic-settings tente fazer json.loads() do valor
+    # cru antes de `_ignorar_vazios` rodar — um `.env`/variável de ambiente com
+    # `ORACULO_FIREBASE_CAMPOS=` (vazio) derrubava o processo no boot.
+    firebase_campos: Annotated[dict[str, str], NoDecode] = Field(default_factory=dict)
     #: Busca apenas os campos mapeados (evita baixar fotos em base64).
     #: Desligue só para diagnosticar o formato do documento.
     firebase_projecao: bool = True
@@ -177,6 +181,16 @@ class Settings(BaseSettings):
         """Aceita `123,456` (formato natural em `.env`) além de lista JSON."""
         if isinstance(value, str):
             return [int(part) for part in value.replace(";", ",").split(",") if part.strip()]
+        return value
+
+    @field_validator("firebase_campos", mode="before")
+    @classmethod
+    def _parse_firebase_campos(cls, value: object) -> object:
+        """Aceita `{}`/JSON válido, string vazia (= nenhum mapeamento) ou já-dict."""
+        if isinstance(value, str):
+            if not value.strip():
+                return {}
+            return json.loads(value)
         return value
 
     @field_validator("log_level")
