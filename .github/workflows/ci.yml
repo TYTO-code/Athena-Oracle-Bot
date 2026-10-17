@@ -52,3 +52,21 @@ jobs:
             echo "Arquivo de segredo versionado detectado."
             exit 1
           fi
+
+  # Só builda a imagem (sem push — o deploy no Render/Railway builda o próprio Dockerfile a partir
+  # do repositório, ADR-001). Existe pra pegar cedo o que `qualidade` não pega: a base da imagem
+  # (python:*-slim) resolvendo as dependências de verdade, não as do Python do runner do CI acima.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build da imagem (estágio runtime)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

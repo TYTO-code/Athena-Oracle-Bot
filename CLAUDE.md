@@ -23,8 +23,11 @@ make migrate     # alembic upgrade head
 make migration m="descrição"   # nova migração (autogenerate)
 ```
 
-O CI (`.github/workflows/ci.yml`) roda a suíte a cada push/PR. O hook `.claude/hooks/gate-testes.sh`
-barra `git commit`/`git push` se `make test` falhar (e libera com aviso se não houver `.venv`).
+O CI (`.github/workflows/ci.yml`) roda a suíte a cada push/PR, em dois jobs: `qualidade` (lint,
+testes, migrações do zero, bandit, pip-audit, checagem de segredo versionado) e `docker` (builda a
+imagem do `Dockerfile`, sem push — pega cedo o que `qualidade` não pega, porque roda contra a base
+`python:*-slim` de verdade, não o Python do runner). O hook `.claude/hooks/gate-testes.sh` barra
+`git commit`/`git push` se `make test` falhar (e libera com aviso se não houver `.venv`).
 
 ## Arquitetura
 
