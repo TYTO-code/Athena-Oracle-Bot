@@ -9,14 +9,18 @@ para quem tem cadastro ativo lá (RN-020): o bot não registra ninguém sozinho.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import TypeVar
+import asyncio
+import functools
+from collections.abc import Awaitable, Callable
+from typing import TypeVar, cast
 
 import discord
 from discord import app_commands
 
+from oraculo.config import get_settings
 from oraculo.db.base import sessao
 from oraculo.db.models import Membro
+from oraculo.domain.errors import ComandoDemorouError
 from oraculo.domain.hierarchy import Perfil
 from oraculo.domain.permissions import (
     Acao,
@@ -60,6 +64,27 @@ async def perfil_do_autor(interaction: discord.Interaction) -> Perfil:
 ATRIBUTO_ACAO = "__oraculo_acao__"
 
 
+def _com_timeout(
+    func: Callable[..., Awaitable[object]],
+) -> Callable[..., Awaitable[object]]:
+    """Envolve o corpo do comando num teto de tempo (`ComandoDemorouError`).
+
+    Sem isto, um banco/Firestore lento trava a interação do Discord em vez de
+    avisar o membro — o mesmo raciocínio do timeout em `/perguntar`
+    (`integrations/llm.py`), só que aqui cobre qualquer comando, não só o LLM.
+    """
+
+    @functools.wraps(func)
+    async def wrapper(*args: object, **kwargs: object) -> object:
+        segundos = get_settings().comando_timeout_segundos
+        try:
+            return await asyncio.wait_for(func(*args, **kwargs), timeout=segundos)
+        except TimeoutError as exc:
+            raise ComandoDemorouError(segundos) from exc
+
+    return wrapper
+
+
 def requer(acao: Acao, *, efemero: bool = False) -> Callable[[T], T]:
     """Aplica a política central de permissões ao comando decorado.
 
@@ -75,6 +100,10 @@ def requer(acao: Acao, *, efemero: bool = False) -> Callable[[T], T]:
 
     Além de validar, registra a ação exigida no próprio comando: é assim que
     `/ajuda` descobre o requisito sem manter uma segunda lista.
+
+    Também envolve o corpo do comando num teto de tempo
+    (`ORACULO_COMANDO_TIMEOUT_SEGUNDOS`, `_com_timeout` acima): sem isso um
+    banco ou o Firestore lento trava a interação em vez de avisar o membro.
 
     Uso::
 
@@ -93,8 +122,18 @@ def requer(acao: Acao, *, efemero: bool = False) -> Callable[[T], T]:
 
     def decorador(alvo: T) -> T:
         # Funciona com o decorator acima ou abaixo de `@app_commands.command`.
-        setattr(getattr(alvo, "callback", alvo), ATRIBUTO_ACAO, acao)
-        return app_commands.check(predicado)(alvo)
+        # `alvo` já vem com `.callback` só no segundo caso — `Command.callback`
+        # é somente leitura, então o timeout só pode envolver a função crua
+        # (o caso de todos os cogs atuais).
+        callback = getattr(alvo, "callback", None)
+        if callback is not None:
+            setattr(callback, ATRIBUTO_ACAO, acao)
+            return app_commands.check(predicado)(alvo)
+        setattr(alvo, ATRIBUTO_ACAO, acao)
+        # `alvo` é sempre uma corrotina crua neste ramo (ver comentário acima);
+        # o `cast` só restaura o tipo genérico que `_com_timeout` não preserva.
+        envolvido = cast(T, _com_timeout(cast(Callable[..., Awaitable[object]], alvo)))
+        return app_commands.check(predicado)(envolvido)
 
     return decorador
 

@@ -20,7 +20,7 @@ asyncpg==0.31.0          # driver PostgreSQL (produção)
 aiosqlite==0.22.1        # driver SQLite (desenvolvimento e testes)
 
 # --- API / webhooks (TD-003) -------------------------------------------------
-fastapi==0.141.1
+fastapi==0.143.0
 uvicorn[standard]==0.52.1
 
 # --- Configuração e segredos (TD-001 / RNF-003) ------------------------------
@@ -37,7 +37,7 @@ google-auth==2.56.3
 google-auth-oauthlib==1.5.0
 
 # --- Plataforma de membros no Firebase (RF-001) ------------------------------
-google-cloud-firestore==2.34.0
+google-cloud-firestore==2.34.1
 
 # --- Notificações por e-mail (RF-010) ----------------------------------------
 aiosmtplib==5.1.2
@@ -49,4 +49,4 @@ structlog==26.1.0
 anthropic==1.11.0
 
 # --- Backup fora do disco local: object storage S3-compatível (RNF-005) -------
-boto3==1.43.108
+boto3==1.43.112

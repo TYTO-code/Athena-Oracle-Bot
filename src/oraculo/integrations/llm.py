@@ -64,7 +64,9 @@ class ClienteAnthropic:
         except ImportError as exc:  # pragma: no cover - dependência declarada
             raise IntegracaoIndisponivelError("LLM", f"SDK anthropic ausente: {exc}") from exc
 
-        self._cliente = AsyncAnthropic(api_key=self._cfg.anthropic_api_key)
+        self._cliente = AsyncAnthropic(
+            api_key=self._cfg.anthropic_api_key, timeout=self._cfg.llm_timeout_segundos
+        )
         return self._cliente
 
     def _blocos_de_sistema(self, prompt: Prompt) -> list[dict[str, Any]]:
@@ -82,6 +84,8 @@ class ClienteAnthropic:
         return blocos
 
     async def responder(self, prompt: Prompt) -> str:
+        from anthropic import APITimeoutError
+
         cliente = self._conectar()
         try:
             resposta = await cliente.messages.create(
@@ -90,6 +94,13 @@ class ClienteAnthropic:
                 system=self._blocos_de_sistema(prompt),
                 messages=[{"role": "user", "content": prompt.contexto_usuario}],
             )
+        except APITimeoutError as exc:
+            log.warning("Modelo não respondeu em %ss", self._cfg.llm_timeout_segundos)
+            raise IntegracaoIndisponivelError(
+                "LLM",
+                f"o modelo demorou mais de {self._cfg.llm_timeout_segundos:.0f}s para "
+                "responder. Tente de novo em instantes.",
+            ) from exc
         except Exception as exc:  # noqa: BLE001 — falha externa vira erro de integração
             log.exception("Falha na chamada ao modelo")
             raise IntegracaoIndisponivelError("LLM", str(exc)) from exc

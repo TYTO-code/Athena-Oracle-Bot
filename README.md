@@ -61,6 +61,7 @@ Todos os segredos vêm de variáveis de ambiente com o prefixo `ORACULO_` — **
 | `ORACULO_DISCORD_TOKEN` | Token do bot |
 | `ORACULO_DATABASE_URL` | `postgresql+asyncpg://...` em produção |
 | `ORACULO_CLICKUP_WEBHOOK_SECRET` | Segredo HMAC do webhook (TD-003) |
+| `ORACULO_DISCORD_BOAS_VINDAS_CHANNEL_ID` | Canal do banner de boas-vindas (sem ela, a feature fica inerte) |
 
 `make verificar` recusa uma configuração de produção incompleta antes do deploy.
 
@@ -114,7 +115,19 @@ Todos os segredos vêm de variáveis de ambiente com o prefixo `ORACULO_` — **
 | `/sincronizar-papeis` | Reaplica no Discord a patente e os cargos espelhados da plataforma | Administrador |
 | `/verificar-cargos` | Diagnóstico dos papéis do servidor | Administrador |
 
+Todo comando passa por `bot/permissions.py:requer`, que além da permissão aplica um teto de
+tempo ao corpo do comando: `ORACULO_COMANDO_TIMEOUT_SEGUNDOS` (padrão 45s) — estourado, o
+comando responde com erro em vez de deixar a interação travada esperando um banco ou o
+Firestore lento.
+
 RSVP (UC-006) é feito pelos botões do anúncio — eles continuam funcionando após reiniciar o bot.
+
+**Boas-vindas** (não é um `/comando`, é reativo): ao entrar no servidor, o bot publica no canal
+`ORACULO_DISCORD_BOAS_VINDAS_CHANNEL_ID` um banner com o avatar de quem entrou sobre o fundo da TYTO
+(`src/oraculo/bot/cogs/boas_vindas.py` + `bot/welcome_image.py`). Puramente estético — sem RN, não lê
+nem escreve nada da plataforma. Sem a variável configurada, fica inerte. Exige o intent privilegiado
+**"Server Members Intent"** ligado no portal de desenvolvedores do Discord (sem ele, o evento de
+entrada nunca chega ao bot).
 
 ## API
 
@@ -224,6 +237,9 @@ compartilhado** entre todas as perguntas de todos os membros — a parte cara do
 prompt é paga uma vez, não por pessoa. `ORACULO_PERGUNTA_LIMITE_HORA` (padrão 10)
 é o freio por pessoa: um LLM aberto ao servidor inteiro sem teto é conta aberta.
 Se as respostas ficarem rasas, `ORACULO_LLM_MODEL=claude-sonnet-5` dobra o custo.
+`ORACULO_LLM_TIMEOUT_SEGUNDOS` (padrão 30) limita quanto tempo se espera pelo
+modelo; estourado o prazo, `/perguntar` responde com erro em vez de travar a
+interação do Discord.
 
 ## Plataforma de membros (Firebase)
 

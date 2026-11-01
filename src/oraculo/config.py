@@ -6,6 +6,8 @@ TD-001 / RNF-003 — nenhum segredo é lido do código-fonte: tudo vem de `.env`
 
 from __future__ import annotations
 
+import json
+import logging
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
@@ -14,6 +16,8 @@ from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 Environment = Literal["development", "staging", "production"]
+
+log = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -31,12 +35,23 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     run_bot: bool = True
     run_api: bool = True
+    #: Teto de tempo para o CORPO de qualquer slash command (banco, Firestore,
+    #: cache…), aplicado por `bot/permissions.py:requer`. Maior que
+    #: `llm_timeout_segundos` de propósito: é uma rede de segurança geral, não
+    #: o timeout específico (e com mensagem melhor) de `/perguntar` — esse
+    #: dispara primeiro no caminho comum.
+    comando_timeout_segundos: float = 45.0
 
     # --- Discord (RF-001) ----------------------------------------------------
     discord_token: str | None = None
     # `NoDecode`: o valor cru chega ao validador abaixo em vez de ser lido como JSON.
     discord_guild_ids: Annotated[list[int], NoDecode] = Field(default_factory=list)
     discord_log_channel_id: int | None = None
+    #: Canal do banner de boas-vindas (avatar sobre o fundo da TYTO) quando alguém entra no
+    #: servidor. Sem ele, a feature fica inerte — é cosmético, sem RN (RN-021 não se aplica: não lê
+    #: nem escreve dado da plataforma). Exige o intent privilegiado "Server Members" ligado no
+    #: portal de desenvolvedores do Discord (sem ele, `on_member_join` nunca dispara).
+    discord_boas_vindas_channel_id: int | None = None
 
     # --- Comunicados (RF-015 / RN-018) ---------------------------------------
     #: Canal padrão dos comunicados oficiais (o `#comunicados` do servidor).
@@ -58,7 +73,8 @@ class Settings(BaseSettings):
     ranking_cache_ttl: int = 60
 
     # --- API / Webhooks (TD-003 / RNF-003) -----------------------------------
-    api_host: str = "0.0.0.0"  # noqa: S104 — exposto pelo container, não pelo host  # nosec B104
+    # 0.0.0.0 é exposto pelo container, não pelo host (bind intencional).
+    api_host: str = "0.0.0.0"  # noqa: S104 # nosec B104
     api_port: int = 8000
     #: Painel de métricas (`/metrics` Prometheus e `/painel` HTML). Sem token os
     #: dois endpoints nem existem (404): a API é pública, e contagem de membros
@@ -89,7 +105,10 @@ class Settings(BaseSettings):
     #: Coleção do Firestore com os membros (na TYTO.club: `users`).
     firebase_colecao: str = "users"
     #: Mapeia campo interno → campo do documento. Ver `MAPA_PADRAO_FIREBASE`.
-    firebase_campos: dict[str, str] = Field(default_factory=dict)
+    # `NoDecode`: evita que pydantic-settings tente fazer json.loads() do valor
+    # cru antes de `_ignorar_vazios` rodar — um `.env`/variável de ambiente com
+    # `ORACULO_FIREBASE_CAMPOS=` (vazio) derrubava o processo no boot.
+    firebase_campos: Annotated[dict[str, str], NoDecode] = Field(default_factory=dict)
     #: Busca apenas os campos mapeados (evita baixar fotos em base64).
     #: Desligue só para diagnosticar o formato do documento.
     firebase_projecao: bool = True
@@ -114,6 +133,10 @@ class Settings(BaseSettings):
     #: conta, e o embed do Discord corta em ~4096 caracteres (~1.300 tokens em
     #: português): gerar além disso é pagar por texto que ninguém vê.
     llm_max_tokens: int = 1500
+    #: Sem isto o SDK usa o padrão de 10 minutos — tempo demais para quem está
+    #: esperando uma resposta no Discord. Passado esse prazo, `/perguntar`
+    #: responde com erro em vez de deixar a interação travada.
+    llm_timeout_segundos: float = 30.0
     #: Diretório com os `.md` do regulamento TYTO, dentro da documentação do
     #: próprio bot. Já vem apontado: basta largar os arquivos lá.
     regras_dir: Path | None = Path("docs/regras-tyto")
@@ -168,9 +191,51 @@ class Settings(BaseSettings):
     @field_validator("discord_guild_ids", mode="before")
     @classmethod
     def _split_guild_ids(cls, value: object) -> object:
-        """Aceita `123,456` (formato natural em `.env`) além de lista JSON."""
+        """Aceita `123,456` (formato natural em `.env`) além de lista JSON.
+
+        Uma entrada não-numérica (variável mal configurada) não derruba o bot
+        inteiro no boot: é ignorada com um aviso, e o pior caso é cair na
+        sincronização global de comandos (`bot/client.py`), que já é o
+        comportamento padrão sem `discord_guild_ids` nenhum.
+        """
         if isinstance(value, str):
-            return [int(part) for part in value.replace(";", ",").split(",") if part.strip()]
+            ids: list[int] = []
+            for part in value.replace(";", ",").split(","):
+                part = part.strip()
+                if not part:
+                    continue
+                try:
+                    ids.append(int(part))
+                except ValueError:
+                    log.warning(
+                        "ORACULO_DISCORD_GUILD_IDS tem uma entrada não-numérica "
+                        "(%r) — ignorando-a.",
+                        part,
+                    )
+            return ids
+        return value
+
+    @field_validator("firebase_campos", mode="before")
+    @classmethod
+    def _parse_firebase_campos(cls, value: object) -> object:
+        """Aceita `{}`/JSON válido, string vazia (= nenhum mapeamento) ou já-dict.
+
+        Um valor inválido aqui é só um mapa de *overrides* (o padrão em
+        `MAPA_PADRAO_FIREBASE` já cobre o caso comum) — nunca vale a pena
+        derrubar o bot inteiro no boot por ele; loga um aviso e cai no `{}`.
+        """
+        if isinstance(value, str):
+            if not value.strip():
+                return {}
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                log.warning(
+                    "ORACULO_FIREBASE_CAMPOS não é JSON válido (%r) — ignorando, "
+                    "usando só o mapa padrão (MAPA_PADRAO_FIREBASE).",
+                    value,
+                )
+                return {}
         return value
 
     @field_validator("log_level")
