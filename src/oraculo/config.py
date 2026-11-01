@@ -129,10 +129,10 @@ class Settings(BaseSettings):
     #: respostas ficarem rasas em pergunta que cruza documentos, subir para
     #: `claude-sonnet-5` é trocar uma variável — e multiplicar o custo por ~2.
     llm_model: str = "claude-haiku-4-5"
-    #: Teto de saída. Precisa acomodar o raciocínio do modelo **mais** a
-    #: resposta; a brevidade da resposta em si é pedida no prompt, porque o
-    #: embed do Discord corta em ~4096 caracteres.
-    llm_max_tokens: int = 4000
+    #: Teto de saída. A chamada não usa raciocínio estendido, então só a resposta
+    #: conta, e o embed do Discord corta em ~4096 caracteres (~1.300 tokens em
+    #: português): gerar além disso é pagar por texto que ninguém vê.
+    llm_max_tokens: int = 1500
     #: Sem isto o SDK usa o padrão de 10 minutos — tempo demais para quem está
     #: esperando uma resposta no Discord. Passado esse prazo, `/perguntar`
     #: responde com erro em vez de deixar a interação travada.
