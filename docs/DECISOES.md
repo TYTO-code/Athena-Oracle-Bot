@@ -163,8 +163,8 @@ Pedido complementar de 2026-11-14 (Grafana na Atena). O que vale:
   `max_over_time(...[2d])` para lembrar o último horário depois de um reinício; backup e rodada
   diária do gerente usam horários gravados no banco. Regras, painel e passo a passo em
   `observabilidade/grafana/`.
-- **Acesso ao Grafana**: só Dayvid. A guarda pretoriana não recebe acesso até Dayvid decidir
-  (opção conservadora). **[pergunta em aberto]**
+- **Acesso ao Grafana**: só Dayvid, decidido por ele em 2026-11-14. A guarda pretoriana pode
+  ganhar leitura depois, se ele mudar de ideia.
 
 ## Em aberto (do pedido, seção 16)
 
