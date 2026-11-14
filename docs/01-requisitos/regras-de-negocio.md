@@ -30,6 +30,9 @@
 - **RN-001 / RN-003:** ao atribuir patente, remover **todos** os papéis de patente anteriores antes da nova atribuição (ver TD-005); papéis de cargo institucional são geridos à parte.
 - **RN-005:** persistir em tabela de auditoria (ex.: `xp_audit`); o legado não registra autor/motivo (TD-006).
 - **RN-010:** preferir soft-delete e append-only em logs/auditoria.
+- **RN-017 (roteador e cache):** pergunta que um comando fixo responde (prazos, tasks, missões,
+  situação de projeto) não vai ao modelo. Resposta guardada em cache só é reaproveitada para quem
+  não tem projeto: com projeto, a resposta depende de dado restrito e nunca é servida a outra pessoa.
 - **RN-018:** um `@everyone` duplicado é pior que um comunicado atrasado — por isso o estado
   `PUBLICANDO` encerra como falha em vez de tentar de novo. Reenviar é decisão de gente.
 - **RN-011 a RN-016, RN-019 (revogadas):** com RN-021 o bot deixou de ter a camada Comunidade e

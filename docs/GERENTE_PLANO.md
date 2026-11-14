@@ -83,6 +83,24 @@ Na Atena: `/meus-prazos`, `/minhas-tasks`, `/status <projeto>`, `/missoes` lendo
 correção do vínculo de projetos do `/perguntar` (D4); cache de respostas e limite diário. M9:
 boas-vindas por template ao entrar num projeto, com o `.md` do projeto mantido pelo líder.
 
+## Situação em 2026-11-14
+
+Todas as fases estão implementadas em branches, sem merge e sem deploy. Tudo desligado por padrão.
+
+| Fase | Onde | Situação |
+|---|---|---|
+| 1. Dados e permissão | API `src/domain/gerente/` (config, rules, permissions, clickupTasks) | Pronta, com testes |
+| 2. Modo sombra | API `shadow.ts`, `GerenteService`, `gerente_shadow` | Pronta; ligado por padrão quando o gerente liga |
+| 3. Lembretes e alertas | API `outbox.ts` + rotas internas; Atena `cogs/gerente.py` (entrega, silêncio 22h–8h) | Pronta |
+| 4. Painel no site | Site `/gerente` (`src/pages/Gerente.tsx`), API `GET /api/gerente/painel` | Pronta |
+| 5. Resumo e missões | API `summary.ts` (segunda 8h), destaque de missões no canal | Pronta |
+| 6. Conversa e onboarding | Atena: comandos fixos, roteador, cache, correção D4; API `onboarding.ts` | Pronta |
+| Observabilidade (D15) | `/metrics` nas duas, painel e alertas em `observabilidade/grafana/` | Pronta; falta ligar no Grafana |
+
+Para ligar, na ordem: deploy da API e `GERENTE_ENABLED=true` (sobe em modo sombra), migração e
+deploy da Atena com `ORACULO_TYTO_API_URL`/`ORACULO_TYTO_API_SERVICE_KEY`, deploy do site, uma
+semana de sombra, e então os módulos em `gerente_config/default` (TYTO.club-API `docs/GERENTE.md`).
+
 ## Matriz de permissão (alvo da fase 1)
 
 | Informação | Admin | Conselheiro/Rex | Líder | Membro |

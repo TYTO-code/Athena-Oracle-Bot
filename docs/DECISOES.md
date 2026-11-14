@@ -43,9 +43,11 @@ projeto é o `countryCode` do líder. O reino da pessoa é o `countryCode` dela.
 ## D4. Vínculo pessoa↔projeto vem de `project_stats.members`
 
 O `/perguntar` hoje procura `users/{uid}/projetos`, que o site não escreve (ver
-`ESTADO_ATUAL.md` §6). O gerente usa `project_stats.members`. Corrigir o `/perguntar` entra na
-fase 6. Papéis do site: `leader`, `partner`, `contributor`, `seller`. "Líder" no gerente =
-`leader`; `partner` (sócio) recebe a visão de líder **[pendente]**, por ora fica com a de membro.
+`ESTADO_ATUAL.md` §6). O gerente usa `project_stats.members`. **Corrigido na fase 6**: o
+`/perguntar` lê primeiro `project_stats.members.<uid>` (uid validado antes de virar caminho de campo)
+e só cai nos formatos antigos se não achar nada. Papéis do site: `leader`, `partner`, `contributor`, `seller`. "Líder" no gerente =
+`leader`; `partner` (sócio) fica com a visão de membro (conservador: não vê carga de cada membro).
+Dayvid pode mudar isso depois sem mexer nas regras de entrega.
 
 ## D5. Identidade ClickUp → site reaproveita o que existe
 
@@ -112,8 +114,18 @@ O pedido diz "quem zera é removido". No site, saldo negativo **suspende** a con
 ## D14. LLM
 
 O `/perguntar` já usa o modelo mais barato (`claude-haiku-4-5`) com regulamento em cache e limite de
-10 por hora. Falta: roteador de comandos fixos na frente, cache de respostas repetidas e limite
-diário (fase 6). Nenhum módulo novo chama LLM.
+10 por hora. Na fase 6 entraram:
+
+- **Roteador antes da IA** (`domain/roteador_perguntas.py`): pergunta de prazo, tasks, missões ou
+  situação de um projeto é respondida pelos mesmos dados de `/meus-prazos`, `/minhas-tasks`,
+  `/missoes` e `/status`, sem modelo. Conservador: pedido de explicação, regra ou "por que" sempre
+  vai para a IA, e na dúvida também.
+- **Cache de respostas repetidas** (24 h): só para quem **não** tem projeto, porque a resposta de
+  quem tem projeto depende de dado restrito (RN-017) e não pode ser servida a outra pessoa. A chave
+  é o texto normalizado da pergunta mais o regulamento e as instruções vigentes.
+- **Limite diário em dinheiro** (D15): US$ 0,10 por dia, US$ 5 por mês.
+
+Nenhum módulo novo do gerente chama LLM.
 
 ## D15. Observabilidade com Grafana Cloud
 
@@ -159,7 +171,11 @@ Pedido complementar de 2026-11-14 (Grafana na Atena). O que vale:
 - Limiares de projeto parado (7 dias) e missão abandonada (14 dias): ficam como padrão
   configurável, a calibrar no modo sombra.
 - Dias corridos ou úteis: padrão corridos, configurável.
-- Canal do Discord do destaque de missões e horário do resumo semanal: **[pendente]**.
+- Canal do destaque de missões: vem de `ORACULO_GERENTE_CANAL_MISSOES_ID`; sem ele, o destaque
+  não é publicado. Resumo semanal: segunda às 8h (`America/Sao_Paulo`), ajustável em
+  `gerente_config/default.resumo`. Dayvid escolhe o canal e confirma o horário.
+- Boas-vindas: a primeira vez que um projeto é visto, a lista de membros só é guardada, sem
+  mensagem (quem já estava lá não recebe boas-vindas atrasadas). O líder não recebe.
 - Conselheiro recebe também o alerta de projeto parado: padrão **não** (só o líder; o projeto
   aparece marcado no painel do Conselheiro).
 - E-mail ou WhatsApp no futuro: a fila (D12) já permite outro consumidor.
