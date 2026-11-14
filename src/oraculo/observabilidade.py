@@ -23,7 +23,7 @@ from oraculo.logging_config import get_logger
 log = get_logger(__name__)
 
 ROTULOS_PERMITIDOS = frozenset(
-    {"job", "resultado", "tipo", "modelo", "motivo", "projeto", "destino", "evento"}
+    {"rotina", "resultado", "tipo", "modelo", "motivo", "projeto", "destino", "evento"}
 )
 _PARECE_PESSOA = re.compile(r"@|\d{15,}")
 _LIMITE_VALOR = 64
@@ -145,28 +145,28 @@ async def medir_job(nome: str, registro: Registro | None = None) -> AsyncIterato
         reg.contar(
             "oraculo_job_execucoes_total",
             "Execuções de jobs agendados.",
-            job=nome,
+            rotina=nome,
             resultado=resultado,
         )
         reg.observar(
             "oraculo_job_duracao_segundos",
             "Duração das execuções de jobs.",
             time.monotonic() - inicio,
-            job=nome,
+            rotina=nome,
         )
         agora = time.time()
         reg.definir(
             "oraculo_job_ultima_execucao_timestamp_seconds",
             "Hora (Unix) da última execução do job, com ou sem erro.",
             agora,
-            job=nome,
+            rotina=nome,
         )
         if resultado == "ok":
             reg.definir(
                 "oraculo_job_ultimo_sucesso_timestamp_seconds",
                 "Hora (Unix) da última execução do job que terminou sem erro.",
                 agora,
-                job=nome,
+                rotina=nome,
             )
 
 

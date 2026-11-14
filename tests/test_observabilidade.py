@@ -89,13 +89,13 @@ async def test_medir_job_conta_ok_e_erro_e_marca_horario():
         async with medir_job("backup", reg):
             raise RuntimeError("falhou")
 
-    assert reg.valor("oraculo_job_execucoes_total", job="backup", resultado="ok") == 1
-    assert reg.valor("oraculo_job_execucoes_total", job="backup", resultado="erro") == 1
-    assert reg.valor("oraculo_job_ultima_execucao_timestamp_seconds", job="backup") > 0
+    assert reg.valor("oraculo_job_execucoes_total", rotina="backup", resultado="ok") == 1
+    assert reg.valor("oraculo_job_execucoes_total", rotina="backup", resultado="erro") == 1
+    assert reg.valor("oraculo_job_ultima_execucao_timestamp_seconds", rotina="backup") > 0
     texto = reg.texto_prometheus()
     assert "# TYPE oraculo_job_duracao_segundos histogram" in texto
-    assert 'oraculo_job_duracao_segundos_bucket{job="backup",le="+Inf"} 2' in texto
-    assert 'oraculo_job_duracao_segundos_count{job="backup"} 2' in texto
+    assert 'oraculo_job_duracao_segundos_bucket{rotina="backup",le="+Inf"} 2' in texto
+    assert 'oraculo_job_duracao_segundos_count{rotina="backup"} 2' in texto
 
 
 def test_mensagens_por_grupo():
