@@ -80,8 +80,22 @@ class Settings(BaseSettings):
     #: dois endpoints nem existem (404): a API é pública, e contagem de membros
     #: e cargos não é informação para qualquer um.
     metricas_token: str | None = None
+    #: Endpoint próprio `/webhooks/clickup` (legado, inerte). O webhook real do ClickUp é registrado
+    #: e validado pela TYTO.club-API, por projeto (docs/DECISOES.md D8); não é mais exigido.
     clickup_webhook_secret: str | None = None
     webhook_max_skew_seconds: int = 300
+
+    # --- Gerente dos projetos (docs/GERENTE_PLANO.md) ------------------------
+    #: URL da TYTO.club-API (ex.: https://api.tyto.club). Sem ela, ou sem a chave, os comandos
+    #: de prazos/tasks/status/missões e a entrega de mensagens do gerente ficam desligados.
+    tyto_api_url: str | None = None
+    #: Mesma chave de `ATHENA_SERVICE_KEY` na API (cabeçalho `X-Service-Key`).
+    tyto_api_service_key: str | None = None
+    tyto_api_timeout: float = 15.0
+    #: De quanto em quanto tempo buscar mensagens prontas na fila da API. 0 desliga a entrega.
+    gerente_entrega_intervalo_minutos: float = 5.0
+    #: Canal do destaque de missões abandonadas (M5). Sem ele, o destaque não é publicado.
+    gerente_canal_missoes_id: int | None = None
 
     # --- Google Agenda (RN-009 / RF-011) -------------------------------------
     google_enabled: bool = False
@@ -274,6 +288,11 @@ class Settings(BaseSettings):
         return bool(self.anthropic_api_key)
 
     @property
+    def gerente_habilitado(self) -> bool:
+        """Comandos e entrega do gerente só existem com URL e chave da TYTO.club-API."""
+        return bool(self.tyto_api_url and self.tyto_api_service_key)
+
+    @property
     def projetos_habilitado(self) -> bool:
         """Consulta a projetos exige o banco externo; regras TYTO não."""
         return bool(self.projetos_database_url)
@@ -292,8 +311,13 @@ class Settings(BaseSettings):
         problems: list[str] = []
         if not self.discord_token:
             problems.append("ORACULO_DISCORD_TOKEN não definido")
-        if not self.clickup_webhook_secret:
-            problems.append("ORACULO_CLICKUP_WEBHOOK_SECRET não definido (TD-003)")
+        if bool(self.tyto_api_url) != bool(self.tyto_api_service_key):
+            problems.append(
+                "ORACULO_TYTO_API_URL e ORACULO_TYTO_API_SERVICE_KEY precisam vir juntas "
+                "(gerente dos projetos)"
+            )
+        if self.tyto_api_url and not self.tyto_api_url.startswith("https://"):
+            problems.append("ORACULO_TYTO_API_URL precisa ser https:// em produção")
         if self.database_url.startswith("sqlite"):
             problems.append("SQLite em produção não é suportado pelo ADR-001; use PostgreSQL")
         if self.google_enabled and not self.google_credentials_file:
