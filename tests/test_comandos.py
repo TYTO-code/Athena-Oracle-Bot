@@ -35,6 +35,11 @@ COMANDOS_ESPERADOS = frozenset(
         "auditoria",
         "sincronizar-papeis",
         "verificar-cargos",
+        # Gerente dos projetos (docs/GERENTE_PLANO.md): só leitura, filtrada pela API.
+        "meus-prazos",
+        "minhas-tasks",
+        "status",
+        "missoes",
     }
 )
 """RN-021 — a superfície **inteira** do bot. Comando novo precisa entrar aqui de

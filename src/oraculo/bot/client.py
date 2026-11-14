@@ -29,6 +29,7 @@ COGS = (
     "oraculo.bot.cogs.pergunta",
     "oraculo.bot.cogs.comunicados",
     "oraculo.bot.cogs.boas_vindas",
+    "oraculo.bot.cogs.gerente",
 )
 
 
