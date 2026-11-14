@@ -97,6 +97,13 @@ class Settings(BaseSettings):
     #: Canal do destaque de missões abandonadas (M5). Sem ele, o destaque não é publicado.
     gerente_canal_missoes_id: int | None = None
 
+    # --- Alertas do Grafana por DM (D15) ----------------------------------------
+    #: Token que o Grafana manda em `Authorization: Bearer` ao chamar `/webhooks/grafana`.
+    #: Vazio = rota desligada (404).
+    grafana_webhook_token: str | None = None
+    #: ID do Discord de quem recebe os alertas por DM (Dayvid). Só uma pessoa, de propósito.
+    alertas_discord_id: int | None = None
+
     # --- Google Agenda (RN-009 / RF-011) -------------------------------------
     google_enabled: bool = False
     google_calendar_id: str = "primary"
