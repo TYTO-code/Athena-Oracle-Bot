@@ -173,7 +173,8 @@ Pedido complementar de 2026-11-14 (Grafana na Atena). O que vale:
 - Dias corridos ou úteis: padrão corridos, configurável.
 - Canal do destaque de missões: vem de `ORACULO_GERENTE_CANAL_MISSOES_ID`; sem ele, o destaque
   não é publicado. Resumo semanal: segunda às 8h (`America/Sao_Paulo`), ajustável em
-  `gerente_config/default.resumo`. Dayvid escolhe o canal e confirma o horário.
+  `gerente_config/default.resumo` (horário confirmado por Dayvid em 2026-11-14). O canal do
+  destaque ainda é escolha dele.
 - Boas-vindas: a primeira vez que um projeto é visto, a lista de membros só é guardada, sem
   mensagem (quem já estava lá não recebe boas-vindas atrasadas). O líder não recebe.
 - Conselheiro recebe também o alerta de projeto parado: padrão **não** (só o líder; o projeto
