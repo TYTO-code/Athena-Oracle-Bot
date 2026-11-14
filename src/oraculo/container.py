@@ -116,6 +116,7 @@ class Container:
                 cache=cache,
                 limite_hora=cfg.pergunta_limite_hora,
                 orcamento=uso_llm,
+                cache_respostas_ttl=cfg.pergunta_cache_respostas_segundos,
             )
 
         return cls(

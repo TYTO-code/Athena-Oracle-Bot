@@ -192,6 +192,15 @@ def contar_mensagem(tipo: object, resultado: str, registro: Registro | None = No
     )
 
 
+def contar_rota(comando: str, registro: Registro | None = None) -> None:
+    """Pergunta do `/perguntar` respondida por comando fixo, sem chamar a IA."""
+    (registro or REGISTRO).contar(
+        "oraculo_perguntas_sem_ia_total",
+        "Perguntas do /perguntar respondidas sem IA (roteador ou cache).",
+        destino=comando,
+    )
+
+
 def processo_prometheus() -> str:
     """CPU e memória deste processo — o que o Railway cobra. Sem dependência nova."""
     tempos = os.times()

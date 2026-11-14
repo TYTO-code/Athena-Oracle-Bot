@@ -170,6 +170,9 @@ class Settings(BaseSettings):
     #: Perguntas por pessoa por hora. Um bot de LLM aberto ao servidor inteiro
     #: sem teto é conta aberta — este é o freio (0 = sem limite).
     pergunta_limite_hora: int = 10
+    #: Resposta só de regulamento (quem pergunta não tem projeto no contexto) é reaproveitada
+    #: para a mesma pergunta por este tempo, sem nova chamada à IA. 0 desliga.
+    pergunta_cache_respostas_segundos: int = 86_400
 
     # --- E-mail (RF-010) -----------------------------------------------------
     smtp_host: str | None = None

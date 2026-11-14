@@ -24,9 +24,10 @@ from oraculo.domain.gerente_respostas import (
     formatar_status,
 )
 from oraculo.domain.permissions import Acao
+from oraculo.domain.roteador_perguntas import Rota
 from oraculo.integrations.gerente_api import FonteGerente, criar_fonte_gerente
 from oraculo.logging_config import get_logger
-from oraculo.observabilidade import medir_job
+from oraculo.observabilidade import contar_rota, medir_job
 from oraculo.services.gerente_entrega_service import GerenteEntregaService, ResultadoEnvio
 
 log = get_logger(__name__)
@@ -120,11 +121,39 @@ class GerenteCog(commands.Cog):
             return None
         return await self.fonte.consultar(recurso, interaction.user.id, **params)
 
-    async def _responder(self, interaction: discord.Interaction, titulo: str, texto: str) -> None:
+    async def _responder(
+        self, interaction: discord.Interaction, titulo: str, texto: str, rodape: str = ""
+    ) -> None:
         embed = discord.Embed(
             title=titulo, description=texto[:4000], color=discord.Color.dark_teal()
         )
+        if rodape:
+            embed.set_footer(text=rodape)
         await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @property
+    def disponivel(self) -> bool:
+        return self.fonte is not None
+
+    async def responder_rota(self, interaction: discord.Interaction, rota: Rota) -> None:
+        """Resposta do `/perguntar` desviada para um comando fixo (sem IA). Já adiada pelo
+        `/perguntar`; a permissão de consultar o gerente vale para qualquer membro."""
+        rodape = f"Resposta direta, sem IA. Atalho: /{rota.comando}"
+        if rota.comando == "status":
+            dados = await self._consultar(interaction, "status", projeto=rota.projeto)
+            titulo, texto = "📊 Status do projeto", formatar_status(dados or {})
+        elif rota.comando == "missoes":
+            dados = await self._consultar(interaction, "missoes")
+            titulo, texto = "🦉 Missões abertas", formatar_missoes(dados or {})
+        else:
+            dados = await self._consultar(interaction, "eu")
+            if rota.comando == "meus-prazos":
+                titulo, texto = "📅 Meus prazos", formatar_meus_prazos(dados or {})
+            else:
+                titulo, texto = "🗂️ Minhas tasks", formatar_minhas_tasks(dados or {})
+        if dados is not None:
+            contar_rota(rota.comando)
+            await self._responder(interaction, titulo, texto, rodape)
 
     @app_commands.command(
         name="meus-prazos", description="Seus próximos prazos nas tasks dos projetos."

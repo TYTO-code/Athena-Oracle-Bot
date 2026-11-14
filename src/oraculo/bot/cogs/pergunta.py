@@ -16,6 +16,7 @@ from oraculo.bot import embeds
 from oraculo.bot.permissions import requer
 from oraculo.db.base import sessao
 from oraculo.domain.permissions import Acao
+from oraculo.domain.roteador_perguntas import rotear
 from oraculo.repositories import membros as repo_membros
 
 LIMITE_DESCRICAO_EMBED = 4000
@@ -35,6 +36,14 @@ class PerguntaCog(commands.Cog):
     async def perguntar(
         self, interaction: discord.Interaction, pergunta: app_commands.Range[str, 3, 1000]
     ) -> None:
+        # Roteador antes da IA (fase 6): prazos, tasks, status e missões têm resposta exata
+        # nos comandos fixos — sem custo de API e sem número inventado.
+        rota = rotear(pergunta)
+        gerente = self.bot.get_cog("GerenteCog")
+        if rota is not None and gerente is not None and getattr(gerente, "disponivel", False):
+            await gerente.responder_rota(interaction, rota)  # type: ignore[attr-defined]
+            return
+
         servico = self.bot.container.perguntas
         if servico is None:
             await interaction.followup.send(
