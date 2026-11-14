@@ -219,6 +219,21 @@ class LimiteDePerguntasError(BusinessRuleError):
         )
 
 
+class OrcamentoDeIaEsgotadoError(BusinessRuleError):
+    """RN-017 — o custo estimado da API do Claude chegou ao teto do dia ou do mês (D15)."""
+
+    regra = "RN-017"
+
+    def __init__(self, motivo: str) -> None:
+        self.motivo = motivo
+        quando = "amanhã" if motivo == "diario" else "no próximo mês"
+        super().__init__(
+            "O orçamento de IA da Atena acabou por agora; `/perguntar` volta "
+            f"{quando}. Os comandos fixos (`/meus-prazos`, `/minhas-tasks`, `/status`, "
+            "`/missoes`) continuam funcionando."
+        )
+
+
 class PerguntaVaziaError(BusinessRuleError):
     """RN-017 — pergunta sem conteúdo utilizável."""
 

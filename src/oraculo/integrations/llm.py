@@ -21,10 +21,12 @@ prompt chega neste módulo, a decisão de acesso já foi tomada e aplicada em
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 from oraculo.config import Settings, get_settings
+from oraculo.domain.custo_llm import UsoLLM
 from oraculo.domain.errors import IntegracaoIndisponivelError
 from oraculo.logging_config import get_logger
 
@@ -44,21 +46,37 @@ class ClienteLLM(Protocol):
     async def responder(self, prompt: Prompt) -> str: ...
 
 
+#: Recebe o uso de cada resposta (tokens) para contar custo; `None` = não conta.
+AoUsar = Callable[[UsoLLM], Awaitable[None]]
+#: Recebe falhas (modelo, resultado) para o contador de chamadas.
+AoFalhar = Callable[[str, str], None]
+
+
 class ClienteAnthropic:
     """Implementação real. Uma chamada, sem streaming: o Discord só mostra a
     resposta pronta mesmo, e a interação adiada aguenta a espera."""
 
-    def __init__(self, settings: Settings | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        *,
+        ao_usar: AoUsar | None = None,
+        ao_falhar: AoFalhar | None = None,
+    ) -> None:
         self._cfg = settings or get_settings()
         self._cliente: Any | None = None
+        self._ao_usar = ao_usar
+        self._ao_falhar = ao_falhar
+
+    def _falhou(self, resultado: str) -> None:
+        if self._ao_falhar is not None:
+            self._ao_falhar(self._cfg.llm_model, resultado)
 
     def _conectar(self) -> Any:
         if self._cliente is not None:
             return self._cliente
         if not self._cfg.anthropic_api_key:
-            raise IntegracaoIndisponivelError(
-                "LLM", "ORACULO_ANTHROPIC_API_KEY não definida."
-            )
+            raise IntegracaoIndisponivelError("LLM", "ORACULO_ANTHROPIC_API_KEY não definida.")
         try:
             from anthropic import AsyncAnthropic
         except ImportError as exc:  # pragma: no cover - dependência declarada
@@ -95,6 +113,7 @@ class ClienteAnthropic:
                 messages=[{"role": "user", "content": prompt.contexto_usuario}],
             )
         except APITimeoutError as exc:
+            self._falhou("timeout")
             log.warning("Modelo não respondeu em %ss", self._cfg.llm_timeout_segundos)
             raise IntegracaoIndisponivelError(
                 "LLM",
@@ -102,8 +121,12 @@ class ClienteAnthropic:
                 "responder. Tente de novo em instantes.",
             ) from exc
         except Exception as exc:  # noqa: BLE001 — falha externa vira erro de integração
+            self._falhou("erro")
             log.exception("Falha na chamada ao modelo")
             raise IntegracaoIndisponivelError("LLM", str(exc)) from exc
+
+        # Toda resposta é cobrada, inclusive recusa e resposta vazia: o uso é contado antes.
+        await self._contar_uso(resposta)
 
         if getattr(resposta, "stop_reason", None) == "refusal":
             raise IntegracaoIndisponivelError(
@@ -114,23 +137,40 @@ class ClienteAnthropic:
             bloco.text for bloco in resposta.content if getattr(bloco, "type", None) == "text"
         ).strip()
 
-        uso = getattr(resposta, "usage", None)
-        if uso is not None:
-            log.info(
-                "Pergunta respondida: entrada=%s cache_leitura=%s saída=%s",
-                getattr(uso, "input_tokens", "?"),
-                getattr(uso, "cache_read_input_tokens", "?"),
-                getattr(uso, "output_tokens", "?"),
-            )
-
         if not texto:
             raise IntegracaoIndisponivelError("LLM", "resposta vazia do modelo.")
         return texto
 
+    async def _contar_uso(self, resposta: Any) -> None:
+        uso = getattr(resposta, "usage", None)
+        if uso is None:
+            return
+        registro = UsoLLM(
+            modelo=str(getattr(resposta, "model", None) or self._cfg.llm_model),
+            entrada=int(getattr(uso, "input_tokens", 0) or 0),
+            saida=int(getattr(uso, "output_tokens", 0) or 0),
+            cache_escrita=int(getattr(uso, "cache_creation_input_tokens", 0) or 0),
+            cache_leitura=int(getattr(uso, "cache_read_input_tokens", 0) or 0),
+        )
+        log.info(
+            "Pergunta respondida: entrada=%s cache_escrita=%s cache_leitura=%s saída=%s",
+            registro.entrada,
+            registro.cache_escrita,
+            registro.cache_leitura,
+            registro.saida,
+        )
+        if self._ao_usar is not None:
+            await self._ao_usar(registro)
 
-def criar_cliente_llm(settings: Settings | None = None) -> ClienteLLM | None:
+
+def criar_cliente_llm(
+    settings: Settings | None = None,
+    *,
+    ao_usar: AoUsar | None = None,
+    ao_falhar: AoFalhar | None = None,
+) -> ClienteLLM | None:
     """Cliente configurado, ou `None` quando `/perguntar` está desligado."""
     cfg = settings or get_settings()
     if not cfg.llm_habilitado:
         return None
-    return ClienteAnthropic(cfg)
+    return ClienteAnthropic(cfg, ao_usar=ao_usar, ao_falhar=ao_falhar)

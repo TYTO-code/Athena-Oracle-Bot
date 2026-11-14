@@ -18,6 +18,7 @@ from oraculo.config import Settings, get_settings
 from oraculo.db.base import agora, sessao
 from oraculo.integrations.google_calendar import AgendaExterna, criar_agenda_externa
 from oraculo.logging_config import get_logger
+from oraculo.observabilidade import medir_job
 from oraculo.services.agenda_service import AgendaService, ResumoSincronizacaoExterna
 
 log = get_logger(__name__)
@@ -59,7 +60,8 @@ async def loop_agenda_google(settings: Settings | None = None) -> None:
     while True:
         inicio_leitura = agora()
         try:
-            await sincronizar_agenda_uma_vez(cursor, externa=externa, settings=cfg)
+            async with medir_job("agenda_google"):
+                await sincronizar_agenda_uma_vez(cursor, externa=externa, settings=cfg)
             cursor = inicio_leitura - SOBREPOSICAO
         except Exception:  # noqa: BLE001 — integração externa não derruba o bot
             log.exception("Falha ao sincronizar alterações do Google Agenda")

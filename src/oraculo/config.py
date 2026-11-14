@@ -151,6 +151,13 @@ class Settings(BaseSettings):
     #: esperando uma resposta no Discord. Passado esse prazo, `/perguntar`
     #: responde com erro em vez de deixar a interação travada.
     llm_timeout_segundos: float = 30.0
+    #: Teto do custo estimado da API do Claude por dia (UTC), em US$. Chegou nele, `/perguntar`
+    #: recusa até o dia seguinte; o Grafana também alerta nesse valor. 0 desliga o freio.
+    llm_teto_diario_usd: float = 0.10
+    #: Orçamento do mês, em US$: chegou nele, `/perguntar` recusa até o mês seguinte.
+    llm_orcamento_mensal_usd: float = 5.0
+    #: Acumulado do mês em que o Grafana avisa (antes de bater no orçamento).
+    llm_alerta_mensal_usd: float = 4.0
     #: Diretório com os `.md` do regulamento TYTO, dentro da documentação do
     #: próprio bot. Já vem apontado: basta largar os arquivos lá.
     regras_dir: Path | None = Path("docs/regras-tyto")

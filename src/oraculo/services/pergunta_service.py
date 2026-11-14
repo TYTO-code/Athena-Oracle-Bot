@@ -28,6 +28,7 @@ Consequências de desenho que caem dessa escolha:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -73,6 +74,12 @@ Sobre o material fornecido:
 """
 
 
+class OrcamentoLLM(Protocol):
+    """Freio de custo da API do Claude (implementado por `UsoLlmService`)."""
+
+    async def verificar(self) -> None: ...
+
+
 @dataclass(frozen=True, slots=True)
 class Resposta:
     """Resultado de uma pergunta, com o que foi usado para produzi-la."""
@@ -90,6 +97,8 @@ class PerguntaService:
     fonte_projetos_do_membro: FonteProjetosDoMembro | None = None
     cache: Cache | None = None
     limite_hora: int = 10
+    #: Teto de custo da API (D15): recusa antes de chamar o modelo quando o dia ou o mês acabou.
+    orcamento: OrcamentoLLM | None = None
     _instrucoes: str = field(default=INSTRUCOES, repr=False)
 
     async def perguntar(
@@ -106,6 +115,8 @@ class PerguntaService:
         texto = texto[:LIMITE_CARACTERES_PERGUNTA]
 
         await self._checar_limite(membro)
+        if self.orcamento is not None:
+            await self.orcamento.verificar()
 
         autorizados = await self._projetos_autorizados(membro)
         contextos = await self._carregar_projetos(autorizados)

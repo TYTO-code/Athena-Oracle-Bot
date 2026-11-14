@@ -18,6 +18,7 @@ from typing import Any, Protocol
 from oraculo.domain.errors import IntegracaoIndisponivelError
 from oraculo.integrations.gerente_api import FonteGerente
 from oraculo.logging_config import get_logger
+from oraculo.observabilidade import contar_mensagem
 
 log = get_logger(__name__)
 
@@ -55,10 +56,12 @@ class GerenteEntregaService:
             itens = await self.fonte.fila(self.lote)
         except IntegracaoIndisponivelError:
             log.warning("Gerente: fila indisponível; tento de novo no próximo ciclo.")
+            contar_mensagem("fila", "indisponivel")
             return relatorio
 
         for item in itens:
             resultado = await self._entregar(item)
+            contar_mensagem(item.get("kind"), resultado)
             try:
                 await self.fonte.confirmar(str(item.get("id")), resultado)
             except IntegracaoIndisponivelError:

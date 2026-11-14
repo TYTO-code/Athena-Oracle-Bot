@@ -18,6 +18,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from oraculo.config import get_settings
 from oraculo.db.base import agora, sessao
+from oraculo.observabilidade import REGISTRO, processo_prometheus
 from oraculo.services.metricas_service import Metrica, coletar, formato_prometheus
 
 router = APIRouter(tags=["observabilidade"])
@@ -43,8 +44,9 @@ async def metrics(request: Request) -> PlainTextResponse:
     _autorizar(request)
     async with sessao() as session:
         metricas = await coletar(session)
+    corpo = formato_prometheus(metricas) + REGISTRO.texto_prometheus() + processo_prometheus()
     return PlainTextResponse(
-        formato_prometheus(metricas), media_type="text/plain; version=0.0.4; charset=utf-8"
+        corpo, media_type="text/plain; version=0.0.4; charset=utf-8"
     )
 
 

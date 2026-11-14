@@ -240,3 +240,20 @@ async def test_pergunta_fica_registrada_na_auditoria(session):
     )
     assert registro is not None
     assert registro.dados["projetos_consultados"] == ["proj-a"]
+
+
+# --- Orçamento de IA (D15) ----------------------------------------------------
+
+
+async def test_orcamento_esgotado_recusa_sem_chamar_o_modelo(session):
+    from oraculo.domain.errors import OrcamentoDeIaEsgotadoError
+
+    class SemOrcamento:
+        async def verificar(self) -> None:
+            raise OrcamentoDeIaEsgotadoError("diario")
+
+    servico, cliente = _servico(orcamento=SemOrcamento())
+    membro = await _membro(session)
+    with pytest.raises(OrcamentoDeIaEsgotadoError):
+        await servico.perguntar(session, membro, pergunta="qual a regra de XP?")
+    assert cliente.prompt is None

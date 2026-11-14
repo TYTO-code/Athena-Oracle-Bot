@@ -26,6 +26,7 @@ from oraculo.domain.gerente_respostas import (
 from oraculo.domain.permissions import Acao
 from oraculo.integrations.gerente_api import FonteGerente, criar_fonte_gerente
 from oraculo.logging_config import get_logger
+from oraculo.observabilidade import medir_job
 from oraculo.services.gerente_entrega_service import GerenteEntregaService, ResultadoEnvio
 
 log = get_logger(__name__)
@@ -89,7 +90,8 @@ class GerenteCog(commands.Cog):
         if self.entrega is None:
             return
         try:
-            relatorio = await self.entrega.entregar_pendentes()
+            async with medir_job("gerente_entrega"):
+                relatorio = await self.entrega.entregar_pendentes()
         except Exception:  # noqa: BLE001 — o laço não pode morrer por uma falha pontual
             log.exception("Gerente: falha no ciclo de entrega")
             return

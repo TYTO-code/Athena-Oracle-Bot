@@ -115,6 +115,40 @@ O `/perguntar` já usa o modelo mais barato (`claude-haiku-4-5`) com regulamento
 10 por hora. Falta: roteador de comandos fixos na frente, cache de respostas repetidas e limite
 diário (fase 6). Nenhum módulo novo chama LLM.
 
+## D15. Observabilidade com Grafana Cloud
+
+Pedido complementar de 2026-11-14 (Grafana na Atena). O que vale:
+
+- **Coleta por `/metrics` (Prometheus), buscado pelo Grafana Cloud**, não OpenTelemetry. A Atena
+  já tinha `/metrics` protegido por `ORACULO_METRICAS_TOKEN`; a API ganha o mesmo, com
+  `METRICS_TOKEN`. O Grafana Cloud busca o endpoint pela integração "Metrics Endpoint" (sem agente
+  no Railway). Por que custa menos: as métricas são contadores em memória, sem biblioteca nova, sem
+  exportador rodando em segundo plano e sem conexão aberta; o custo só existe no instante da busca.
+  OpenTelemetry pediria o SDK e um exportador (mais memória e uma tarefa periódica empurrando dados)
+  para os mesmos números. Intervalo de busca sugerido: 5 minutos (a API pode dormir no Railway, e
+  uma busca a cada minuto a manteria acordada).
+- **CPU e memória** saem do próprio processo (`process_cpu_seconds_total`,
+  `process_resident_memory_bytes`), que é o que o Railway cobra. O painel do Railway segue como
+  fonte oficial; puxar a API do Railway exigiria um token de conta guardado em mais um lugar.
+- **Custo do Claude**: cada resposta é contada (tokens de entrada, saída e cache) e o custo estimado
+  pela tabela pública de preços (`domain/custo_llm.py`; modelo desconhecido = o preço mais alto).
+  Fica em contadores e numa tabela agregada por dia e modelo (`uso_llm_diario`, sem pessoa), que
+  sobrevive a reinício. **Teto de US$ 0,10 por dia, definido por Dayvid**: chegou nele, o
+  `/perguntar` recusa até o dia seguinte (UTC) e indica os comandos fixos. Orçamento de US$ 5 no
+  mês recusa da mesma forma; o alerta do mês dispara em US$ 4. Tudo ajustável por variável de
+  ambiente (`ORACULO_LLM_TETO_DIARIO_USD`, `ORACULO_LLM_ORCAMENTO_MENSAL_USD`,
+  `ORACULO_LLM_ALERTA_MENSAL_USD`), e o `/metrics` publica os tetos, então o alerta do Grafana
+  compara com o valor configurado. Se não der para ler o uso do dia, recusa (lado seguro).
+- **Nenhuma pessoa nas métricas**: só existem os rótulos `job`, `resultado`, `tipo`, `modelo`,
+  `motivo`, `projeto`, `destino` e `evento`; valor que pareça ID do Discord ou e-mail vira
+  `descartado` (`observabilidade.py`, com teste). O rótulo mais específico é o id do projeto.
+- **Alertas** (custo do dia, custo do mês, job que não rodou, erro de webhook acima de 5% na hora)
+  vão só para Dayvid, por DM da Atena: o Grafana chama um webhook protegido na Atena, que manda a
+  DM. Escolha conservadora entre e-mail e Discord: Discord, que é o canal que a Atena já usa e o
+  que o pedido indica. **[confirmar com Dayvid]**
+- **Acesso ao Grafana**: só Dayvid. A guarda pretoriana não recebe acesso até Dayvid decidir
+  (opção conservadora). **[pergunta em aberto]**
+
 ## Em aberto (do pedido, seção 16)
 
 - Limiares de projeto parado (7 dias) e missão abandonada (14 dias): ficam como padrão

@@ -32,6 +32,7 @@ from oraculo.integrations.armazenamento_backup import (
     criar_armazenamento_remoto,
 )
 from oraculo.logging_config import get_logger
+from oraculo.observabilidade import medir_job
 from oraculo.repositories import auditoria
 
 log = get_logger(__name__)
@@ -164,7 +165,8 @@ async def loop_backup(settings: Settings | None = None) -> None:
         log.info("Próximo backup em %.1f h.", espera / 3600)
         await asyncio.sleep(espera)
         try:
-            await executar_backup(cfg)
+            async with medir_job("backup"):
+                await executar_backup(cfg)
         except Exception:  # noqa: BLE001 — falha de backup não derruba o bot
             log.exception("Falha ao executar backup automático")
 

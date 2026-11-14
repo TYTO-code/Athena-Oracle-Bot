@@ -679,3 +679,28 @@ class EventoWebhook(Base):
     criado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=agora, nullable=False, index=True
     )
+
+
+class UsoLlmDia(Base):
+    """Custo estimado da API do Claude por dia (UTC) e modelo — RN-017 / D15.
+
+    Agregado, sem pessoa: é o que sustenta o teto diário e o orçamento do mês entre
+    reinícios do processo, e o que o `/metrics` mostra ao Grafana.
+    """
+
+    __tablename__ = "uso_llm_diario"
+    __table_args__ = (UniqueConstraint("dia", "modelo", name="uso_llm_dia_modelo"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    dia: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    modelo: Mapped[str] = mapped_column(String(80), nullable=False)
+    chamadas: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    tokens_entrada: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    tokens_saida: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    tokens_cache_escrita: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    tokens_cache_leitura: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    #: Microdólares (inteiro): soma exata, sem erro de ponto flutuante acumulado.
+    custo_microdolares: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    atualizado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=agora, onupdate=agora, nullable=False
+    )
