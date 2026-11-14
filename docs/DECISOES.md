@@ -139,13 +139,18 @@ Pedido complementar de 2026-11-14 (Grafana na Atena). O que vale:
   ambiente (`ORACULO_LLM_TETO_DIARIO_USD`, `ORACULO_LLM_ORCAMENTO_MENSAL_USD`,
   `ORACULO_LLM_ALERTA_MENSAL_USD`), e o `/metrics` publica os tetos, então o alerta do Grafana
   compara com o valor configurado. Se não der para ler o uso do dia, recusa (lado seguro).
-- **Nenhuma pessoa nas métricas**: só existem os rótulos `job`, `resultado`, `tipo`, `modelo`,
+- **Nenhuma pessoa nas métricas**: só existem os rótulos `rotina` (o nome do job; `job` é reservado pelo Prometheus para o alvo da busca), `resultado`, `tipo`, `modelo`,
   `motivo`, `projeto`, `destino` e `evento`; valor que pareça ID do Discord ou e-mail vira
   `descartado` (`observabilidade.py`, com teste). O rótulo mais específico é o id do projeto.
 - **Alertas** (custo do dia, custo do mês, job que não rodou, erro de webhook acima de 5% na hora)
-  vão só para Dayvid, por DM da Atena: o Grafana chama um webhook protegido na Atena, que manda a
-  DM. Escolha conservadora entre e-mail e Discord: Discord, que é o canal que a Atena já usa e o
-  que o pedido indica. **[confirmar com Dayvid]**
+  vão só para Dayvid, por DM da Atena: o contact point do Grafana chama `POST /webhooks/grafana`
+  (Bearer `ORACULO_GRAFANA_WEBHOOK_TOKEN`; sem token, 404), a rota põe um texto curto (nome e
+  resumo da regra, sem URL nem valor bruto) numa caixa em memória e o cog `alertas` manda a DM para
+  `ORACULO_ALERTAS_DISCORD_ID` a cada 20 s. Discord, e não e-mail, porque é o canal que a Atena já
+  usa e o que o pedido indica. As métricas são em memória, então o alerta de job atrasado usa
+  `max_over_time(...[2d])` para lembrar o último horário depois de um reinício; backup e rodada
+  diária do gerente usam horários gravados no banco. Regras, painel e passo a passo em
+  `observabilidade/grafana/`.
 - **Acesso ao Grafana**: só Dayvid. A guarda pretoriana não recebe acesso até Dayvid decidir
   (opção conservadora). **[pergunta em aberto]**
 
