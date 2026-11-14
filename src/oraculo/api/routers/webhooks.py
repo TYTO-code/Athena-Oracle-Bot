@@ -9,6 +9,7 @@ Fluxo obrigatório de todo webhook:
 
 from __future__ import annotations
 
+import hmac
 import json
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
@@ -18,9 +19,11 @@ from oraculo.api.security import validar_assinatura
 from oraculo.config import get_settings
 from oraculo.db.base import sessao
 from oraculo.db.models import EventoWebhook, OrigemAcao
+from oraculo.domain.alertas_grafana import formatar_alerta
 from oraculo.domain.errors import AssinaturaInvalidaError
 from oraculo.logging_config import get_logger
 from oraculo.repositories import auditoria
+from oraculo.services.alertas_service import CAIXA_ALERTAS
 
 log = get_logger(__name__)
 
@@ -97,3 +100,33 @@ async def clickup(
         )
 
     return {"status": "aceito", "evento_id": evento_id, "tipo": tipo_evento}
+
+
+@router.post("/grafana", status_code=status.HTTP_202_ACCEPTED, summary="Alertas do Grafana")
+async def grafana(request: Request) -> dict:
+    """Alerta do Grafana → DM para quem cuida da plataforma (D15).
+
+    Sem `ORACULO_GRAFANA_WEBHOOK_TOKEN` a rota não existe (404). Com ele, exige o token em
+    `Authorization: Bearer`, comparado em tempo constante. O payload não é guardado.
+    """
+    cfg = get_settings()
+    esperado = cfg.grafana_webhook_token
+    if not esperado:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    cabecalho = request.headers.get("authorization", "")
+    recebido = cabecalho.removeprefix("Bearer ").strip() if cabecalho.startswith("Bearer ") else ""
+    if not hmac.compare_digest(recebido.encode(), esperado.encode()):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    try:
+        payload = json.loads(await request.body())
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST) from exc
+
+    texto = formatar_alerta(payload)
+    if texto is None:
+        return {"status": "ignorado"}
+    if not cfg.run_bot or cfg.alertas_discord_id is None:
+        log.warning("Alerta do Grafana recebido, mas sem bot ou destinatário para a DM: %s", texto)
+        return {"status": "sem_destino"}
+    CAIXA_ALERTAS.enfileirar(texto)
+    return {"status": "enfileirado"}

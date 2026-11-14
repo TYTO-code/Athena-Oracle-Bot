@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 
 from oraculo.config import Settings, get_settings
+from oraculo.db.base import sessao
 from oraculo.integrations.cache import Cache, criar_cache
 from oraculo.integrations.email_canal import CanalEmail
 from oraculo.integrations.google_calendar import AgendaExterna, criar_agenda_externa
@@ -31,6 +32,7 @@ from oraculo.services.notificacao_service import NotificacaoService
 from oraculo.services.pergunta_service import PerguntaService
 from oraculo.services.promocao_service import PromocaoService, SincronizadorCargos
 from oraculo.services.ranking_service import RankingService
+from oraculo.services.uso_llm_service import UsoLlmService
 
 log = get_logger(__name__)
 
@@ -90,7 +92,14 @@ class Container:
 
         # RN-017 — `/perguntar` só existe com chave de API; regulamento e base de
         # projetos são opcionais e degradam de forma independente.
-        cliente_llm = criar_cliente_llm(cfg)
+        uso_llm = UsoLlmService(
+            abrir_sessao=lambda: sessao(cfg),
+            teto_diario_usd=cfg.llm_teto_diario_usd,
+            orcamento_mensal_usd=cfg.llm_orcamento_mensal_usd,
+        )
+        cliente_llm = criar_cliente_llm(
+            cfg, ao_usar=uso_llm.registrar, ao_falhar=uso_llm.registrar_falha
+        )
         projetos = criar_base_de_projetos(cfg) if cliente_llm is not None else None
         perguntas: PerguntaService | None = None
         if cliente_llm is not None:
@@ -106,6 +115,8 @@ class Container:
                 ),
                 cache=cache,
                 limite_hora=cfg.pergunta_limite_hora,
+                orcamento=uso_llm,
+                cache_respostas_ttl=cfg.pergunta_cache_respostas_segundos,
             )
 
         return cls(

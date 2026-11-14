@@ -240,3 +240,46 @@ async def test_pergunta_fica_registrada_na_auditoria(session):
     )
     assert registro is not None
     assert registro.dados["projetos_consultados"] == ["proj-a"]
+
+
+# --- Orçamento de IA (D15) ----------------------------------------------------
+
+
+async def test_orcamento_esgotado_recusa_sem_chamar_o_modelo(session):
+    from oraculo.domain.errors import OrcamentoDeIaEsgotadoError
+
+    class SemOrcamento:
+        async def verificar(self) -> None:
+            raise OrcamentoDeIaEsgotadoError("diario")
+
+    servico, cliente = _servico(orcamento=SemOrcamento())
+    membro = await _membro(session)
+    with pytest.raises(OrcamentoDeIaEsgotadoError):
+        await servico.perguntar(session, membro, pergunta="qual a regra de XP?")
+    assert cliente.prompt is None
+
+
+# --- Cache de respostas repetidas (fase 6) -------------------------------------
+
+
+async def test_pergunta_repetida_sem_projeto_nao_chama_a_ia_de_novo(session):
+    servico, cliente = _servico(
+        cache=CacheMemoria(), fonte_projetos_do_membro=FonteProjetosFalsa({})
+    )
+    membro = await _membro(session)
+    primeira = await servico.perguntar(session, membro, pergunta="Qual a regra de XP?")
+    cliente.prompt = None
+    segunda = await servico.perguntar(session, membro, pergunta="qual a regra de xp")
+    assert segunda.texto == primeira.texto
+    assert cliente.prompt is None, "a segunda resposta veio do cache"
+
+
+async def test_quem_tem_projeto_nunca_usa_nem_grava_cache(session):
+    cache = CacheMemoria()
+    servico, cliente = _servico(cache=cache)
+    membro = await _membro(session)  # u1 participa do proj-a
+    await servico.perguntar(session, membro, pergunta="Qual a regra de XP?")
+    assert not [c for c in cache._dados if c.startswith("pergunta:resposta:")]
+    cliente.prompt = None
+    await servico.perguntar(session, membro, pergunta="Qual a regra de XP?")
+    assert cliente.prompt is not None

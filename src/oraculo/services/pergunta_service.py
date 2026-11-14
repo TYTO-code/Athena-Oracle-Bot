@@ -27,7 +27,9 @@ Consequências de desenho que caem dessa escolha:
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
+from typing import Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,12 +39,14 @@ from oraculo.domain.errors import (
     LimiteDePerguntasError,
     PerguntaVaziaError,
 )
+from oraculo.domain.roteador_perguntas import normalizar
 from oraculo.integrations.cache import Cache
 from oraculo.integrations.llm import ClienteLLM, Prompt
 from oraculo.integrations.plataforma import FonteProjetosDoMembro
 from oraculo.integrations.projetos_db import BaseDeProjetos, ProjetoContexto
 from oraculo.integrations.regras_corpus import CORPUS_VAZIO, Corpus
 from oraculo.logging_config import get_logger
+from oraculo.observabilidade import contar_rota
 from oraculo.repositories import auditoria
 
 log = get_logger(__name__)
@@ -73,6 +77,12 @@ Sobre o material fornecido:
 """
 
 
+class OrcamentoLLM(Protocol):
+    """Freio de custo da API do Claude (implementado por `UsoLlmService`)."""
+
+    async def verificar(self) -> None: ...
+
+
 @dataclass(frozen=True, slots=True)
 class Resposta:
     """Resultado de uma pergunta, com o que foi usado para produzi-la."""
@@ -90,6 +100,10 @@ class PerguntaService:
     fonte_projetos_do_membro: FonteProjetosDoMembro | None = None
     cache: Cache | None = None
     limite_hora: int = 10
+    #: Teto de custo da API (D15): recusa antes de chamar o modelo quando o dia ou o mês acabou.
+    orcamento: OrcamentoLLM | None = None
+    #: Por quanto tempo uma resposta só de regulamento é reaproveitada (0 desliga).
+    cache_respostas_ttl: int = 86_400
     _instrucoes: str = field(default=INSTRUCOES, repr=False)
 
     async def perguntar(
@@ -105,9 +119,21 @@ class PerguntaService:
             raise PerguntaVaziaError()
         texto = texto[:LIMITE_CARACTERES_PERGUNTA]
 
-        await self._checar_limite(membro)
-
         autorizados = await self._projetos_autorizados(membro)
+
+        # Cache de respostas repetidas (fase 6): só para quem não tem projeto, cuja resposta
+        # depende apenas do regulamento — resposta com dado de projeto nunca é reaproveitada.
+        chave_cache = self._chave_resposta(texto) if not autorizados else None
+        em_cache = await self._resposta_em_cache(chave_cache)
+        if em_cache is not None:
+            contar_rota("cache")
+            await self._auditar(session, membro, texto, [], guild_id, cache=True)
+            return Resposta(texto=em_cache, documentos_consultados=self.corpus.documentos)
+
+        await self._checar_limite(membro)
+        if self.orcamento is not None:
+            await self.orcamento.verificar()
+
         contextos = await self._carregar_projetos(autorizados)
 
         resposta = await self.cliente.responder(
@@ -117,7 +143,33 @@ class PerguntaService:
                 contexto_usuario=self._montar_contexto(texto, contextos),
             )
         )
+        if chave_cache is not None and not contextos:
+            await self._guardar_resposta(chave_cache, resposta)
 
+        await self._auditar(session, membro, texto, [c.id for c in contextos], guild_id)
+
+        return Resposta(
+            texto=resposta,
+            projetos_consultados=tuple(c.id for c in contextos),
+            documentos_consultados=self.corpus.documentos,
+        )
+
+    async def _auditar(
+        self,
+        session: AsyncSession,
+        membro: Membro,
+        texto: str,
+        projetos: list[str],
+        guild_id: int | None,
+        *,
+        cache: bool = False,
+    ) -> None:
+        dados: dict[str, object] = {
+            "projetos_consultados": projetos,
+            "documentos": len(self.corpus.documentos),
+        }
+        if cache:
+            dados["cache"] = True
         await auditoria.registrar(
             session,
             acao="pergunta.respondida",
@@ -125,19 +177,35 @@ class PerguntaService:
             ator=membro,
             alvo_tipo="membro",
             alvo_id=membro.id,
-            dados={
-                "projetos_consultados": [c.id for c in contextos],
-                "documentos": len(self.corpus.documentos),
-            },
+            dados=dados,
             origem=OrigemAcao.DISCORD,
             guild_id=guild_id,
         )
 
-        return Resposta(
-            texto=resposta,
-            projetos_consultados=tuple(c.id for c in contextos),
-            documentos_consultados=self.corpus.documentos,
-        )
+    # -- Cache de respostas repetidas ----------------------------------------
+
+    def _chave_resposta(self, texto: str) -> str | None:
+        if self.cache is None or self.cache_respostas_ttl <= 0:
+            return None
+        base = f"{self.corpus.texto}\x00{self._instrucoes}\x00{normalizar(texto)}"
+        return "pergunta:resposta:" + hashlib.sha256(base.encode()).hexdigest()
+
+    async def _resposta_em_cache(self, chave: str | None) -> str | None:
+        if chave is None or self.cache is None:
+            return None
+        try:
+            valor = await self.cache.obter(chave)
+        except Exception:  # noqa: BLE001 — cache é atalho, não porta de entrada
+            return None
+        return valor if isinstance(valor, str) and valor else None
+
+    async def _guardar_resposta(self, chave: str, resposta: str) -> None:
+        if self.cache is None:
+            return
+        try:
+            await self.cache.definir(chave, resposta, ttl=self.cache_respostas_ttl)
+        except Exception:  # noqa: BLE001
+            log.warning("Não foi possível guardar a resposta do /perguntar em cache.")
 
     # -- Etapa 1: autorização ----------------------------------------------
 

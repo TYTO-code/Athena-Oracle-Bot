@@ -70,8 +70,28 @@ def test_producao_exige_segredos_e_postgres():
     pendencias = cfg.validate_for_production()
 
     assert any("DISCORD_TOKEN" in p for p in pendencias)
-    assert any("WEBHOOK_SECRET" in p for p in pendencias)
     assert any("PostgreSQL" in p for p in pendencias)
+    # O webhook do ClickUp é da TYTO.club-API (DECISOES.md D8): o segredo local não é exigido.
+    assert not any("WEBHOOK_SECRET" in p for p in pendencias)
+
+
+def test_gerente_exige_url_e_chave_juntas_e_https():
+    base = {
+        "_env_file": None,
+        "env": "production",
+        "discord_token": "token",
+        "database_url": "postgresql+asyncpg://u:s@db:5432/oraculo",
+    }
+    so_url = Settings(**base, tyto_api_url="https://api.example.com")
+    assert any("TYTO_API_SERVICE_KEY" in p for p in so_url.validate_for_production())
+    assert so_url.gerente_habilitado is False
+
+    http = Settings(**base, tyto_api_url="http://api.example.com", tyto_api_service_key="k")
+    assert any("https" in p for p in http.validate_for_production())
+
+    ok = Settings(**base, tyto_api_url="https://api.example.com", tyto_api_service_key="k")
+    assert ok.validate_for_production() == []
+    assert ok.gerente_habilitado is True
 
 
 def test_configuracao_de_producao_valida_nao_tem_pendencias():

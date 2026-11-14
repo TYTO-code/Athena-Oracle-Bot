@@ -54,6 +54,10 @@ class Acao(StrEnum):
     # (verificado no Firebase a cada pergunta, em `pergunta_service.py`).
     PERGUNTAR = "perguntar"
 
+    # Gerente dos projetos — comandos fixos (/meus-prazos, /minhas-tasks, /status, /missoes).
+    # Aberto a todo membro: o que cada um vê é filtrado pela TYTO.club-API conforme o cargo.
+    CONSULTAR_GERENTE = "consultar_gerente"
+
     # O bot é somente leitura (RN-021): não há ação que conceda XP, patente ou
     # cargo, nem que mexa em Dracmas — isso vive na TYTO.club.
 
@@ -81,6 +85,7 @@ _POLITICA: dict[Acao, Requisito] = {
     Acao.VER_RANKING: NEOFITO,
     Acao.RESPONDER_RSVP: NEOFITO,
     Acao.PERGUNTAR: NEOFITO,
+    Acao.CONSULTAR_GERENTE: NEOFITO,
     Acao.CRIAR_REUNIAO: VETERANO,
     Acao.GERIR_REUNIAO: VETERANO,
     Acao.CRIAR_EVENTO: OFICIAL,

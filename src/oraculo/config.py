@@ -80,8 +80,29 @@ class Settings(BaseSettings):
     #: dois endpoints nem existem (404): a API é pública, e contagem de membros
     #: e cargos não é informação para qualquer um.
     metricas_token: str | None = None
+    #: Endpoint próprio `/webhooks/clickup` (legado, inerte). O webhook real do ClickUp é registrado
+    #: e validado pela TYTO.club-API, por projeto (docs/DECISOES.md D8); não é mais exigido.
     clickup_webhook_secret: str | None = None
     webhook_max_skew_seconds: int = 300
+
+    # --- Gerente dos projetos (docs/GERENTE_PLANO.md) ------------------------
+    #: URL da TYTO.club-API (ex.: https://api.tyto.club). Sem ela, ou sem a chave, os comandos
+    #: de prazos/tasks/status/missões e a entrega de mensagens do gerente ficam desligados.
+    tyto_api_url: str | None = None
+    #: Mesma chave de `ATHENA_SERVICE_KEY` na API (cabeçalho `X-Service-Key`).
+    tyto_api_service_key: str | None = None
+    tyto_api_timeout: float = 15.0
+    #: De quanto em quanto tempo buscar mensagens prontas na fila da API. 0 desliga a entrega.
+    gerente_entrega_intervalo_minutos: float = 5.0
+    #: Canal do destaque de missões abandonadas (M5). Sem ele, o destaque não é publicado.
+    gerente_canal_missoes_id: int | None = None
+
+    # --- Alertas do Grafana por DM (D15) ----------------------------------------
+    #: Token que o Grafana manda em `Authorization: Bearer` ao chamar `/webhooks/grafana`.
+    #: Vazio = rota desligada (404).
+    grafana_webhook_token: str | None = None
+    #: ID do Discord de quem recebe os alertas por DM (Dayvid). Só uma pessoa, de propósito.
+    alertas_discord_id: int | None = None
 
     # --- Google Agenda (RN-009 / RF-011) -------------------------------------
     google_enabled: bool = False
@@ -104,6 +125,9 @@ class Settings(BaseSettings):
     firebase_credentials_json: str | None = None
     #: Coleção do Firestore com os membros (na TYTO.club: `users`).
     firebase_colecao: str = "users"
+    #: Coleção dos projetos do site, com o mapa `members: {uid: papel}` (D4 em docs/DECISOES.md).
+    #: É a fonte de quem participa de qual projeto; vazio desliga e volta ao formato antigo.
+    firebase_colecao_projetos: str = "project_stats"
     #: Mapeia campo interno → campo do documento. Ver `MAPA_PADRAO_FIREBASE`.
     # `NoDecode`: evita que pydantic-settings tente fazer json.loads() do valor
     # cru antes de `_ignorar_vazios` rodar — um `.env`/variável de ambiente com
@@ -137,6 +161,13 @@ class Settings(BaseSettings):
     #: esperando uma resposta no Discord. Passado esse prazo, `/perguntar`
     #: responde com erro em vez de deixar a interação travada.
     llm_timeout_segundos: float = 30.0
+    #: Teto do custo estimado da API do Claude por dia (UTC), em US$. Chegou nele, `/perguntar`
+    #: recusa até o dia seguinte; o Grafana também alerta nesse valor. 0 desliga o freio.
+    llm_teto_diario_usd: float = 0.10
+    #: Orçamento do mês, em US$: chegou nele, `/perguntar` recusa até o mês seguinte.
+    llm_orcamento_mensal_usd: float = 5.0
+    #: Acumulado do mês em que o Grafana avisa (antes de bater no orçamento).
+    llm_alerta_mensal_usd: float = 4.0
     #: Diretório com os `.md` do regulamento TYTO, dentro da documentação do
     #: próprio bot. Já vem apontado: basta largar os arquivos lá.
     regras_dir: Path | None = Path("docs/regras-tyto")
@@ -146,6 +177,9 @@ class Settings(BaseSettings):
     #: Perguntas por pessoa por hora. Um bot de LLM aberto ao servidor inteiro
     #: sem teto é conta aberta — este é o freio (0 = sem limite).
     pergunta_limite_hora: int = 10
+    #: Resposta só de regulamento (quem pergunta não tem projeto no contexto) é reaproveitada
+    #: para a mesma pergunta por este tempo, sem nova chamada à IA. 0 desliga.
+    pergunta_cache_respostas_segundos: int = 86_400
 
     # --- E-mail (RF-010) -----------------------------------------------------
     smtp_host: str | None = None
@@ -274,6 +308,11 @@ class Settings(BaseSettings):
         return bool(self.anthropic_api_key)
 
     @property
+    def gerente_habilitado(self) -> bool:
+        """Comandos e entrega do gerente só existem com URL e chave da TYTO.club-API."""
+        return bool(self.tyto_api_url and self.tyto_api_service_key)
+
+    @property
     def projetos_habilitado(self) -> bool:
         """Consulta a projetos exige o banco externo; regras TYTO não."""
         return bool(self.projetos_database_url)
@@ -292,8 +331,13 @@ class Settings(BaseSettings):
         problems: list[str] = []
         if not self.discord_token:
             problems.append("ORACULO_DISCORD_TOKEN não definido")
-        if not self.clickup_webhook_secret:
-            problems.append("ORACULO_CLICKUP_WEBHOOK_SECRET não definido (TD-003)")
+        if bool(self.tyto_api_url) != bool(self.tyto_api_service_key):
+            problems.append(
+                "ORACULO_TYTO_API_URL e ORACULO_TYTO_API_SERVICE_KEY precisam vir juntas "
+                "(gerente dos projetos)"
+            )
+        if self.tyto_api_url and not self.tyto_api_url.startswith("https://"):
+            problems.append("ORACULO_TYTO_API_URL precisa ser https:// em produção")
         if self.database_url.startswith("sqlite"):
             problems.append("SQLite em produção não é suportado pelo ADR-001; use PostgreSQL")
         if self.google_enabled and not self.google_credentials_file:

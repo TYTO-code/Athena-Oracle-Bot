@@ -7,6 +7,8 @@ autorização, o silêncio é "não".
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from oraculo.integrations.plataforma import (
     FonteEmMemoria,
     _ids_da_subcolecao,
@@ -117,3 +119,60 @@ def test_subcolecao_nao_repete_id():
     docs = [_DocFake("proj-a"), _DocFake("proj-a")]
 
     assert _ids_da_subcolecao(docs) == ["proj-a"]
+
+
+# --- D4: fonte do site é project_stats.members ---------------------------------
+
+
+class _ConsultaFake:
+    def __init__(self, docs: list) -> None:
+        self._docs = docs
+
+    async def stream(self):
+        for doc in self._docs:
+            yield doc
+
+
+class _ColecaoProjetosFake:
+    def __init__(self, membros_por_projeto: dict[str, dict[str, str]]) -> None:
+        self._dados = membros_por_projeto
+        self.consultas: list[tuple[str, str, list[str]]] = []
+
+    def where(self, campo: str, op: str, valores: list[str]) -> _ConsultaFake:
+        self.consultas.append((campo, op, valores))
+        uid = campo.removeprefix("members.")
+        return _ConsultaFake(
+            [_DocFake(pid) for pid, membros in self._dados.items() if membros.get(uid) in valores]
+        )
+
+
+class _ClienteFake:
+    def __init__(self, projetos: _ColecaoProjetosFake) -> None:
+        self.projetos = projetos
+
+    def collection(self, nome: str):
+        if nome == "project_stats":
+            return self.projetos
+        # O documento do membro só pode ser referenciado, nunca lido, quando o site responde.
+        return SimpleNamespace(document=lambda _id: SimpleNamespace())
+
+
+async def test_projetos_vem_de_project_stats_members(settings):
+    from oraculo.integrations.plataforma import FirestoreMembros
+
+    colecao = _ColecaoProjetosFake(
+        {"beta": {"u1": "contributor"}, "alpha": {"u1": "leader"}, "gama": {"u2": "leader"}}
+    )
+    fonte = FirestoreMembros(settings)
+    fonte._cliente = _ClienteFake(colecao)
+    assert await fonte.projetos_de("u1") == ["alpha", "beta"]
+    assert colecao.consultas[0][0] == "members.u1"
+
+
+def test_uid_estranho_nao_vira_caminho_de_campo():
+    from oraculo.integrations.plataforma import campo_de_membro
+
+    assert campo_de_membro("abcXYZ_09-") == "members.abcXYZ_09-"
+    assert campo_de_membro("a.b") is None
+    assert campo_de_membro("`x`") is None
+    assert campo_de_membro("") is None

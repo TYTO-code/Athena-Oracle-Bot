@@ -171,7 +171,45 @@ async def coletar(session: AsyncSession) -> list[Metrica]:
         metricas.append(
             Metrica(nome, ajuda, [({}, como_utc(quando).timestamp() if quando else 0.0)])
         )
+    metricas.extend(await _metricas_llm(session))
     return metricas
+
+
+async def _metricas_llm(session: AsyncSession) -> list[Metrica]:
+    """Custo da API do Claude no dia e no mês, e os tetos — o alerta do Grafana compara um
+    com o outro, então mudar o teto é mudar a variável de ambiente, não o alerta (D15)."""
+    from oraculo.config import get_settings
+    from oraculo.repositories import uso_llm
+
+    cfg = get_settings()
+    hoje = agora().strftime("%Y-%m-%d")
+    dia = await uso_llm.microdolares_do_dia(session, hoje) / 1_000_000
+    mes = await uso_llm.microdolares_do_mes(session, hoje[:7]) / 1_000_000
+    return [
+        Metrica(
+            "oraculo_llm_custo_hoje_usd",
+            "Custo estimado da API do Claude hoje (UTC), US$.",
+            [({}, dia)],
+        ),
+        Metrica(
+            "oraculo_llm_custo_mes_usd", "Custo estimado da API do Claude no mês, US$.", [({}, mes)]
+        ),
+        Metrica(
+            "oraculo_llm_teto_diario_usd",
+            "Teto diário de custo da API do Claude, US$.",
+            [({}, cfg.llm_teto_diario_usd)],
+        ),
+        Metrica(
+            "oraculo_llm_alerta_mensal_usd",
+            "Acumulado do mês em que o alerta de custo dispara, US$.",
+            [({}, cfg.llm_alerta_mensal_usd)],
+        ),
+        Metrica(
+            "oraculo_llm_orcamento_mensal_usd",
+            "Orçamento mensal da API do Claude, US$ (acima disso /perguntar recusa).",
+            [({}, cfg.llm_orcamento_mensal_usd)],
+        ),
+    ]
 
 
 def _escapar_rotulo(valor: str) -> str:
@@ -190,5 +228,5 @@ def formato_prometheus(metricas: list[Metrica]) -> str:
                 if rotulos
                 else ""
             )
-            linhas.append(f"{metrica.nome}{sufixo} {valor:g}")
+            linhas.append(f"{metrica.nome}{sufixo} {valor:.10g}")
     return "\n".join(linhas) + "\n"

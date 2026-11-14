@@ -17,6 +17,7 @@ from oraculo.config import Settings, get_settings
 from oraculo.db.base import sessao
 from oraculo.integrations.plataforma import criar_fonte_membros
 from oraculo.logging_config import get_logger
+from oraculo.observabilidade import medir_job
 from oraculo.services.importacao_service import ImportacaoService, Relatorio
 
 log = get_logger(__name__)
@@ -66,7 +67,8 @@ async def loop_sincronizacao(settings: Settings | None = None) -> None:
 
 async def _executar(cfg: Settings) -> None:
     try:
-        relatorio = await sincronizar_uma_vez(cfg)
+        async with medir_job("sincronizacao"):
+            relatorio = await sincronizar_uma_vez(cfg)
     except Exception:  # noqa: BLE001 — integração externa não derruba o bot
         log.exception("Falha na sincronização com a plataforma")
         return

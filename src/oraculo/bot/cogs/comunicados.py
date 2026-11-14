@@ -21,6 +21,7 @@ from oraculo.db.base import sessao
 from oraculo.db.models import StatusComunicado, TipoMencao
 from oraculo.domain.permissions import Acao
 from oraculo.logging_config import get_logger
+from oraculo.observabilidade import medir_job
 from oraculo.repositories import comunicados as repo_comunicados
 from oraculo.repositories import membros as repo_membros
 from oraculo.services.comunicado_service import (
@@ -83,7 +84,7 @@ class ComunicadosCog(commands.Cog):
             return
 
         try:
-            async with sessao() as session:
+            async with medir_job("comunicados"), sessao() as session:
                 resultado = await self._servico.publicar_pendentes(session)
         except Exception:  # noqa: BLE001 — um ciclo ruim não pode matar o loop
             log.exception("Falha no ciclo de publicação de comunicados")

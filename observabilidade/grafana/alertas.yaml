@@ -1,0 +1,93 @@
+# Regras de alerta da Atena e da TYTO.club-API (D15 em docs/DECISOES.md).
+#
+# Formato de regras do Prometheus: é a fonte de verdade das consultas. No Grafana Cloud, crie
+# cada uma como regra gerenciada pelo Grafana (Alerting → Alert rules → New alert rule) colando
+# a `expr`, com condição "IS ABOVE 0", o `for` como pending period e o contact point
+# "Dayvid (Atena DM)". Passo a passo e testes em observabilidade/grafana/README.md.
+#
+# Cada `expr` só devolve série quando há problema. Nenhuma regra usa rótulo de pessoa.
+groups:
+  - name: custo-ia
+    rules:
+      - alert: Custo de IA do dia
+        # Teto 0 desliga o freio do dia, então também desliga o alerta.
+        expr: max(oraculo_llm_custo_hoje_usd) >= max(oraculo_llm_teto_diario_usd) and max(oraculo_llm_teto_diario_usd) > 0
+        for: 0m
+        annotations:
+          summary: "Gasto com o Claude hoje chegou ao teto diário; /perguntar está recusando até amanhã."
+      - alert: Custo de IA do mês
+        expr: max(oraculo_llm_custo_mes_usd) >= max(oraculo_llm_alerta_mensal_usd)
+        for: 0m
+        annotations:
+          summary: "Gasto com o Claude no mês passou do alerta (padrão US$ 4 de um orçamento de US$ 5)."
+
+  - name: webhooks
+    rules:
+      - alert: Erros no webhook do ClickUp
+        # Só conta com pelo menos 5 eventos na hora, para um erro isolado não virar alerta.
+        expr: |
+          (
+            sum(increase(tyto_clickup_webhooks_total{resultado=~"erro|rejeitado|invalido"}[1h]))
+            / sum(increase(tyto_clickup_webhooks_total[1h]))
+          ) > 0.05
+          and sum(increase(tyto_clickup_webhooks_total[1h])) >= 5
+        for: 5m
+        annotations:
+          summary: "Mais de 5% dos webhooks do ClickUp falharam na última hora."
+
+  # Job atrasado: `max_over_time(...[2d])` guarda o último horário mesmo depois de um reinício
+  # (as métricas são em memória), então um job desligado continua envelhecendo até alertar.
+  # Limite ≈ 2× o intervalo do job + a busca de 5 min. Apague a regra de um job que você
+  # deixou desligado de propósito (ex.: backup sem ORACULO_BACKUP_ENABLED).
+  # No data → Alerting: um job que não rodou nenhuma vez em 2 dias também avisa.
+  - name: jobs-atena
+    rules:
+      - alert: Job atrasado — Atena gerente_entrega
+        expr: time() - max_over_time(oraculo_job_ultima_execucao_timestamp_seconds{rotina="gerente_entrega"}[2d]) > 1200
+        for: 0m
+        annotations: {summary: "A entrega das mensagens do gerente não roda há mais de 20 min."}
+      - alert: Job atrasado — Atena comunicados
+        expr: time() - max_over_time(oraculo_job_ultima_execucao_timestamp_seconds{rotina="comunicados"}[2d]) > 600
+        for: 0m
+        annotations: {summary: "O publicador de comunicados não roda há mais de 10 min."}
+      - alert: Job atrasado — Atena sincronizacao
+        expr: time() - max_over_time(oraculo_job_ultima_execucao_timestamp_seconds{rotina="sincronizacao"}[2d]) > 25200
+        for: 0m
+        annotations: {summary: "A importação de membros do Firestore não roda há mais de 7 h."}
+      - alert: Job atrasado — Atena backup
+        # Persistido no banco: sobrevive a reinício mesmo sem o max_over_time.
+        expr: time() - max(oraculo_ultimo_backup_timestamp_seconds) > 93600
+        for: 0m
+        annotations: {summary: "O último backup tem mais de 26 h."}
+
+  - name: jobs-api
+    rules:
+      - alert: Job atrasado — API gerente_verificacao
+        expr: time() - max_over_time(tyto_job_ultima_execucao_timestamp_seconds{rotina="gerente_verificacao"}[2d]) > 8100
+        for: 0m
+        annotations: {summary: "A verificação horária do gerente não roda há mais de 2h15."}
+      - alert: Job atrasado — API gerente_diario
+        # Persistido no Firestore (gerente_state/sync).
+        expr: time() - max(tyto_gerente_ultima_rodada_timestamp_seconds) > 93600
+        for: 0m
+        annotations: {summary: "A rodada diária do gerente (lembretes e alertas) não roda há mais de 26 h."}
+      - alert: Job atrasado — API ledger_audit
+        expr: time() - max_over_time(tyto_job_ultima_execucao_timestamp_seconds{rotina="ledger_audit"}[2d]) > 93600
+        for: 0m
+        annotations: {summary: "O auditor do Ledger de Dracmas não roda há mais de 26 h."}
+      - alert: Job atrasado — API mail_sweep
+        expr: time() - max_over_time(tyto_job_ultima_execucao_timestamp_seconds{rotina="mail_sweep"}[2d]) > 1800
+        for: 0m
+        annotations: {summary: "A varredura da fila de e-mails não roda há mais de 30 min."}
+      - alert: Job atrasado — API eleicoes_varredura
+        expr: time() - max_over_time(tyto_job_ultima_execucao_timestamp_seconds{rotina="eleicoes_varredura"}[2d]) > 600
+        for: 0m
+        annotations: {summary: "A varredura de prazos das eleições não roda há mais de 10 min."}
+
+  - name: alvos
+    rules:
+      - alert: Serviço fora do ar
+        # `up` é gerado pela própria busca do Grafana Cloud para cada alvo.
+        expr: up{job=~"atena|tyto-api"} == 0
+        for: 15m
+        annotations: {summary: "O Grafana não consegue ler /metrics há 15 min (serviço parado ou token errado)."}
