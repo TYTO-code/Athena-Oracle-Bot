@@ -18,6 +18,7 @@ recomendada (`roles/datastore.viewer`) não tem permissão de gravar.
 from __future__ import annotations
 
 import asyncio
+import re
 from collections.abc import AsyncIterator, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
@@ -444,6 +445,20 @@ class FirestoreMembros:
         documento = colecao.document(id_externo)
 
         try:
+            # Fonte do site (D4): `project_stats.members` é o mapa uid → papel que o site e a
+            # TYTO.club-API usam. Achou ali, é a resposta; os formatos abaixo ficam como
+            # alternativa para clubes que guardam o vínculo no documento do membro.
+            campo = campo_de_membro(id_externo)
+            if self._cfg.firebase_colecao_projetos and campo is not None:
+                consulta = cliente.collection(self._cfg.firebase_colecao_projetos).where(
+                    campo, "in", list(PAPEIS_DE_PROJETO)
+                )
+                projetos = await asyncio.wait_for(
+                    _coletar(consulta), timeout=self._cfg.firebase_timeout
+                )
+                if projetos:
+                    return sorted(str(p.id) for p in projetos)
+
             # Formato principal do clube: **subcoleção** `membros/{id}/projetos`,
             # um documento por projeto — o id do documento é o id do projeto.
             subcolecao = await asyncio.wait_for(
@@ -489,6 +504,17 @@ class FirestoreMembros:
         if not dados:
             return []
         return _para_lista_de_ids(_buscar(dados, nome_projetos))
+
+
+#: Papéis em `project_stats.members` que dão acesso ao projeto (o mesmo conjunto do site).
+PAPEIS_DE_PROJETO: tuple[str, ...] = ("leader", "partner", "contributor", "seller")
+_UID_SEGURO = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+
+
+def campo_de_membro(uid: str) -> str | None:
+    """Caminho `members.<uid>` para a consulta; `None` se o uid não for um id simples (evita
+    que um valor estranho vire outro caminho de campo)."""
+    return f"members.{uid}" if _UID_SEGURO.match(uid or "") else None
 
 
 async def _coletar(consulta: Any) -> list[Any]:

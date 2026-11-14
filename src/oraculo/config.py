@@ -118,6 +118,9 @@ class Settings(BaseSettings):
     firebase_credentials_json: str | None = None
     #: Coleção do Firestore com os membros (na TYTO.club: `users`).
     firebase_colecao: str = "users"
+    #: Coleção dos projetos do site, com o mapa `members: {uid: papel}` (D4 em docs/DECISOES.md).
+    #: É a fonte de quem participa de qual projeto; vazio desliga e volta ao formato antigo.
+    firebase_colecao_projetos: str = "project_stats"
     #: Mapeia campo interno → campo do documento. Ver `MAPA_PADRAO_FIREBASE`.
     # `NoDecode`: evita que pydantic-settings tente fazer json.loads() do valor
     # cru antes de `_ignorar_vazios` rodar — um `.env`/variável de ambiente com
