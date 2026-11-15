@@ -22,7 +22,7 @@ variáveis do Railway:
 | Atena | `ORACULO_METRICAS_TOKEN` | o Grafana lê `/metrics` da Atena |
 | TYTO.club-API | `METRICS_TOKEN` | o Grafana lê `/metrics` da API |
 | Atena | `ORACULO_GRAFANA_WEBHOOK_TOKEN` | o Grafana chama o webhook de alertas |
-| Atena | `ORACULO_ALERTAS_DISCORD_ID` | seu ID do Discord (quem recebe a DM) |
+| Atena | `ORACULO_ALERTAS_DISCORD_ID` | opcional: ID do Discord de reserva. A DM vai para quem é Rex na plataforma; a reserva só entra se a plataforma não responder ou o Rex não tiver ID no cadastro |
 
 Opcionais (já têm padrão): `ORACULO_LLM_TETO_DIARIO_USD=0.10`,
 `ORACULO_LLM_ORCAMENTO_MENSAL_USD=5`, `ORACULO_LLM_ALERTA_MENSAL_USD=4`.

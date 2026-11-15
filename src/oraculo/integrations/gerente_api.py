@@ -31,6 +31,8 @@ class FonteGerente(Protocol):
 
     async def consultar(self, recurso: str, discord_id: int, **params: str) -> dict[str, Any]: ...
 
+    async def destino_alertas(self) -> list[int]: ...
+
 
 class ClienteGerenteApi:
     def __init__(self, settings: Settings | None = None) -> None:
@@ -76,6 +78,12 @@ class ClienteGerenteApi:
         caminho = "/eu" if recurso == "eu" else f"/eu/{recurso}"
         dados = await self._pedir("GET", caminho, params={"discordId": str(discord_id), **params})
         return dict(dados or {})
+
+    async def destino_alertas(self) -> list[int]:
+        """ID do Discord de quem tem o cargo de Rex hoje (quem recebe os alertas de operação)."""
+        dados = await self._pedir("GET", "/alertas/destino")
+        brutos = dados.get("discordIds", []) if isinstance(dados, dict) else []
+        return [int(v) for v in brutos if str(v).isdigit()]
 
 
 def criar_fonte_gerente(settings: Settings | None = None) -> FonteGerente | None:

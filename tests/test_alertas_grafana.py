@@ -142,3 +142,47 @@ def test_caixa_cheia_descarta_o_mais_novo():
     assert caixa.enfileirar("a")
     assert not caixa.enfileirar("b")
     assert caixa.retirar_todos() == ["a"]
+
+
+# --- Destinatário: quem é Rex, com reserva ------------------------------------------------------
+
+
+def test_destino_e_o_rex_e_a_reserva_so_entra_sem_ele():
+    from oraculo.domain.alertas_grafana import escolher_destinos
+
+    assert escolher_destinos([20, 10, 20], 99) == [10, 20]
+    assert escolher_destinos([], 99) == [99]
+    assert escolher_destinos(None, 99) == [99]
+    assert escolher_destinos(None, None) == []
+
+
+async def test_destinatarios_guarda_a_resposta_e_aguenta_a_plataforma_fora():
+    from oraculo.bot.cogs.alertas import VALIDADE_DESTINO_SEGUNDOS, Destinatarios
+    from oraculo.domain.errors import IntegracaoIndisponivelError
+
+    relogio = [0.0]
+    respostas: list = [[10], IntegracaoIndisponivelError("TYTO.club-API", "fora"), []]
+    chamadas = [0]
+
+    class Fonte:
+        async def destino_alertas(self) -> list[int]:
+            chamadas[0] += 1
+            r = respostas.pop(0)
+            if isinstance(r, Exception):
+                raise r
+            return r
+
+    d = Destinatarios(Fonte(), 99, agora=lambda: relogio[0])  # type: ignore[arg-type]
+    assert await d.resolver() == [10]
+    assert await d.resolver() == [10]
+    assert chamadas[0] == 1  # dentro da validade não pergunta de novo
+    relogio[0] += VALIDADE_DESTINO_SEGUNDOS + 1
+    assert await d.resolver() == [10]  # plataforma fora: último destino conhecido
+    assert await d.resolver() == [99]  # voltou sem Rex cadastrado: reserva
+
+
+async def test_sem_plataforma_usa_so_a_reserva():
+    from oraculo.bot.cogs.alertas import Destinatarios
+
+    assert await Destinatarios(None, 7).resolver() == [7]
+    assert await Destinatarios(None, None).resolver() == []

@@ -39,3 +39,13 @@ def formatar_alerta(payload: Any) -> str | None:
 
     texto = "\n".join(linhas)
     return texto[: LIMITE_TEXTO - 1] + "…" if len(texto) > LIMITE_TEXTO else texto
+
+
+def escolher_destinos(do_rex: list[int] | None, reserva: int | None) -> list[int]:
+    """Quem recebe o alerta: quem é Rex na plataforma; sem ninguém, o ID de reserva.
+
+    `do_rex` é `None` quando a plataforma não respondeu e nunca tinha respondido antes.
+    """
+    if do_rex:
+        return sorted(set(do_rex))
+    return [reserva] if reserva is not None else []
