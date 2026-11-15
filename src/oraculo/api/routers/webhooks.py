@@ -125,7 +125,7 @@ async def grafana(request: Request) -> dict:
     texto = formatar_alerta(payload)
     if texto is None:
         return {"status": "ignorado"}
-    if not cfg.run_bot or cfg.alertas_discord_id is None:
+    if not cfg.run_bot or (cfg.alertas_discord_id is None and not cfg.gerente_habilitado):
         log.warning("Alerta do Grafana recebido, mas sem bot ou destinatário para a DM: %s", texto)
         return {"status": "sem_destino"}
     CAIXA_ALERTAS.enfileirar(texto)

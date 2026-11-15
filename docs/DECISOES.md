@@ -155,10 +155,12 @@ Pedido complementar de 2026-11-14 (Grafana na Atena). O que vale:
   `motivo`, `projeto`, `destino` e `evento`; valor que pareça ID do Discord ou e-mail vira
   `descartado` (`observabilidade.py`, com teste). O rótulo mais específico é o id do projeto.
 - **Alertas** (custo do dia, custo do mês, job que não rodou, erro de webhook acima de 5% na hora)
-  vão só para Dayvid, por DM da Atena: o contact point do Grafana chama `POST /webhooks/grafana`
+  vão por DM da Atena a quem tem o cargo de Rex (decidido por Dayvid em 2026-11-15: o destino é o
+  cargo, não uma pessoa fixa; a TYTO.club-API informa o ID em `alertas/destino` e
+  `ORACULO_ALERTAS_DISCORD_ID` virou só a reserva): o contact point do Grafana chama `POST /webhooks/grafana`
   (Bearer `ORACULO_GRAFANA_WEBHOOK_TOKEN`; sem token, 404), a rota põe um texto curto (nome e
-  resumo da regra, sem URL nem valor bruto) numa caixa em memória e o cog `alertas` manda a DM para
-  `ORACULO_ALERTAS_DISCORD_ID` a cada 20 s. Discord, e não e-mail, porque é o canal que a Atena já
+  resumo da regra, sem URL nem valor bruto) numa caixa em memória e o cog `alertas` manda a DM a cada
+  20 s. Discord, e não e-mail, porque é o canal que a Atena já
   usa e o que o pedido indica. As métricas são em memória, então o alerta de job atrasado usa
   `max_over_time(...[2d])` para lembrar o último horário depois de um reinício; backup e rodada
   diária do gerente usam horários gravados no banco. Regras, painel e passo a passo em
